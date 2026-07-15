@@ -121,6 +121,11 @@ export default function ChordApp() {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
   React.useEffect(() => {
+    fetch('http://localhost:4000/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sig }),
+    }).catch(() => {});
     engineRef.current?.setSig(sig);
   }, [sig]);
   // Synchronisation temps réel du tempo vers le backend (même sans engine)
