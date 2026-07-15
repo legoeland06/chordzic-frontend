@@ -12,6 +12,10 @@ export default function ChordApp() {
   const [volume, setVolume] = useState(80);
   const [instrument, setInstrument] = useState(0);
   const [use432, setUse432] = useState(true);
+  const [drumsOn, setDrumsOn] = useState(true);
+  const [bassOn, setBassOn] = useState(true);
+  const [arpsOn, setArpsOn] = useState(true);
+  const [drumPattern, setDrumPattern] = useState('rock');
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
@@ -44,18 +48,32 @@ export default function ChordApp() {
 
   const play = useCallback(async () => {
     const engine = await getEngine();
-    if (!engine || chords.length === 0) return;
+    if (!engine) return;
+
+    // Parser l'input si les accords ne sont pas à jour
+    let chordsToPlay = chords;
+    if (chords.length === 0 && input.trim()) {
+      try {
+        const grille = parseGrille(input, tempo);
+        chordsToPlay = grille.chords;
+      } catch {}
+    }
+    if (chordsToPlay.length === 0) return;
 
     engine.setProgram(instrument);
     engine.set432Hz(use432);
     engine.setVolume(volume);
+    engine.setDrums(drumsOn);
+    engine.setBass(bassOn);
+    engine.setArpeggios(arpsOn);
+    engine.setPattern(drumPattern);
     engine.onHighlight((idx) => setHighlighted(idx));
 
     setPlaying(true);
     setStatus('▶ Lecture...');
     setStatusColor('text-green-400');
 
-    const grille = { titre: 'Session', tempo, chords };
+    const grille = { titre: 'Session', tempo, chords: chordsToPlay };
     engine.playGrille(grille).then(() => {
       setPlaying(false);
       setHighlighted(-1);
@@ -87,6 +105,29 @@ export default function ChordApp() {
   };
 
   // Initial parse
+  // Synchronisation temps réel des paramètres vers l'engine
+  React.useEffect(() => {
+    engineRef.current?.setDrums(drumsOn);
+  }, [drumsOn]);
+  React.useEffect(() => {
+    engineRef.current?.setBass(bassOn);
+  }, [bassOn]);
+  React.useEffect(() => {
+    engineRef.current?.setArpeggios(arpsOn);
+  }, [arpsOn]);
+  React.useEffect(() => {
+    engineRef.current?.setPattern(drumPattern);
+  }, [drumPattern]);
+  // Synchronisation temps réel du tempo vers le backend (même sans engine)
+  React.useEffect(() => {
+    fetch('http://localhost:4000/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tempo }),
+    }).catch(() => {});
+    engineRef.current?.setTempo(tempo);
+  }, [tempo]);
+
   React.useEffect(() => {
     parseInput();
   }, []);
@@ -189,6 +230,39 @@ export default function ChordApp() {
             >
               A=432Hz {use432 ? '●' : '○'}
             </button>
+
+            <div className="w-px h-6 bg-gray-700 mx-2" />
+
+            {/* Checkboxes */}
+            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+              <input type="checkbox" checked={drumsOn}
+                onChange={e => setDrumsOn(e.target.checked)}
+                className="accent-blue-500" />
+              🥁 Drums
+            </label>
+            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+              <input type="checkbox" checked={bassOn}
+                onChange={e => setBassOn(e.target.checked)}
+                className="accent-yellow-500" />
+              🎸 Basse
+            </label>
+            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+              <input type="checkbox" checked={arpsOn}
+                onChange={e => setArpsOn(e.target.checked)}
+                className="accent-green-500" />
+              🎹 Arpèges
+            </label>
+
+            <div className="w-px h-6 bg-gray-700 mx-2" />
+
+            <span className="text-xs text-gray-500">Pattern:</span>
+            <select value={drumPattern}
+              onChange={e => setDrumPattern(e.target.value)}
+              className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none">
+              <option value="rock">🎸 Rock</option>
+              <option value="reggae">🌴 Reggae</option>
+              <option value="jazz">🎷 Jazz</option>
+            </select>
           </div>
         </div>
 
