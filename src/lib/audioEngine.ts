@@ -10,7 +10,8 @@ export class AudioEngine {
   private drumsEnabled = true;
   private bassEnabled = true;
   private arpeggiosEnabled = true;
-  private drumPattern = 'rock';
+  private drumPattern = "rock";
+  private sig = "4/4";
 
   static readonly INSTRUMENTS = [
     'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano',
@@ -23,6 +24,7 @@ export class AudioEngine {
   setBass(v: boolean) { this.bassEnabled = v; this.sendConfig(); }
   setArpeggios(v: boolean) { this.arpeggiosEnabled = v; this.sendConfig(); }
   setPattern(p: string) { this.drumPattern = p; this.sendConfig(); }
+  setSig(s: string) { this.sig = s; this.sendConfig(); }
   setTempo(t: number) { this.sendConfig({tempo: t}); }
 
   private sendConfig(extra: any = {}) {
@@ -34,6 +36,7 @@ export class AudioEngine {
         bass: this.bassEnabled,
         arpeggios: this.arpeggiosEnabled,
         pattern: this.drumPattern,
+        sig: this.sig,
         ...extra,
       }),
     }).catch(() => {});
@@ -101,6 +104,7 @@ export class AudioEngine {
           bass: this.bassEnabled,
           arpeggios: this.arpeggiosEnabled,
           pattern: this.drumPattern,
+          sig: this.sig,
         }),
       });
 

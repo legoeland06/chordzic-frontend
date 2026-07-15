@@ -16,6 +16,7 @@ export default function ChordApp() {
   const [bassOn, setBassOn] = useState(true);
   const [arpsOn, setArpsOn] = useState(true);
   const [drumPattern, setDrumPattern] = useState('rock');
+  const [sig, setSig] = useState('4/4');
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
@@ -67,6 +68,7 @@ export default function ChordApp() {
     engine.setBass(bassOn);
     engine.setArpeggios(arpsOn);
     engine.setPattern(drumPattern);
+    engine.setSig(sig);
     engine.onHighlight((idx) => setHighlighted(idx));
 
     setPlaying(true);
@@ -118,6 +120,9 @@ export default function ChordApp() {
   React.useEffect(() => {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
+  React.useEffect(() => {
+    engineRef.current?.setSig(sig);
+  }, [sig]);
   // Synchronisation temps réel du tempo vers le backend (même sans engine)
   React.useEffect(() => {
     fetch('http://localhost:4000/config', {
@@ -260,8 +265,16 @@ export default function ChordApp() {
               onChange={e => setDrumPattern(e.target.value)}
               className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none">
               <option value="rock">🎸 Rock</option>
-              <option value="reggae">🌴 Reggae</option>
               <option value="jazz">🎷 Jazz</option>
+            </select>
+
+            <span className="text-xs text-gray-500 ml-2">Mesure:</span>
+            <select value={sig}
+              onChange={e => setSig(e.target.value)}
+              className="bg-gray-800 text-teal-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none">
+              <option value="4/4">4/4</option>
+              <option value="3/4">3/4</option>
+              <option value="6/8">6/8</option>
             </select>
           </div>
         </div>
