@@ -12,6 +12,7 @@ export class AudioEngine {
   private arpeggiosEnabled = true;
   private drumPattern = "rock";
   private sig = "4/4";
+  private instrument = 51;
 
   static readonly INSTRUMENTS = [
     'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano',
@@ -80,7 +81,7 @@ export class AudioEngine {
     }
   }
 
-  setProgram(_index: number) {}
+  setProgram(index: number) { this.instrument = index; this.sendConfig({instrument: index}); }
   set432Hz(_enabled: boolean) {}
   setVolume(_vol: number) {}
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
@@ -134,6 +135,7 @@ export class AudioEngine {
           arpeggios: this.arpeggiosEnabled,
           pattern: this.drumPattern,
           sig: this.sig,
+          inst_val: this.instrument,
         }),
       });
 
