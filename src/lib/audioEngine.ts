@@ -172,6 +172,8 @@ export class AudioEngine {
       const ok = await playOnce(sequence);
       if (!ok || !this.playing) break;
       if (!loop) break;
+      // Petit gap entre les boucles pour eviter le phasing
+      await new Promise(r => setTimeout(r, 150));
     } while (this.playing);
 
     if (this.onChordHighlight) this.onChordHighlight(-1);

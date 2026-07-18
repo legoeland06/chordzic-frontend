@@ -699,7 +699,10 @@ export default function ChordApp() {
               onChange={e => setDrumPattern(e.target.value)}
               className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0">
               <option value="rock">🎸 Rock</option>
+              <option value="pop">🎤 Pop</option>
               <option value="reggae">🌴 Reggae</option>
+              <option value="onedrop">⏬ OneDrop</option>
+              <option value="bossa">🌊 Bossa</option>
               <option value="jazz">🎷 Jazz</option>
             </select>
 
