@@ -138,9 +138,8 @@ export class AudioEngine {
       const seq: Array<{ notes: string[]; beats: number }> = [];
       for (const c of grille.chords) {
         const noteNames = this.chordToNoteNames(c);
-        if (noteNames.length > 0) {
-          seq.push({ notes: noteNames, beats: 4.0 / c.time });
-        }
+        // Toujours ajouter : notes vides = silence
+        seq.push({ notes: noteNames, beats: 4.0 / c.time });
       }
       return seq;
     };
