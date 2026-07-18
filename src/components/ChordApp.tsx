@@ -15,6 +15,7 @@ export default function ChordApp() {
   const [drumsOn, setDrumsOn] = useState(true);
   const [bassOn, setBassOn] = useState(true);
   const [arpsOn, setArpsOn] = useState(true);
+  const [loopOn, setLoopOn] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
   const [status, setStatus] = useState('Prêt');
@@ -239,6 +240,20 @@ export default function ChordApp() {
               }`}
             >
               A=432Hz {use432 ? '●' : '○'}
+            </button>
+
+            <div className="w-px h-6 bg-gray-700 mx-2" />
+
+            <button
+              onClick={() => setLoopOn(!loopOn)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                loopOn
+                  ? 'bg-purple-900/40 border-purple-500 text-purple-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-500'
+              }`}
+              disabled={playing}
+            >
+              🔄 Loop
             </button>
 
             <div className="w-px h-6 bg-gray-700 mx-2" />

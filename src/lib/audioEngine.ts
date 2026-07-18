@@ -89,75 +89,88 @@ export class AudioEngine {
   private chordToNoteNames(c: ChordData): string[] {
     const rawValues = c.midiValues;
     if (rawValues.length === 0) return [];
-    const rootOffset = NOTE_TO_MIDI[c.name] || 0;
     const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const names: string[] = [];
 
     // Note de basse: utilise c.bass si different de la fondamentale
     const bassName = c.bass || c.name;
     const bassOffset = NOTE_TO_MIDI[bassName] || 0;
-    // Basse 2 octaves plus bas que la fondamentale
     const bassOctave = 2;
     names.push(`${noteLabels[bassOffset % 12]}${bassOctave}`);
 
-    // Notes de l'accord (chanter a partir de l'octave 4)
-    const baseOctave = 4;
+    // Notes de l'accord à partir de l'octave 3
+    // rawValues contient déjà rootVal + interval (sans modulo)
+    const baseOctave = 3;
     for (let i = 0; i < rawValues.length; i++) {
-      const v = rawValues[i];
-      const midiNumber = baseOctave * 12 + rootOffset + v;
-      const octave = Math.floor(midiNumber / 12) - 1;
-      names.push(`${noteLabels[midiNumber % 12]}${octave}`);
+      const v = rawValues[i];  // déjà rootVal + interval
+      const midiNumber = baseOctave * 12 + v;
+      const oct = Math.floor(midiNumber / 12);
+      names.push(`${noteLabels[midiNumber % 12]}${oct}`);
     }
     return names;
   }
 
-  async playGrille(grille: GrilleData) {
+  async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
     this.playing = true;
 
-    const sequence: Array<{ notes: string[]; beats: number }> = [];
-    for (let idx = 0; idx < grille.chords.length; idx++) {
-      const c = grille.chords[idx];
-      const noteNames = this.chordToNoteNames(c);
-      if (noteNames.length > 0) {
-        sequence.push({ notes: noteNames, beats: 4.0 / c.time });
+    const buildSeq = () => {
+      const seq: Array<{ notes: string[]; beats: number }> = [];
+      for (const c of grille.chords) {
+        const noteNames = this.chordToNoteNames(c);
+        if (noteNames.length > 0) {
+          seq.push({ notes: noteNames, beats: 4.0 / c.time });
+        }
       }
-    }
+      return seq;
+    };
 
-    try {
-      const resp = await fetch(`${BACKEND_URL}/play`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sequence,
-          tempo: grille.tempo,
-          drums: this.drumsEnabled,
-          bass: this.bassEnabled,
-          arpeggios: this.arpeggiosEnabled,
-          pattern: this.drumPattern,
-          sig: this.sig,
-          inst_val: this.instrument,
-        }),
-      });
+    const playOnce = async (sequence: Array<{ notes: string[]; beats: number }>) => {
+      try {
+        const resp = await fetch(`${BACKEND_URL}/play`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sequence,
+            tempo: grille.tempo,
+            drums: this.drumsEnabled,
+            bass: this.bassEnabled,
+            arpeggios: this.arpeggiosEnabled,
+            pattern: this.drumPattern,
+            sig: this.sig,
+            inst_val: this.instrument,
+          }),
+        });
 
-      if (!resp.ok) {
-        console.error('⚠️ Erreur backend');
-        this.playing = false;
-        return;
+        if (!resp.ok) {
+          console.error('⚠️ Erreur backend');
+          return false;
+        }
+
+        const beatDuration = 60000 / grille.tempo;
+        for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
+          if (this.onChordHighlight) this.onChordHighlight(idx);
+          const c = grille.chords[idx];
+          const beats = 4.0 / c.time;
+          const chordMs = Math.round(beatDuration * beats);
+          await new Promise(r => setTimeout(r, chordMs));
+        }
+        return true;
+      } catch (e) {
+        console.error('Erreur:', e);
+        return false;
       }
+    };
 
-      const beatDuration = 60000 / grille.tempo;
-      for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
-        if (this.onChordHighlight) this.onChordHighlight(idx);
-        const c = grille.chords[idx];
-        const beats = 4.0 / c.time;
-        const chordMs = Math.round(beatDuration * beats);
-        await new Promise(r => setTimeout(r, chordMs));
-      }
+    const sequence = buildSeq();
+    if (sequence.length === 0) { this.playing = false; return; }
 
-      if (this.onChordHighlight) this.onChordHighlight(-1);
-    } catch (e) {
-      console.error('Erreur:', e);
-    }
+    do {
+      const ok = await playOnce(sequence);
+      if (!ok || !this.playing) break;
+      if (!loop) break;
+    } while (this.playing);
+
+    if (this.onChordHighlight) this.onChordHighlight(-1);
     this.playing = false;
   }
 
