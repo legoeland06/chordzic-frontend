@@ -819,7 +819,7 @@ export default function ChordApp() {
                       className="text-lg font-bold font-mono"
                       style={{ color: getChordColor(idx) }}
                     >
-                      {c.chiffrage}
+                      {c.chiffrage === '_' ? '—' : c.chiffrage}
                     </span>
                     <span className="text-xs text-gray-500 ml-2">{c.time}t</span>
                   </button>

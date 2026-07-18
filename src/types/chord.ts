@@ -163,10 +163,15 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
 };
 
 export function parseChord(input: string): ChordData {
-  // Formats: "4:Cmaj7" "2:Fm7" "1:Cmaj7/G" "4:G7"
+  // Formats: "4:Cmaj7" "2:Fm7" "1:Cmaj7/G" "4:G7" "4:_" (silence)
   const parts = input.split(':');
   const time = parseInt(parts[0]) || 4;
   const rest = parts[1] || parts[0];
+
+  // Silence
+  if (rest.trim() === '_') {
+    return { time, name: '_', quality: '', bass: '', chiffrage: '_', notes: [], midiValues: [] };
+  }
 
   // Extraire la basse après /
   let chordStr = rest;
