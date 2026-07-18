@@ -10,6 +10,7 @@ export class AudioEngine {
   private drumsEnabled = true;
   private bassEnabled = true;
   private arpeggiosEnabled = true;
+  private nappesEnabled = false;
   private drumPattern = "rock";
   private sig = "4/4";
   private instrument = 51;
@@ -53,6 +54,7 @@ export class AudioEngine {
   setDrums(v: boolean) { this.drumsEnabled = v; this.sendConfig(); }
   setBass(v: boolean) { this.bassEnabled = v; this.sendConfig(); }
   setArpeggios(v: boolean) { this.arpeggiosEnabled = v; this.sendConfig(); }
+  setNappes(v: boolean) { this.nappesEnabled = v; this.sendConfig(); }
   setPattern(p: string) { this.drumPattern = p; this.sendConfig(); }
   setSig(s: string) { this.sig = s; this.sendConfig(); }
   setTempo(t: number) { this.sendConfig({tempo: t}); }
@@ -65,6 +67,7 @@ export class AudioEngine {
         drums: this.drumsEnabled,
         bass: this.bassEnabled,
         arpeggios: this.arpeggiosEnabled,
+        nappes: this.nappesEnabled,
         pattern: this.drumPattern,
         sig: this.sig,
         ...extra,
@@ -135,6 +138,7 @@ export class AudioEngine {
             drums: this.drumsEnabled,
             bass: this.bassEnabled,
             arpeggios: this.arpeggiosEnabled,
+            nappes: this.nappesEnabled,
             pattern: this.drumPattern,
             sig: this.sig,
             inst_val: this.instrument,

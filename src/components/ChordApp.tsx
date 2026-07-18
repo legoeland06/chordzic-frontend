@@ -111,6 +111,7 @@ export default function ChordApp() {
   const [drumsOn, setDrumsOn] = useState(true);
   const [bassOn, setBassOn] = useState(true);
   const [arpsOn, setArpsOn] = useState(true);
+  const [nappesOn, setNappesOn] = useState(false);
   const [loopOn, setLoopOn] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
@@ -387,6 +388,7 @@ export default function ChordApp() {
       drums: drumsOn,
       bass: bassOn,
       arpeggios: arpsOn,
+      nappes: nappesOn,
       pattern: drumPattern,
       instrument,
       use432Hz: use432,
@@ -417,6 +419,7 @@ export default function ChordApp() {
           if (data.drums !== undefined) setDrumsOn(data.drums);
           if (data.bass !== undefined) setBassOn(data.bass);
           if (data.arpeggios !== undefined) setArpsOn(data.arpeggios);
+          if (data.nappes !== undefined) setNappesOn(data.nappes);
           if (data.pattern) setDrumPattern(data.pattern);
           if (data.instrument !== undefined) setInstrument(data.instrument);
           if (data.use432Hz !== undefined) setUse432(data.use432Hz);
