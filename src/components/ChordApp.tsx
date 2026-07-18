@@ -82,6 +82,15 @@ function getSuggestions(token: string, lastChordChiffrage: string): string[] {
   return [];
 }
 
+/** Calcule les noms de notes avec octave depuis les midiValues d'un accord */
+function notesWithOctave(c: ChordData): string[] {
+  const rv = NOTE_TO_MIDI[c.name] ?? 0;
+  return c.midiValues.map(v => {
+    const mn = 36 + v; // base C3 = 36
+    return NOTE_NAMES[mn % 12] + Math.floor(mn / 12);
+  });
+}
+
 function replaceToken(
   text: string, start: number, end: number, replacement: string
 ): string {
@@ -910,7 +919,7 @@ export default function ChordApp() {
                   Clavier
                 </label>
                 <div className="bg-gray-800/40 rounded-lg px-2 pt-2 pb-6">
-                  <PianoKeyboard highlightedNotes={selectedChord.notes} />
+                  <PianoKeyboard activeNotes={notesWithOctave(selectedChord)} />
                 </div>
               </div>
 
