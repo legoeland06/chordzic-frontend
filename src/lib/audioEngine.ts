@@ -137,7 +137,7 @@ export class AudioEngine {
             tempo: grille.tempo,
             drums: this.drumsEnabled,
             bass: this.bassEnabled,
-            arpeggios: this.arpeggiosEnabled,
+            arps: this.arpeggiosEnabled,
             nappes: this.nappesEnabled,
             pattern: this.drumPattern,
             sig: this.sig,
