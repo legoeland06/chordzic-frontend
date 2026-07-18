@@ -256,6 +256,7 @@ export default function ChordApp() {
     engine.setDrums(drumsOn);
     engine.setBass(bassOn);
     engine.setArpeggios(arpsOn);
+    engine.setNappes(nappesOn);
     engine.setPattern(drumPattern);
     engine.setSig(sig);
     engine.onHighlight((idx) => setHighlighted(idx));
@@ -275,7 +276,7 @@ export default function ChordApp() {
       setStatus(`❌ Erreur: ${e.message}`);
       setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, instrument, use432, drumsOn, bassOn, arpsOn, drumPattern, sig, getEngine, loopOn, input]);
+  }, [chords, tempo, volume, instrument, use432, drumsOn, bassOn, arpsOn, nappesOn, drumPattern, sig, getEngine, loopOn, input]);
 
   const stop = () => {
     if (engineRef.current) {
@@ -459,6 +460,9 @@ export default function ChordApp() {
   useEffect(() => {
     engineRef.current?.setArpeggios(arpsOn);
   }, [arpsOn]);
+  useEffect(() => {
+    engineRef.current?.setNappes(nappesOn);
+  }, [nappesOn]);
   useEffect(() => {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
@@ -689,6 +693,12 @@ export default function ChordApp() {
                 onChange={e => setArpsOn(e.target.checked)}
                 className="accent-green-500" />
               🎹 Arpèges
+            </label>
+            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+              <input type="checkbox" checked={nappesOn}
+                onChange={e => setNappesOn(e.target.checked)}
+                className="accent-purple-500" />
+              🎻 Nappes
             </label>
 
             <div className="w-px h-6 bg-gray-700 mx-2" />
