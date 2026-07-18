@@ -16,6 +16,7 @@ export class AudioEngine {
   private playing = false;
   private onChordHighlight?: (idx: number) => void;
   private drumPattern = "rock";
+  private walking = false;
   private tempo = 120;
   private sig = "4/4";
 
@@ -75,6 +76,7 @@ export class AudioEngine {
   setPattern(p: string) { this.drumPattern = p; this.sendConfig(); }
   setSig(s: string) { this.sig = s; this.sendConfig(); }
   setTempo(t: number) { this.tempo = t; this.sendConfig({tempo: t}); }
+  setWalking(v: boolean) { this.walking = v; this.sendConfig(); }
 
   private sendConfig(extra: any = {}) {
     fetch(`${BACKEND_URL}/config`, {
@@ -88,6 +90,7 @@ export class AudioEngine {
           mute: t.mute,
         })),
         pattern: this.drumPattern,
+        walking: this.walking,
         sig: this.sig,
         ...extra,
       }),
@@ -154,6 +157,7 @@ export class AudioEngine {
           tempo: this.tempo,
           sig: this.sig,
           pattern: this.drumPattern,
+          walking: this.walking,
           loop_enabled: loop || false,
           tracks: this.tracks.map(t => ({
             channel: t.channel,

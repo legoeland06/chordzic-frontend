@@ -120,6 +120,7 @@ export default function ChordApp() {
     engineRef.current?.setTrack(channel, cfg);
   };
   const [loopOn, setLoopOn] = useState(false);
+  const [walkingBass, setWalkingBass] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
   const [status, setStatus] = useState('Prêt');
@@ -265,6 +266,7 @@ export default function ChordApp() {
     if (chordsToPlay.length === 0) return;
 
     engine.setTrack(0, { program: tracks[0].program, mute: tracks[0].mute });
+    engine.setWalking(walkingBass);
     engine.set432Hz(use432);
     engine.setVolume(volume);
     engine.setDrums(!tracks[3].mute);
@@ -485,6 +487,9 @@ export default function ChordApp() {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
   useEffect(() => {
+    engineRef.current?.setWalking(walkingBass);
+  }, [walkingBass]);
+  useEffect(() => {
     fetch('http://localhost:4000/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -676,6 +681,17 @@ export default function ChordApp() {
               disabled={playing}
             >
               🔄 Loop
+            </button>
+
+            <button
+              onClick={() => setWalkingBass(!walkingBass)}
+              className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
+                walkingBass
+                  ? 'bg-pink-900/40 border-pink-500 text-pink-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-500'
+              }`}
+            >
+              🎵 WB
             </button>
 
             <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
