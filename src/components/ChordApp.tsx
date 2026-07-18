@@ -1,5 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge } from 'lucide-react';
+import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge, Save, FolderOpen, GripVertical } from 'lucide-react';
+
+// ─── Constantes ─────────────────────────────────────────────────────────
+const STORAGE_KEY = 'chordjava_saved_grilles';
 import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, QUALITY_INTERVALS } from '../types/chord';
 import { AudioEngine } from '../lib/audioEngine';
 
@@ -111,6 +114,19 @@ export default function ChordApp() {
   const [suggestIdx, setSuggestIdx] = useState(0);
   const [suggestToken, setSuggestToken] = useState<{start:number;end:number} | null>(null);
   const [lastChiffrage, setLastChiffrage] = useState('');
+
+  // Drag & drop
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  // Sauvegarder / Charger
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [savedGrilles, setSavedGrilles] = useState<Array<{name:string; input:string; tempo:number; sig:string; date:string}>>(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch { return []; }
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const engineRef = useRef<AudioEngine | null>(null);
 
@@ -265,6 +281,157 @@ export default function ChordApp() {
     setStatusColor('text-gray-400');
   };
 
+  // ─── Drag & Drop ───
+
+  /** Reconstruit le texte de l'éditeur à partir du tableau chords */
+  const rebuildInputFromChords = (newChords: ChordData[]) => {
+    const newInput = newChords.map(c => `${c.time}:${c.chiffrage}`).join(' ');
+    setInput(newInput);
+    setChords(newChords);
+    if (newChords.length > 0) {
+      setLastChiffrage(newChords[newChords.length - 1].chiffrage);
+    }
+    setStatus('🔀 Grille réordonnée');
+    setStatusColor('text-blue-400');
+  };
+
+  const handleDragStart = (idx: number) => {
+    setDragIdx(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (targetIdx: number) => {
+    if (dragIdx === null || dragIdx === targetIdx) {
+      setDragIdx(null);
+      return;
+    }
+    const newChords = [...chords];
+    const [moved] = newChords.splice(dragIdx, 1);
+    newChords.splice(targetIdx, 0, moved);
+    setDragIdx(null);
+    rebuildInputFromChords(newChords);
+  };
+
+  // ─── Sauvegarder / Charger ───
+
+  const persistGrilles = (grilles: Array<{name:string; input:string; tempo:number; sig:string; date:string}>) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(grilles));
+    setSavedGrilles(grilles);
+  };
+
+  const handleSave = () => {
+    if (!saveName.trim() || !input.trim()) return;
+    const entry = {
+      name: saveName.trim(),
+      input,
+      tempo,
+      sig,
+      date: new Date().toLocaleString('fr-FR'),
+    };
+    // Écraser si même nom
+    const filtered = savedGrilles.filter(g => g.name !== entry.name);
+    persistGrilles([...filtered, entry]);
+    setShowSaveModal(false);
+    setSaveName('');
+    setStatus(`💾 Grille « ${entry.name} » sauvegardée`);
+    setStatusColor('text-green-400');
+  };
+
+  const handleLoad = (entry: {name:string; input:string; tempo:number; sig:string}) => {
+    setInput(entry.input);
+    setTempo(entry.tempo);
+    setSig(entry.sig);
+    setShowLoadModal(false);
+    setStatus(`📂 Grille « ${entry.name} » chargée`);
+    setStatusColor('text-blue-400');
+    // Re-parse après chargement
+    setTimeout(() => {
+      try {
+        const grille = parseGrille(entry.input, entry.tempo);
+        setChords(grille.chords);
+        if (grille.chords.length > 0) {
+          setLastChiffrage(grille.chords[grille.chords.length - 1].chiffrage);
+        }
+      } catch {}
+    }, 50);
+  };
+
+  const handleDeleteSave = (name: string) => {
+    persistGrilles(savedGrilles.filter(g => g.name !== name));
+  };
+
+  const handleExport = () => {
+    const data = {
+      type: 'chordJAVA-grille',
+      version: 2,
+      input,
+      tempo,
+      sig,
+      drums: drumsOn,
+      bass: bassOn,
+      arpeggios: arpsOn,
+      pattern: drumPattern,
+      instrument,
+      use432Hz: use432,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chordjava-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('📤 Grille exportée en JSON');
+    setStatusColor('text-green-400');
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (data.type === 'chordJAVA-grille' && data.input) {
+          setInput(data.input);
+          setTempo(data.tempo || 120);
+          if (data.sig) setSig(data.sig);
+          if (data.drums !== undefined) setDrumsOn(data.drums);
+          if (data.bass !== undefined) setBassOn(data.bass);
+          if (data.arpeggios !== undefined) setArpsOn(data.arpeggios);
+          if (data.pattern) setDrumPattern(data.pattern);
+          if (data.instrument !== undefined) setInstrument(data.instrument);
+          if (data.use432Hz !== undefined) setUse432(data.use432Hz);
+          setStatus(`📥 Grille importée depuis ${file.name}`);
+          setStatusColor('text-green-400');
+          setTimeout(() => {
+            try {
+              const grille = parseGrille(data.input, data.tempo || 120);
+              setChords(grille.chords);
+              if (grille.chords.length > 0) {
+                setLastChiffrage(grille.chords[grille.chords.length - 1].chiffrage);
+              }
+            } catch {}
+          }, 50);
+        } else {
+          setStatus('❌ Format de fichier invalide');
+          setStatusColor('text-red-400');
+        }
+      } catch {
+        setStatus('❌ Fichier JSON invalide');
+        setStatusColor('text-red-400');
+      }
+    };
+    reader.readAsText(file);
+    // Reset pour permettre le même fichier
+    e.target.value = '';
+  };
+
   // ─── Effets ───
 
   useEffect(() => {
@@ -380,6 +547,27 @@ export default function ChordApp() {
 
             <div className="w-px h-6 bg-gray-700 mx-1" />
 
+            <button onClick={() => { setSaveName(''); setShowSaveModal(true); }}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1">
+              <Save className="w-3 h-3" /> Save
+            </button>
+            <button onClick={() => setShowLoadModal(true)}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1">
+              <FolderOpen className="w-3 h-3" /> Load
+            </button>
+            <button onClick={handleExport}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors">
+              📤
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors">
+              📥
+            </button>
+            <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport}
+              className="hidden" />
+
+            <div className="w-px h-6 bg-gray-700 mx-1" />
+
             <span className="text-xs text-gray-500">Inst:</span>
             <select
               value={instrument}
@@ -490,18 +678,35 @@ export default function ChordApp() {
             <div className="px-4 py-3 border-b border-gray-800">
               <h2 className="text-sm font-bold text-blue-400">
                 📊 Session &nbsp;|&nbsp; {tempo} bpm &nbsp;·&nbsp; {chords.length} accords
+                <span className="text-[10px] text-gray-500 ml-3 font-normal">
+                  ↕ glisser pour réordonner
+                </span>
               </h2>
             </div>
 
-            {/* Chord cards */}
+            {/* Chord cards — drag & drop */}
             {chords.map((c, idx) => (
               <div
                 key={idx}
-                className={`px-4 py-3 border-b border-gray-800 last:border-0 transition-all duration-200 ${
-                  highlighted === idx ? 'bg-gray-700/60 ring-1 ring-blue-500/30' : 'hover:bg-gray-800/50'
-                }`}
+                draggable={!playing}
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(idx)}
+                onDragEnd={() => setDragIdx(null)}
+                className={`px-3 py-3 border-b border-gray-800 last:border-0 transition-all duration-200 ${
+                  highlighted === idx
+                    ? 'bg-gray-700/60 ring-1 ring-blue-500/30'
+                    : dragIdx === idx
+                      ? 'opacity-40 bg-gray-800'
+                      : 'hover:bg-gray-800/50'
+                } ${!playing ? 'cursor-grab active:cursor-grabbing' : ''}`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {/* Drag handle */}
+                  <span className="text-gray-600 shrink-0 select-none">
+                    <GripVertical className="w-3.5 h-3.5" />
+                  </span>
+
                   {/* Chord name */}
                   <div className="w-28 shrink-0">
                     <span
@@ -529,6 +734,22 @@ export default function ChordApp() {
                       </span>
                     ))}
                   </div>
+
+                  {/* Delete single chord */}
+                  <button
+                    onClick={() => {
+                      const newChords = chords.filter((_, i) => i !== idx);
+                      if (newChords.length === 0) {
+                        clear();
+                      } else {
+                        rebuildInputFromChords(newChords);
+                      }
+                    }}
+                    className="ml-auto text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                    title="Supprimer cet accord"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             ))}
@@ -540,6 +761,76 @@ export default function ChordApp() {
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
             <Sparkles className="w-12 h-12 text-gray-700 mx-auto mb-4" />
             <p className="text-gray-500 text-sm">Entre des accords pour commencer</p>
+          </div>
+        )}
+
+        {/* ─── Modal Sauvegarder ─── */}
+        {showSaveModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+               onClick={() => setShowSaveModal(false)}>
+            <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-80 shadow-2xl"
+                 onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold text-white mb-3">💾 Sauvegarder la grille</h3>
+              <input
+                autoFocus
+                value={saveName}
+                onChange={e => setSaveName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveModal(false); }}
+                className="w-full bg-gray-800 text-white text-sm font-mono px-3 py-2 rounded-lg border border-gray-700 focus:border-blue-500 outline-none mb-4"
+                placeholder="Nom de la grille"
+              />
+              <div className="flex gap-2">
+                <button onClick={handleSave}
+                  disabled={!saveName.trim()}
+                  className="flex-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-xs font-bold rounded-lg transition-colors">
+                  Sauvegarder
+                </button>
+                <button onClick={() => setShowSaveModal(false)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modal Charger ─── */}
+        {showLoadModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+               onClick={() => setShowLoadModal(false)}>
+            <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-96 shadow-2xl max-h-[70vh] flex flex-col"
+                 onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-bold text-white mb-3">📂 Grilles sauvegardées</h3>
+
+              {savedGrilles.length === 0 ? (
+                <p className="text-gray-500 text-xs py-6 text-center">Aucune grille sauvegardée</p>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-1">
+                  {[...savedGrilles].reverse().map((g) => (
+                    <div key={g.name}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer group"
+                      onClick={() => handleLoad(g)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-bold text-cyan-400 truncate">{g.name}</div>
+                        <div className="text-[10px] text-gray-500 truncate">{g.input} · {g.tempo}bpm</div>
+                      </div>
+                      <div className="text-[10px] text-gray-600 hidden group-hover:block">{g.date}</div>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDeleteSave(g.name); }}
+                        className="text-gray-600 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-all"
+                        title="Supprimer"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button onClick={() => setShowLoadModal(false)}
+                className="mt-3 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors">
+                Fermer
+              </button>
+            </div>
           </div>
         )}
 
