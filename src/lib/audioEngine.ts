@@ -1,23 +1,32 @@
-import { ChordData, GrilleData, NOTE_TO_MIDI } from '../types/chord';
+import { ChordData, GrilleData } from '../types/chord';
 
 export type AudioState = 'idle' | 'playing' | 'stopped';
+
+export interface TrackConfig {
+  channel: number;
+  label: string;
+  program: number;
+  volume: number;
+  mute: boolean;
+}
 
 const BACKEND_URL = 'http://localhost:4000';
 
 export class AudioEngine {
   private playing = false;
   private onChordHighlight?: (idx: number) => void;
-  private drumsEnabled = true;
-  private bassEnabled = true;
-  private arpeggiosEnabled = true;
-  private nappesEnabled = false;
   private drumPattern = "rock";
+  private tempo = 120;
   private sig = "4/4";
-  private instrument = 51;
+
+  tracks: TrackConfig[] = [
+    { channel: 0, label: 'Lead',  program: 51, volume: 15, mute: false },
+    { channel: 2, label: 'Bass',  program: 33, volume: 40, mute: false },
+    { channel: 3, label: 'Nappes', program: 48, volume: 30, mute: false },
+    { channel: 9, label: 'Drums', program: 1,  volume: 80, mute: false },
+  ];
 
   static readonly INSTRUMENTS = [
-    'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano',
-
     'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano', 'Honky-tonk Piano',
     'Electric Piano 1', 'Electric Piano 2', 'Harpsichord', 'Clavinet',
     'Celesta', 'Glockenspiel', 'Music Box', 'Vibraphone',
@@ -51,23 +60,33 @@ export class AudioEngine {
     'Guitar Fret Noise', 'Breath Noise', 'Seashore', 'Bird Tweet',
     'Telephone Ring', 'Helicopter', 'Applause', 'Gunshot',
   ];
-  setDrums(v: boolean) { this.drumsEnabled = v; this.sendConfig(); }
-  setBass(v: boolean) { this.bassEnabled = v; this.sendConfig(); }
-  setArpeggios(v: boolean) { this.arpeggiosEnabled = v; this.sendConfig(); }
-  setNappes(v: boolean) { this.nappesEnabled = v; this.sendConfig(); }
+
+  setTrack(channel: number, config: Partial<TrackConfig>) {
+    const t = this.tracks.find(tc => tc.channel === channel);
+    if (!t) return;
+    Object.assign(t, config);
+    this.sendConfig();
+  }
+
+  setDrums(v: boolean) { this.setTrack(9, { mute: !v }); }
+  setBass(v: boolean) { this.setTrack(2, { mute: !v }); }
+  setArpeggios(v: boolean) { this.setTrack(0, { mute: !v }); }
+  setNappes(v: boolean) { this.setTrack(3, { mute: !v }); }
   setPattern(p: string) { this.drumPattern = p; this.sendConfig(); }
   setSig(s: string) { this.sig = s; this.sendConfig(); }
-  setTempo(t: number) { this.sendConfig({tempo: t}); }
+  setTempo(t: number) { this.tempo = t; this.sendConfig({tempo: t}); }
 
   private sendConfig(extra: any = {}) {
     fetch(`${BACKEND_URL}/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        drums: this.drumsEnabled,
-        bass: this.bassEnabled,
-        arpeggios: this.arpeggiosEnabled,
-        nappes: this.nappesEnabled,
+        tracks: this.tracks.map(t => ({
+          channel: t.channel,
+          program: t.program,
+          volume: t.volume,
+          mute: t.mute,
+        })),
         pattern: this.drumPattern,
         sig: this.sig,
         ...extra,
@@ -84,7 +103,7 @@ export class AudioEngine {
     }
   }
 
-  setProgram(index: number) { this.instrument = index; this.sendConfig({instrument: index}); }
+  setProgram(index: number) { this.setTrack(0, { program: index }); }
   set432Hz(_enabled: boolean) {}
   setVolume(_vol: number) {}
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
@@ -95,17 +114,13 @@ export class AudioEngine {
     const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
     const names: string[] = [];
 
-    // Note de basse: utilise c.bass si different de la fondamentale
     const bassName = c.bass || c.name;
-    const bassOffset = NOTE_TO_MIDI[bassName] || 0;
-    const bassOctave = 2;
-    names.push(`${noteLabels[bassOffset % 12]}${bassOctave}`);
+    const bassOffset = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11}[bassName] ?? 0;
+    names.push(`${noteLabels[bassOffset % 12]}2`);
 
-    // Notes de l'accord à partir de l'octave 3
-    // rawValues contient déjà rootVal + interval (sans modulo)
     const baseOctave = 3;
     for (let i = 0; i < rawValues.length; i++) {
-      const v = rawValues[i];  // déjà rootVal + interval
+      const v = rawValues[i];
       const midiNumber = baseOctave * 12 + v;
       const oct = Math.floor(midiNumber / 12);
       names.push(`${noteLabels[midiNumber % 12]}${oct}`);
@@ -130,22 +145,22 @@ export class AudioEngine {
     const sequence = buildSeq();
     if (sequence.length === 0) { this.playing = false; return; }
 
-    // Une seule requete /play ; le backend gere la repetition si loop est actif
     try {
       const resp = await fetch(`${BACKEND_URL}/play`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sequence,
-          tempo: grille.tempo,
-          drums: this.drumsEnabled,
-          bass: this.bassEnabled,
-          arps: this.arpeggiosEnabled,
-          nappes: this.nappesEnabled,
-          pattern: this.drumPattern,
+          tempo: this.tempo,
           sig: this.sig,
-          inst_val: this.instrument,
+          pattern: this.drumPattern,
           loop_enabled: loop || false,
+          tracks: this.tracks.map(t => ({
+            channel: t.channel,
+            program: t.program,
+            volume: t.volume,
+            mute: t.mute,
+          })),
         }),
       });
 
@@ -162,8 +177,8 @@ export class AudioEngine {
       return;
     }
 
-    // Boucle de highlight locale (independante du backend)
-    const beatDuration = 60000 / grille.tempo;
+    // Boucle de highlight locale
+    const beatDuration = 60000 / this.tempo;
     while (this.playing) {
       for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
         if (this.onChordHighlight) this.onChordHighlight(idx);

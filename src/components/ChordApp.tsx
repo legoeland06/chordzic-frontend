@@ -4,7 +4,7 @@ import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge, Save, FolderOpen
 // ─── Constantes ─────────────────────────────────────────────────────────
 const STORAGE_KEY = 'chordjava_saved_grilles';
 import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, NOTE_TO_MIDI, QUALITY_INTERVALS } from '../types/chord';
-import { AudioEngine } from '../lib/audioEngine';
+import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import PianoKeyboard from './PianoKeyboard';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
@@ -106,12 +106,19 @@ export default function ChordApp() {
   const [playing, setPlaying] = useState(false);
   const [tempo, setTempo] = useState(120);
   const [volume, setVolume] = useState(80);
-  const [instrument, setInstrument] = useState(0);
   const [use432, setUse432] = useState(true);
-  const [drumsOn, setDrumsOn] = useState(true);
-  const [bassOn, setBassOn] = useState(true);
-  const [arpsOn, setArpsOn] = useState(true);
-  const [nappesOn, setNappesOn] = useState(false);
+  const [tracks, setLocalTracks] = useState<TrackConfig[]>([
+    { channel: 0, label: 'Lead',    program: 51, volume: 15, mute: false },
+    { channel: 2, label: 'Bass',    program: 33, volume: 40, mute: false },
+    { channel: 3, label: 'Nappes',  program: 48, volume: 30, mute: false },
+    { channel: 9, label: 'Drums',   program: 1,  volume: 80, mute: false },
+  ]);
+
+  // Fonction pour mettre a jour une track
+  const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
+    setLocalTracks(prev => prev.map(t => t.channel === channel ? { ...t, ...cfg } : t));
+    engineRef.current?.setTrack(channel, cfg);
+  };
   const [loopOn, setLoopOn] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
@@ -250,13 +257,13 @@ export default function ChordApp() {
     }
     if (chordsToPlay.length === 0) return;
 
-    engine.setProgram(instrument);
+    engine.setTrack(0, { program: tracks[0].program, mute: tracks[0].mute });
     engine.set432Hz(use432);
     engine.setVolume(volume);
-    engine.setDrums(drumsOn);
-    engine.setBass(bassOn);
-    engine.setArpeggios(arpsOn);
-    engine.setNappes(nappesOn);
+    engine.setDrums(!tracks[3].mute);
+    engine.setBass(!tracks[1].mute);
+    engine.setArpeggios(!tracks[0].mute);
+    engine.setNappes(!tracks[2].mute);
     engine.setPattern(drumPattern);
     engine.setSig(sig);
     engine.onHighlight((idx) => setHighlighted(idx));
@@ -276,7 +283,7 @@ export default function ChordApp() {
       setStatus(`❌ Erreur: ${e.message}`);
       setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, instrument, use432, drumsOn, bassOn, arpsOn, nappesOn, drumPattern, sig, getEngine, loopOn, input]);
+  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input]);
 
   const stop = () => {
     if (engineRef.current) {
@@ -386,12 +393,8 @@ export default function ChordApp() {
       input,
       tempo,
       sig,
-      drums: drumsOn,
-      bass: bassOn,
-      arpeggios: arpsOn,
-      nappes: nappesOn,
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
       pattern: drumPattern,
-      instrument,
       use432Hz: use432,
       exportedAt: new Date().toISOString(),
     };
@@ -417,12 +420,16 @@ export default function ChordApp() {
           setInput(data.input);
           setTempo(data.tempo || 120);
           if (data.sig) setSig(data.sig);
-          if (data.drums !== undefined) setDrumsOn(data.drums);
-          if (data.bass !== undefined) setBassOn(data.bass);
-          if (data.arpeggios !== undefined) setArpsOn(data.arpeggios);
-          if (data.nappes !== undefined) setNappesOn(data.nappes);
+          if (data.tracks) {
+            data.tracks.forEach((tc: any) => updateTrack(tc.channel, tc));
+          } else {
+            if (data.drums !== undefined) updateTrack(9, { mute: !data.drums });
+            if (data.bass !== undefined) updateTrack(2, { mute: !data.bass });
+            if (data.arpeggios !== undefined) updateTrack(0, { mute: !data.arpeggios });
+            if (data.nappes !== undefined) updateTrack(3, { mute: !data.nappes });
+            if (data.instrument !== undefined) updateTrack(0, { program: data.instrument });
+          }
           if (data.pattern) setDrumPattern(data.pattern);
-          if (data.instrument !== undefined) setInstrument(data.instrument);
           if (data.use432Hz !== undefined) setUse432(data.use432Hz);
           setStatus(`📥 Grille importée depuis ${file.name}`);
           setStatusColor('text-green-400');
@@ -452,17 +459,21 @@ export default function ChordApp() {
   // ─── Effets ───
 
   useEffect(() => {
-    engineRef.current?.setDrums(drumsOn);
-  }, [drumsOn]);
+    const t = tracks.find(tc => tc.channel === 9);
+    if (t) engineRef.current?.setDrums(!t.mute);
+  }, [tracks[3].mute]);
   useEffect(() => {
-    engineRef.current?.setBass(bassOn);
-  }, [bassOn]);
+    const t = tracks.find(tc => tc.channel === 2);
+    if (t) engineRef.current?.setBass(!t.mute);
+  }, [tracks[1].mute]);
   useEffect(() => {
-    engineRef.current?.setArpeggios(arpsOn);
-  }, [arpsOn]);
+    const t = tracks.find(tc => tc.channel === 0);
+    if (t) engineRef.current?.setArpeggios(!t.mute);
+  }, [tracks[0].mute]);
   useEffect(() => {
-    engineRef.current?.setNappes(nappesOn);
-  }, [nappesOn]);
+    const t = tracks.find(tc => tc.channel === 3);
+    if (t) engineRef.current?.setNappes(!t.mute);
+  }, [tracks[2].mute]);
   useEffect(() => {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
@@ -614,16 +625,7 @@ export default function ChordApp() {
 
             <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
 
-            <span className="text-xs text-gray-500 shrink-0">Inst:</span>
-            <select
-              value={instrument}
-              onChange={(e) => setInstrument(parseInt(e.target.value))}
-              className="bg-gray-800 text-blue-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none max-w-[120px] sm:w-36"
-            >
-              {AudioEngine.INSTRUMENTS.map((name, i) => (
-                <option key={i} value={i}>{name}</option>
-              ))}
-            </select>
+
 
             <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
 
@@ -636,7 +638,7 @@ export default function ChordApp() {
           </div>
         </div>
 
-        {/* Controls Row 2 */}
+        {/* Tracks Panel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-4">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <Volume2 className="w-3 h-3 text-gray-500 shrink-0" />
@@ -669,31 +671,6 @@ export default function ChordApp() {
               🔄 Loop
             </button>
 
-            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer shrink-0">
-              <input type="checkbox" checked={drumsOn}
-                onChange={e => setDrumsOn(e.target.checked)}
-                className="accent-blue-500 w-3 h-3" />
-              Drums
-            </label>
-            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer shrink-0">
-              <input type="checkbox" checked={bassOn}
-                onChange={e => setBassOn(e.target.checked)}
-                className="accent-yellow-500 w-3 h-3" />
-              Basse
-            </label>
-            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer shrink-0">
-              <input type="checkbox" checked={arpsOn}
-                onChange={e => setArpsOn(e.target.checked)}
-                className="accent-green-500 w-3 h-3" />
-              Arpèges
-            </label>
-            <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer shrink-0">
-              <input type="checkbox" checked={nappesOn}
-                onChange={e => setNappesOn(e.target.checked)}
-                className="accent-purple-500 w-3 h-3" />
-              Nappes
-            </label>
-
             <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
             <select value={drumPattern}
               onChange={e => setDrumPattern(e.target.value)}
@@ -714,6 +691,62 @@ export default function ChordApp() {
               <option value="3/4">3/4</option>
               <option value="6/8">6/8</option>
             </select>
+          </div>
+
+          {/* Tracks individuelles */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {tracks.map(t => (
+              <div key={t.channel}
+                className={`rounded-lg border px-3 py-2 ${
+                  t.mute ? 'border-gray-800 bg-gray-900/30 opacity-50' : 'border-gray-700 bg-gray-800/50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold" style={{
+                    color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : t.channel === 3 ? '#c084fc' : '#f87171'
+                  }}>
+                    {t.channel === 0 ? '🎹' : t.channel === 2 ? '🎸' : t.channel === 3 ? '🎻' : '🥁'} {t.label}
+                  </span>
+                  <button
+                    onClick={() => updateTrack(t.channel, { mute: !t.mute })}
+                    className={`text-xs px-2 py-0.5 rounded font-bold ${
+                      t.mute
+                        ? 'bg-red-900/40 text-red-400'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {t.mute ? 'MUTE' : 'On'}
+                  </button>
+                </div>
+
+                {t.channel !== 9 ? (
+                  <select
+                    value={t.program}
+                    onChange={e => updateTrack(t.channel, { program: parseInt(e.target.value) })}
+                    className="w-full bg-gray-900 text-xs px-1.5 py-1 rounded border border-gray-700 outline-none mb-1.5"
+                    style={{ color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : '#c084fc' }}
+                  >
+                    {AudioEngine.INSTRUMENTS.map((name, i) => (
+                      <option key={i} value={i}>{name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="h-6" />
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-gray-500 w-4">Vol</span>
+                  <input
+                    type="range"
+                    min={1} max={127}
+                    value={t.volume}
+                    onChange={e => updateTrack(t.channel, { volume: parseInt(e.target.value) })}
+                    className="flex-1 h-1 accent-blue-500"
+                  />
+                  <span className="text-[10px] text-gray-500 w-6 text-right">{t.volume}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
