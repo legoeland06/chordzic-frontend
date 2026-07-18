@@ -127,54 +127,53 @@ export class AudioEngine {
       return seq;
     };
 
-    const playOnce = async (sequence: Array<{ notes: string[]; beats: number }>) => {
-      try {
-        const resp = await fetch(`${BACKEND_URL}/play`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sequence,
-            tempo: grille.tempo,
-            drums: this.drumsEnabled,
-            bass: this.bassEnabled,
-            arps: this.arpeggiosEnabled,
-            nappes: this.nappesEnabled,
-            pattern: this.drumPattern,
-            sig: this.sig,
-            inst_val: this.instrument,
-          }),
-        });
-
-        if (!resp.ok) {
-          console.error('⚠️ Erreur backend');
-          return false;
-        }
-
-        const beatDuration = 60000 / grille.tempo;
-        for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
-          if (this.onChordHighlight) this.onChordHighlight(idx);
-          const c = grille.chords[idx];
-          const beats = 4.0 / c.time;
-          const chordMs = Math.round(beatDuration * beats);
-          await new Promise(r => setTimeout(r, chordMs));
-        }
-        return true;
-      } catch (e) {
-        console.error('Erreur:', e);
-        return false;
-      }
-    };
-
     const sequence = buildSeq();
     if (sequence.length === 0) { this.playing = false; return; }
 
-    do {
-      const ok = await playOnce(sequence);
-      if (!ok || !this.playing) break;
+    // Une seule requete /play ; le backend gere la repetition si loop est actif
+    try {
+      const resp = await fetch(`${BACKEND_URL}/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sequence,
+          tempo: grille.tempo,
+          drums: this.drumsEnabled,
+          bass: this.bassEnabled,
+          arps: this.arpeggiosEnabled,
+          nappes: this.nappesEnabled,
+          pattern: this.drumPattern,
+          sig: this.sig,
+          inst_val: this.instrument,
+          loop_enabled: loop || false,
+        }),
+      });
+
+      if (!resp.ok) {
+        console.error('⚠️ Erreur backend');
+        this.playing = false;
+        if (this.onChordHighlight) this.onChordHighlight(-1);
+        return;
+      }
+    } catch (e) {
+      console.error('Erreur:', e);
+      this.playing = false;
+      if (this.onChordHighlight) this.onChordHighlight(-1);
+      return;
+    }
+
+    // Boucle de highlight locale (independante du backend)
+    const beatDuration = 60000 / grille.tempo;
+    while (this.playing) {
+      for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
+        if (this.onChordHighlight) this.onChordHighlight(idx);
+        const c = grille.chords[idx];
+        const beats = 4.0 / c.time;
+        const chordMs = Math.round(beatDuration * beats);
+        await new Promise(r => setTimeout(r, chordMs));
+      }
       if (!loop) break;
-      // Petit gap entre les boucles pour eviter le phasing
-      await new Promise(r => setTimeout(r, 150));
-    } while (this.playing);
+    }
 
     if (this.onChordHighlight) this.onChordHighlight(-1);
     this.playing = false;
