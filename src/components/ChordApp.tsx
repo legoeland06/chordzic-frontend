@@ -3,7 +3,7 @@ import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge, Save, FolderOpen
 
 // ─── Constantes ─────────────────────────────────────────────────────────
 const STORAGE_KEY = 'chordjava_saved_grilles';
-import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, QUALITY_INTERVALS } from '../types/chord';
+import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, NOTE_TO_MIDI, QUALITY_INTERVALS } from '../types/chord';
 import { AudioEngine } from '../lib/audioEngine';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
@@ -117,6 +117,9 @@ export default function ChordApp() {
 
   // Drag & drop
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  // Détail accord
+  const [selectedChord, setSelectedChord] = useState<ChordData | null>(null);
 
   // Sauvegarder / Charger
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -733,8 +736,12 @@ export default function ChordApp() {
                     <GripVertical className="w-3.5 h-3.5" />
                   </span>
 
-                  {/* Chord name */}
-                  <div className="w-28 shrink-0">
+                  {/* Chord name — clic = détail */}
+                  <button
+                    onClick={() => setSelectedChord(c)}
+                    className="w-28 shrink-0 text-left bg-transparent border-0 p-0 cursor-pointer"
+                    title="Voir les détails"
+                  >
                     <span
                       className="text-lg font-bold font-mono"
                       style={{ color: getChordColor(idx) }}
@@ -742,7 +749,7 @@ export default function ChordApp() {
                       {c.chiffrage}
                     </span>
                     <span className="text-xs text-gray-500 ml-2">{c.time}t</span>
-                  </div>
+                  </button>
 
                   {/* Notes */}
                   <div className="flex flex-wrap gap-1.5">
@@ -854,6 +861,119 @@ export default function ChordApp() {
 
               <button onClick={() => setShowLoadModal(false)}
                 className="mt-3 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors">
+                Fermer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Modal Détail d'accord ─── */}
+        {selectedChord && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+               onClick={() => setSelectedChord(null)}>
+            <div className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-96 shadow-2xl"
+                 onClick={e => e.stopPropagation()}>
+
+              {/* En-tête */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold font-mono text-white">
+                  {selectedChord.time}:{selectedChord.chiffrage}
+                </h3>
+                <button onClick={() => setSelectedChord(null)}
+                  className="text-gray-500 hover:text-white text-lg">✕</button>
+              </div>
+
+              {/* Infos */}
+              <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+                <div className="bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-gray-500 uppercase">Fondamentale</div>
+                  <div className="text-white font-bold font-mono">{selectedChord.name}</div>
+                </div>
+                <div className="bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-gray-500 uppercase">Qualité</div>
+                  <div className="text-cyan-400 font-bold font-mono">{selectedChord.quality || 'Majeure'}</div>
+                </div>
+                <div className="bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-gray-500 uppercase">Basse</div>
+                  <div className="text-amber-400 font-bold font-mono">{selectedChord.bass === selectedChord.name ? '(fond.)' : selectedChord.bass}</div>
+                </div>
+                <div className="bg-gray-800/60 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-gray-500 uppercase">Durée</div>
+                  <div className="text-gray-300 font-bold font-mono">{selectedChord.time} temps</div>
+                </div>
+              </div>
+
+              {/* Notes composants */}
+              <div className="mb-3">
+                <label className="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2 block">
+                  Notes
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedChord.notes.map((note, ni) => {
+                    // Calculer l'intervalle depuis la fondamentale
+                    const rootVal = NOTE_TO_MIDI[selectedChord.name] ?? 0;
+                    const noteVal = NOTE_TO_MIDI[note] ?? 0;
+                    const interval = ((noteVal - rootVal) % 12 + 12) % 12;
+                    const intervalNames = ['P1','m2','M2','m3','M3','P4','b5','P5','m6','M6','m7','M7'];
+                    const intervalName = intervalNames[interval];
+                    return (
+                      <div key={ni} title={`Intervalle: ${intervalName} (${interval} demi-tons)`}
+                        className="flex flex-col items-center px-3 py-2 rounded-lg border"
+                        style={{
+                          backgroundColor: 'rgba(40,40,40,0.8)',
+                          borderColor: 'rgba(60,60,60,0.8)',
+                        }}
+                      >
+                        <span className="text-sm font-bold font-mono"
+                          style={{ color: getNoteColor(note) }}>
+                          {note}
+                        </span>
+                        <span className="text-[10px] text-gray-500 mt-0.5">{intervalName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* MIDI values */}
+              {selectedChord.midiValues.length > 0 && (
+                <div className="mb-3">
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2 block">
+                    MIDI raw
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedChord.midiValues.map((v, i) => (
+                      <span key={i}
+                        className="px-2 py-1 bg-gray-800 rounded text-[11px] font-mono text-gray-400 border border-gray-700">
+                        {v}
+                      </span>
+                    ))}
+                    <span className="text-[10px] text-gray-600 self-center ml-1">
+                      (+{NOTE_TO_MIDI[selectedChord.name]??0} racine)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Mini synthèse */}
+              <div className="bg-gray-800/50 rounded-lg p-3 mt-2">
+                <p className="text-[11px] text-gray-400 font-mono leading-relaxed">
+                  <span className="text-blue-400">{selectedChord.name}</span>
+                  {selectedChord.quality && <span className="text-cyan-400">{selectedChord.quality}</span>}
+                  {selectedChord.bass !== selectedChord.name && (
+                    <span className="text-amber-400">/{selectedChord.bass}</span>
+                  )}
+                  {' → '}
+                  <span style={{ color: getNoteColor(selectedChord.notes[0]) }}>{selectedChord.notes[0]}</span>
+                  {selectedChord.notes.slice(1).map((n, i) => (
+                    <span key={i} style={{ color: getNoteColor(n) }}>, {n}</span>
+                  ))}
+                </p>
+              </div>
+
+              {/* Bouton fermer */}
+              <button onClick={() => setSelectedChord(null)}
+                className="w-full mt-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors">
                 Fermer
               </button>
             </div>
