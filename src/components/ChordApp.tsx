@@ -159,8 +159,17 @@ export default function ChordApp() {
       await engineRef.current.init();
       setAudioStarted(true);
     }
+    // Envoyer la config initiale des tracks au backend
+    for (const t of tracks) {
+      engineRef.current.setTrack(t.channel, t);
+    }
     return engineRef.current;
   }, [audioStarted]);
+
+  // Initialiser l'engine au montage du composant
+  useEffect(() => {
+    getEngine();
+  }, []);
 
   const parseInput = () => {
     try {
