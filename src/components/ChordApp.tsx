@@ -463,9 +463,35 @@ export default function ChordApp() {
     engineRef.current?.setTempo(tempo);
   }, [tempo]);
 
+  // Parse automatiquement l'input avec debounce (sauf pendant autocomplétion)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
-    parseInput();
-  }, []);
+    if (suggestions.length > 0) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(() => {
+      if (!input.trim()) {
+        setChords([]);
+        setStatus('Prêt');
+        setStatusColor('text-gray-400');
+        return;
+      }
+      try {
+        const grille = parseGrille(input, tempo);
+        setChords(grille.chords);
+        if (grille.chords.length > 0 && !lastChiffrage) {
+          setLastChiffrage(grille.chords[grille.chords.length - 1].chiffrage);
+        }
+      } catch {
+        setChords([]);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [input, tempo, suggestions.length]);
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-start justify-center p-4">
