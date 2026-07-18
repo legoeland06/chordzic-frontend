@@ -149,26 +149,24 @@ export default function ChordApp() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const engineRef = useRef<AudioEngine | null>(null);
+  // Creation synchrone de l'engine (dispo immediatement)
+  const engineRef = useRef<AudioEngine>(new AudioEngine());
 
   const getEngine = useCallback(async () => {
-    if (!engineRef.current) {
-      engineRef.current = new AudioEngine();
-    }
     if (!audioStarted) {
       await engineRef.current.init();
       setAudioStarted(true);
     }
-    // Envoyer la config initiale des tracks au backend
-    for (const t of tracks) {
-      engineRef.current.setTrack(t.channel, t);
-    }
     return engineRef.current;
   }, [audioStarted]);
 
-  // Initialiser l'engine au montage du composant
+  // Initialisation au montage
   useEffect(() => {
     getEngine();
+    // Envoi initial de la config des tracks au backend
+    for (const t of tracks) {
+      engineRef.current.setTrack(t.channel, t);
+    }
   }, []);
 
   const parseInput = () => {
