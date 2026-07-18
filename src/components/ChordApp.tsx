@@ -5,6 +5,7 @@ import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge, Save, FolderOpen
 const STORAGE_KEY = 'chordjava_saved_grilles';
 import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, NOTE_TO_MIDI, QUALITY_INTERVALS } from '../types/chord';
 import { AudioEngine } from '../lib/audioEngine';
+import PianoKeyboard from './PianoKeyboard';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
 
@@ -900,6 +901,16 @@ export default function ChordApp() {
                 <div className="bg-gray-800/60 rounded-lg px-3 py-2">
                   <div className="text-[10px] text-gray-500 uppercase">Durée</div>
                   <div className="text-gray-300 font-bold font-mono">{selectedChord.time} temps</div>
+                </div>
+              </div>
+
+              {/* Piano */}
+              <div className="mb-4">
+                <label className="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2 block">
+                  Clavier
+                </label>
+                <div className="bg-gray-800/40 rounded-lg px-2 pt-2 pb-6">
+                  <PianoKeyboard highlightedNotes={selectedChord.notes} />
                 </div>
               </div>
 
