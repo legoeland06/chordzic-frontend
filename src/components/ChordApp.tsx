@@ -77,7 +77,7 @@ export default function ChordApp() {
     setStatusColor('text-green-400');
 
     const grille = { titre: 'Session', tempo, chords: chordsToPlay };
-    engine.playGrille(grille).then(() => {
+    engine.playGrille(grille, loopOn).then(() => {
       setPlaying(false);
       setHighlighted(-1);
       setStatus('✅ Lecture terminée');
@@ -87,7 +87,7 @@ export default function ChordApp() {
       setStatus(`❌ Erreur: ${e.message}`);
       setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, instrument, use432, getEngine]);
+  }, [chords, tempo, volume, instrument, use432, getEngine, loopOn, input]);
 
   const stop = () => {
     if (engineRef.current) {
