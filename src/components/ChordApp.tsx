@@ -631,19 +631,6 @@ export default function ChordApp() {
         <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
 
-          {/* Accord en cours + suivant */}
-          {highlighted >= 0 && chords[highlighted] && (
-            <div className="text-center py-2 mb-2">
-              <div className="text-5xl font-bold font-mono tracking-wider"
-                style={{ color: getChordColor(highlighted) }}>
-                {chords[highlighted].chiffrage === '_' ? '—' : chords[highlighted].chiffrage}
-              </div>
-              {highlighted + 1 < chords.length && (
-                <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
-                  style={{ color: getChordColor(highlighted + 1) }}>
-                  {chords[highlighted + 1].chiffrage === '_' ? '—' : chords[highlighted + 1].chiffrage}
-                </div>
-              )}
               <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
             </div>
           )}
@@ -767,6 +754,19 @@ export default function ChordApp() {
             ))}
           </div>
         </div>
+          {/* Accord en cours + suivant */}
+          {highlighted >= 0 && chords[highlighted] && (
+            <div className="text-center py-2 mb-2">
+              <div className="text-5xl font-bold font-mono tracking-wider"
+                style={{ color: getChordColor(highlighted) }}>
+                {chords[highlighted].chiffrage === '_' ? '—' : chords[highlighted].chiffrage}
+              </div>
+              {highlighted + 1 < chords.length && (
+                <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
+                  style={{ color: getChordColor(highlighted + 1) }}>
+                  {chords[highlighted + 1].chiffrage === '_' ? '—' : chords[highlighted + 1].chiffrage}
+                </div>
+              )}
 
         <ProgressBar
           chords={chords}
