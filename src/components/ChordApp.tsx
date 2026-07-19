@@ -744,6 +744,14 @@ export default function ChordApp() {
                     className="flex-1 h-1 accent-blue-500"
                   />
                   <span className="text-[10px] text-gray-500 w-6 text-right">{t.volume}</span>
+
+        <ProgressBar
+          chords={chords}
+          highlighted={highlighted}
+          playing={playing}
+          currentBeat={currentBeat}
+          tempo={tempo}
+        />
                 </div>
               </div>
             ))}
@@ -839,13 +847,6 @@ export default function ChordApp() {
           </div>
         )}
 
-        <ProgressBar
-          chords={chords}
-          highlighted={highlighted}
-          playing={playing}
-          currentBeat={currentBeat}
-          tempo={tempo}
-        />
         {/* Empty state */}
         {chords.length === 0 && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
