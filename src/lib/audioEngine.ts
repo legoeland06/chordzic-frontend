@@ -107,8 +107,12 @@ export class AudioEngine {
   }
 
   setProgram(index: number) { this.setTrack(0, { program: index }); }
-  set432Hz(_enabled: boolean) {}
-  setVolume(_vol: number) {}
+  set432Hz(enabled: boolean) {
+    this.sendConfig({ use432: enabled });
+  }
+  setVolume(vol: number) {
+    this.sendConfig({ master_vol: vol });
+  }
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
 
   private chordToNoteNames(c: ChordData): string[] {

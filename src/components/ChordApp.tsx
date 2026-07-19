@@ -105,7 +105,7 @@ export default function ChordApp() {
   const [highlighted, setHighlighted] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const [tempo, setTempo] = useState(120);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(127);
   const [use432, setUse432] = useState(true);
   const [tracks, setLocalTracks] = useState<TrackConfig[]>([
     { channel: 0, label: 'Lead',    program: 51, volume: 15, mute: false },
