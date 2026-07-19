@@ -630,6 +630,17 @@ export default function ChordApp() {
         />
         <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+
+          {/* Accord en cours */}
+          {highlighted >= 0 && chords[highlighted] && (
+            <div className="text-center py-4 mb-2">
+              <span className="text-5xl font-bold font-mono tracking-wider"
+                style={{ color: getChordColor(highlighted) }}>
+                {chords[highlighted].chiffrage === '_' ? '—' : chords[highlighted].chiffrage}
+              </span>
+              <span className="text-sm text-gray-500 ml-3">{tempo} bpm</span>
+            </div>
+          )}
             <Volume2 className="w-3 h-3 text-gray-500 shrink-0" />
             <span className="text-xs text-gray-500 shrink-0">Vol:</span>
             <input type="range" min={10} max={127} value={volume}
