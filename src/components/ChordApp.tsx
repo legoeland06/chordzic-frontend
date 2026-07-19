@@ -8,7 +8,7 @@ import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import PianoKeyboard from './PianoKeyboard';
 import ProgressBar from './ProgressBar';
 import ControlBar from './ControlBar';
-import ChordDetailModal from './ChordDetailModal';
+import TrackPanel from './TrackPanel';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
 
@@ -629,144 +629,25 @@ export default function ChordApp() {
           onTempoChange={(t) => setTempo(t)}
         />
         <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-
-              <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
-            </div>
-          )}
-            <Volume2 className="w-3 h-3 text-gray-500 shrink-0" />
-            <span className="text-xs text-gray-500 shrink-0">Vol:</span>
-            <input type="range" min={10} max={127} value={volume}
-              onChange={(e) => setVolume(parseInt(e.target.value))}
-              className="w-16 sm:w-20 accent-green-500 shrink-0" />
-            <span className="text-xs text-gray-400 w-6 shrink-0">{volume}</span>
-
-            <button
-              onClick={() => setUse432(!use432)}
-              className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
-                use432
-                  ? 'bg-yellow-900/40 border-yellow-600 text-yellow-400'
-                  : 'bg-gray-800 border-gray-700 text-gray-500'
-              }`}
-            >
-              432Hz {use432 ? '●' : '○'}
-            </button>
-
-            <button
-              onClick={() => setLoopOn(!loopOn)}
-              className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
-                loopOn
-                  ? 'bg-purple-900/40 border-purple-500 text-purple-400'
-                  : 'bg-gray-800 border-gray-700 text-gray-500'
-              }`}
-              disabled={playing}
-            >
-              🔄 Loop
-            </button>
-
-            <button
-              onClick={() => setWalkingBass(!walkingBass)}
-              className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
-                walkingBass
-                  ? 'bg-pink-900/40 border-pink-500 text-pink-400'
-                  : 'bg-gray-800 border-gray-700 text-gray-500'
-              }`}
-            >
-              🎵 WB
-            </button>
-
-            <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
-            <select value={drumPattern}
-              onChange={e => setDrumPattern(e.target.value)}
-              className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0">
-              <option value="rock">🎸 Rock</option>
-              <option value="pop">🎤 Pop</option>
-              <option value="reggae">🌴 Reggae</option>
-              <option value="onedrop">⏬ OneDrop</option>
-              <option value="bossa">🌊 Bossa</option>
-              <option value="jazz">🎷 Jazz</option>
-            </select>
-
-            <span className="text-xs text-gray-500 shrink-0">Mesure:</span>
-            <select value={sig}
-              onChange={e => setSig(e.target.value)}
-              className="bg-gray-800 text-teal-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0">
-              <option value="4/4">4/4</option>
-              <option value="3/4">3/4</option>
-              <option value="6/8">6/8</option>
-            </select>
-          </div>
-
-          {/* Tracks individuelles */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {tracks.map(t => (
-              <div key={t.channel}
-                className={`rounded-lg border px-3 py-2 ${
-                  t.mute ? 'border-gray-800 bg-gray-900/30 opacity-50' : 'border-gray-700 bg-gray-800/50'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold" style={{
-                    color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : t.channel === 3 ? '#c084fc' : '#f87171'
-                  }}>
-                    {t.channel === 0 ? '🎹' : t.channel === 2 ? '🎸' : t.channel === 3 ? '🎻' : '🥁'} {t.label}
-                  </span>
-                  <button
-                    onClick={() => updateTrack(t.channel, { mute: !t.mute })}
-                    className={`text-xs px-2 py-0.5 rounded font-bold ${
-                      t.mute
-                        ? 'bg-red-900/40 text-red-400'
-                        : 'bg-gray-700 text-gray-400'
-                    }`}
-                  >
-                    {t.mute ? 'MUTE' : 'On'}
-                  </button>
-                </div>
-
-                {t.channel !== 9 ? (
-                  <select
-                    value={t.program}
-                    onChange={e => updateTrack(t.channel, { program: parseInt(e.target.value) })}
-                    className="w-full bg-gray-900 text-xs px-1.5 py-1 rounded border border-gray-700 outline-none mb-1.5"
-                    style={{ color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : '#c084fc' }}
-                  >
-                    {AudioEngine.INSTRUMENTS.map((name, i) => (
-                      <option key={i} value={i}>{name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="h-6" />
-                )}
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-gray-500 w-4">Vol</span>
-                  <input
-                    type="range"
-                    min={1} max={127}
-                    value={t.volume}
-                    onChange={e => updateTrack(t.channel, { volume: parseInt(e.target.value) })}
-                    className="flex-1 h-1 accent-blue-500"
-                  />
-                  <span className="text-[10px] text-gray-500 w-6 text-right">{t.volume}</span>
-
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-          {/* Accord en cours + suivant */}
-          {highlighted >= 0 && chords[highlighted] && (
-            <div className="text-center py-2 mb-2">
-              <div className="text-5xl font-bold font-mono tracking-wider"
-                style={{ color: getChordColor(highlighted) }}>
-                {chords[highlighted].chiffrage === '_' ? '—' : chords[highlighted].chiffrage}
-              </div>
-              {highlighted + 1 < chords.length && (
-                <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
-                  style={{ color: getChordColor(highlighted + 1) }}>
-                  {chords[highlighted + 1].chiffrage === '_' ? '—' : chords[highlighted + 1].chiffrage}
-                </div>
-              )}
+        <TrackPanel
+          chords={chords}
+          highlighted={highlighted}
+          playing={playing}
+          currentBeat={currentBeat}
+          tempo={tempo}
+          volume={volume}
+          use432={use432}
+          loopOn={loopOn}
+          walkingBass={walkingBass}
+          drumPattern={drumPattern}
+          sig={sig}
+          tracks={tracks}
+          onSetVolume={setVolume}
+          onSet432={setUse432}
+          onSetLoop={setLoopOn}
+          onSetWalkingBass={setWalkingBass}
+          onSetDrumPattern={setDrumPattern}
+        />
 
         <ProgressBar
           chords={chords}
@@ -953,6 +834,7 @@ export default function ChordApp() {
           &nbsp;· Tone.js · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}
         </div>
 
+          </div>
       </div>
     </div>
   );
