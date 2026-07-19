@@ -745,6 +745,12 @@ export default function ChordApp() {
                   />
                   <span className="text-[10px] text-gray-500 w-6 text-right">{t.volume}</span>
 
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <ProgressBar
           chords={chords}
           highlighted={highlighted}
@@ -752,12 +758,6 @@ export default function ChordApp() {
           currentBeat={currentBeat}
           tempo={tempo}
         />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Chord Grid */}
         {chords.length > 0 && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
