@@ -32,23 +32,6 @@ export default function TrackPanel({
   onSetVolume, onSet432, onSetLoop, onSetWalkingBass,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
 }: TrackPanelProps) {
-  const [midiPorts, setMidiPorts] = useState<{index:number;name:string}[]>([]);
-  const [activePort, setActivePort] = useState(1);
-
-  useEffect(() => {
-    fetch('http://localhost:4001/midi-ports')
-      .then(r => r.json())
-      .then(d => { if (d.ports) setMidiPorts(d.ports.filter((p:any) => p.name !== 'Timer' && p.name !== 'cs' && p.name !== 'input')); })
-      .catch(() => {});
-  }, []);
-
-  const handleMidiChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const idx = parseInt(e.target.value);
-    fetch(`http://localhost:4001/midi-connect/${idx}`, { method: 'POST' })
-      .then(r => r.json())
-      .then(d => { if (d.status === 'connected') setActivePort(idx); })
-      .catch(() => {});
-  };
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -171,7 +154,7 @@ export default function TrackPanel({
         ))}
       </div>
 
-  /* Accord en cours + suivant */
+          {/* Accord en cours + suivant */}
           {highlighted >= 0 && chords[highlighted] && (
             <div className="text-center py-3 mb-1">
               <div className="text-5xl font-bold font-mono tracking-wider"
@@ -187,20 +170,6 @@ export default function TrackPanel({
               <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
             </div>
           )}
-
-          {/* MIDI Port selector */}
-          <div className="mt-3 pt-3 border-t border-gray-800">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">🎵 MIDI:</span>
-              <select id="midi-port" value={activePort} onChange={handleMidiChange}
-                className="bg-gray-800 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none flex-1"
-                style={{ color: '#60a5fa' }}>
-                {midiPorts.map(p => (
-                  <option key={p.index} value={p.index}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
     </>
   );
 }
