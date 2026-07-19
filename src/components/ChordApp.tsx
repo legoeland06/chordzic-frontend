@@ -6,6 +6,9 @@ const STORAGE_KEY = 'chordjava_saved_grilles';
 import { parseGrille, getChordColor, getNoteColor, ChordData, NOTE_NAMES, NOTE_TO_MIDI, QUALITY_INTERVALS } from '../types/chord';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import PianoKeyboard from './PianoKeyboard';
+import ProgressBar from './ProgressBar';
+import ControlBar from './ControlBar';
+import ChordDetailModal from './ChordDetailModal';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
 
@@ -611,62 +614,21 @@ export default function ChordApp() {
 
         {/* Controls Row 1 */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
-            <button onClick={parseInput}
-              className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors shrink-0">
-              Analyser
-            </button>
-            <button onClick={play} disabled={playing || chords.length === 0}
-              className="px-3 sm:px-4 py-2 bg-green-700 hover:bg-green-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0">
-              <Play className="w-3 h-3" /> Jouer
-            </button>
-            <button onClick={stop}
-              className="px-3 sm:px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0">
-              <Square className="w-3 h-3" /> Stop
-            </button>
-            <button onClick={clear}
-              className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0">
-              <Trash2 className="w-3 h-3" /> Effacer
-            </button>
-
-            <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
-
-            <button onClick={() => { setSaveName(''); setShowSaveModal(true); }}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0">
-              <Save className="w-3 h-3" /> Save
-            </button>
-            <button onClick={() => setShowLoadModal(true)}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0">
-              <FolderOpen className="w-3 h-3" /> Load
-            </button>
-            <button onClick={handleExport}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors shrink-0" title="Exporter">
-              📤
-            </button>
-            <button onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors shrink-0" title="Importer">
-              📥
-            </button>
-            <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport}
-              className="hidden" />
-
-            <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
-
-
-
-            <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
-
-            <Gauge className="w-3 h-3 text-gray-500 shrink-0" />
-            <span className="text-xs text-gray-500 shrink-0">Tempo:</span>
-            <input type="range" min={40} max={220} value={tempo}
-              onChange={(e) => setTempo(parseInt(e.target.value))}
-              className="w-16 sm:w-20 accent-blue-500 shrink-0" />
-            <span className="text-xs font-bold text-blue-400 w-10 shrink-0">{tempo}</span>
-          </div>
-        </div>
-
-        {/* Tracks Panel */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-4">
+        <ControlBar
+          chords={chords}
+          playing={playing}
+          tempo={tempo}
+          onAnalyse={parseInput}
+          onPlay={play}
+          onStop={stop}
+          onClear={clear}
+          onSave={() => { setSaveName(''); setShowSaveModal(true); }}
+          onLoad={() => setShowLoadModal(true)}
+          onExport={handleExport}
+          onImport={() => fileInputRef.current?.click()}
+          onTempoChange={(t) => setTempo(t)}
+        />
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <Volume2 className="w-3 h-3 text-gray-500 shrink-0" />
             <span className="text-xs text-gray-500 shrink-0">Vol:</span>
@@ -877,41 +839,13 @@ export default function ChordApp() {
           </div>
         )}
 
-        {/* Barre de progression + Metronome */}
-        {chords.length > 0 && playing && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-3 mb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2.5 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300 ease-linear"
-                  style={{ width: `${Math.round(((highlighted + 1) / chords.length) * 100)}%` }}
-                />
-              </div>
-              <span className="text-[10px] text-gray-500 font-mono shrink-0">
-                {Math.round(((highlighted + 1) / chords.length) * 100)}%
-              </span>
-              <span className="text-[10px] text-gray-600 font-mono shrink-0">
-                {highlighted + 1}/{chords.length}
-              </span>
-            </div>
-            {/* Metronome visuel */}
-            <div className="flex items-center justify-center gap-2 mt-2">
-              {[0,1,2,3].map(b => (
-                <div key={b}
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all duration-100 ${
-                    currentBeat === b
-                      ? (b === 0 ? 'bg-blue-500 text-white scale-110' : 'bg-gray-600 text-white')
-                      : 'bg-gray-800 text-gray-600'
-                  }`}
-                >
-                  {b + 1}
-                </div>
-              ))}
-              <span className="text-[10px] text-gray-600 ml-1">{tempo} bpm</span>
-            </div>
-          </div>
-        )}
-
+        <ProgressBar
+          chords={chords}
+          highlighted={highlighted}
+          playing={playing}
+          currentBeat={currentBeat}
+          tempo={tempo}
+        />
         {/* Empty state */}
         {chords.length === 0 && (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
@@ -1124,3 +1058,7 @@ export default function ChordApp() {
     </div>
   );
 }
+        <ChordDetailModal
+          chord={selectedChord}
+          onClose={() => setSelectedChord(null)}
+        />
