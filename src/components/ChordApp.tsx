@@ -811,8 +811,8 @@ export default function ChordApp() {
 
                   {/* Chord name — clic = détail */}
                   <button
-                    onClick={() => setSelectedChord(c)}
-                    className="w-28 shrink-0 text-left bg-transparent border-0 p-0 cursor-pointer"
+                    onClick={() => c.chiffrage !== '_' && setSelectedChord(c)}
+                    className={`w-28 shrink-0 text-left bg-transparent border-0 p-0 ${c.chiffrage === '_' ? 'cursor-default opacity-50' : 'cursor-pointer'}`}
                     title="Voir les détails"
                   >
                     <span

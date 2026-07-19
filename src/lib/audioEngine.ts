@@ -180,15 +180,26 @@ export class AudioEngine {
       return;
     }
 
-    // Boucle de highlight locale
-    const beatDuration = 60000 / this.tempo;
+    // Boucle de highlight locale — avec compensation de drift
+    const startTime = performance.now();
+    let cumulativeExpected = 0;
+
     while (this.playing) {
       for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
         if (this.onChordHighlight) this.onChordHighlight(idx);
         const c = grille.chords[idx];
         const beats = 4.0 / c.time;
-        const chordMs = Math.round(beatDuration * beats);
-        await new Promise(r => setTimeout(r, chordMs));
+        const chordMs = (60000.0 / this.tempo) * beats;
+        cumulativeExpected += chordMs;
+
+        // Compenser le drift : attendre le temps restant réel
+        const elapsed = performance.now() - startTime;
+        const waitMs = Math.max(0, cumulativeExpected - elapsed);
+        if (waitMs > 1) {
+          await new Promise(r => setTimeout(r, waitMs));
+        }
+        // waitMs ≤ 1 : on est déjà en retard sur le temps attendu
+        // → on passe à l'accord suivant sans attendre (on rattrape comme on peut)
       }
       if (!loop) break;
     }
