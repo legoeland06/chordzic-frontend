@@ -33,6 +33,7 @@ export default function TrackPanel({
   onSetVolume, onSet432, onSetLoop, onSetWalkingBass,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
 }: TrackPanelProps) {
+  const [midiPort, setMidiPort] = useState(2);
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -175,12 +176,12 @@ export default function TrackPanel({
           {/* MIDI switch */}
           <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2">
             <span className="text-[10px] text-gray-500">🎛️ MIDI:</span>
-            <button onClick={() => fetch('http://localhost:4001/midi-connect/2',{method:'POST'})}
-              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+            <button onClick={() => { fetch('http://localhost:4001/midi-connect/2',{method:'POST'}); setMidiPort(2); }}
+              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===2 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
               FluidSynth
             </button>
-            <button onClick={() => fetch('http://localhost:4001/midi-connect/1',{method:'POST'})}
-              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+            <button onClick={() => { fetch('http://localhost:4001/midi-connect/1',{method:'POST'}); setMidiPort(1); }}
+              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===1 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
               Roland
             </button>
           </div>
