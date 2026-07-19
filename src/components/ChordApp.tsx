@@ -9,6 +9,8 @@ import PianoKeyboard from './PianoKeyboard';
 import ProgressBar from './ProgressBar';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
+import ChordGrid from './ChordGrid';
+import ChordInput from './ChordInput';
 import ChordDetailModal from './ChordDetailModal';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
@@ -573,45 +575,10 @@ export default function ChordApp() {
           <span className={`text-xs font-mono ${statusColor}`}>{status}</span>
         </div>
 
-        {/* Input avec autocomplétion */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 mb-4 relative">
-          <label className="text-xs text-gray-500 mb-2 block font-mono">
-            Accords (ex: 4:Cm7 2:FM7 4:G7 4:C) — <span className="text-blue-400">Tab</span> pour compléter
-          </label>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onBlur={() => { setTimeout(() => { setSuggestions([]); setSuggestToken(null); }, 200); }}
-            rows={2}
-            className="w-full bg-gray-800 text-white text-sm font-mono px-4 py-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
-            placeholder="4:Cm7 2:FM7 4:G7 4:C"
-          />
-
-          {/* Liste de suggestions */}
-          {suggestions.length > 0 && suggestToken && (
-            <div className="absolute left-4 z-50 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden"
-                 style={{ top: '100%', minWidth: 160, maxHeight: 280 }}>
-              {suggestions.map((s, i) => (
-                <button
-                  key={s}
-                  onMouseDown={(e) => { e.preventDefault(); applySuggestion(s); }}
-                  className={`w-full text-left px-4 py-2 text-xs font-mono transition-colors ${
-                    i === suggestIdx
-                      ? 'bg-blue-700 text-white'
-                      : 'text-gray-300 hover:bg-gray-700'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-              <div className="px-4 py-1.5 text-[10px] text-gray-500 border-t border-gray-700">
-                ↑↓ naviguer · Tab/Enter valider · Esc fermer
-              </div>
-            </div>
-          )}
-        </div>
+        <ChordInput
+          input={input}
+          onChange={setInput}
+        />
 
         {/* Controls Row 1 */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -660,94 +627,23 @@ export default function ChordApp() {
           currentBeat={currentBeat}
           tempo={tempo}
         />
-        {/* Chord Grid */}
-        {chords.length > 0 && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-gray-800">
-              <h2 className="text-sm font-bold text-blue-400">
-                📊 Session &nbsp;|&nbsp; {tempo} bpm &nbsp;·&nbsp; {chords.length} accords
-                <span className="text-[10px] text-gray-500 ml-3 font-normal">
-                  ↕ glisser pour réordonner
-                </span>
-              </h2>
-            </div>
-
-            {/* Chord cards — drag & drop */}
-            {chords.map((c, idx) => (
-              <div
-                key={idx}
-                draggable={!playing}
-                onDragStart={() => handleDragStart(idx)}
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(idx)}
-                onDragEnd={() => setDragIdx(null)}
-                className={`px-3 py-3 border-b border-gray-800 last:border-0 transition-all duration-200 ${
-                  highlighted === idx
-                    ? 'bg-gray-700/60 ring-1 ring-blue-500/30'
-                    : dragIdx === idx
-                      ? 'opacity-40 bg-gray-800'
-                      : 'hover:bg-gray-800/50'
-                } ${!playing ? 'cursor-grab active:cursor-grabbing' : ''}`}
-              >
-                <div className="flex items-center gap-2">
-                  {/* Drag handle */}
-                  <span className="text-gray-600 shrink-0 select-none">
-                    <GripVertical className="w-3.5 h-3.5" />
-                  </span>
-
-                  {/* Chord name — clic = détail */}
-                  <button
-                    onClick={() => c.chiffrage !== '_' && setSelectedChord(c)}
-                    className={`w-28 shrink-0 text-left bg-transparent border-0 p-0 ${c.chiffrage === '_' ? 'cursor-default opacity-50' : 'cursor-pointer'}`}
-                    title="Voir les détails"
-                  >
-                    <span
-                      className="text-lg font-bold font-mono"
-                      style={{ color: getChordColor(idx) }}
-                    >
-                      {c.chiffrage === '_' ? '—' : c.chiffrage}
-                    </span>
-                    <span className="text-xs text-gray-500 ml-2">{c.time}t</span>
-                  </button>
-
-                  {/* Notes */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {c.notes.map((note, ni) => (
-                      <span
-                        key={ni}
-                        className="px-2.5 py-1 rounded-md text-xs font-mono font-bold border"
-                        style={{
-                          color: getNoteColor(note),
-                          backgroundColor: 'rgba(40,40,40,0.8)',
-                          borderColor: 'rgba(60,60,60,0.8)',
-                        }}
-                      >
-                        {note}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Delete single chord */}
-                  <button
-                    onClick={() => {
-                      const newChords = chords.filter((_, i) => i !== idx);
-                      if (newChords.length === 0) {
-                        clear();
-                      } else {
-                        rebuildInputFromChords(newChords);
-                      }
-                    }}
-                    className="ml-auto text-gray-600 hover:text-red-400 transition-colors shrink-0"
-                    title="Supprimer cet accord"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <ChordGrid
+          chords={chords}
+          highlighted={highlighted}
+          playing={playing}
+          dragIdx={dragIdx}
+          tempo={tempo}
+          onClickChord={(c) => setSelectedChord(c)}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onDragEnd={() => setDragIdx(null)}
+          onDeleteChord={(idx) => {
+            const newChords = chords.filter((_, i) => i !== idx);
+            if (newChords.length === 0) { clear(); }
+            else { rebuildInputFromChords(newChords); }
+          }}
+        />
 
         {/* Empty state */}
         {chords.length === 0 && (
