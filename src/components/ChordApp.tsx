@@ -9,6 +9,7 @@ import PianoKeyboard from './PianoKeyboard';
 import ProgressBar from './ProgressBar';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
+import ChordDetailModal from './ChordDetailModal';
 
 // ─── Autocomplétion ────────────────────────────────────────────────────
 
@@ -647,6 +648,9 @@ export default function ChordApp() {
           onSetLoop={setLoopOn}
           onSetWalkingBass={setWalkingBass}
           onSetDrumPattern={setDrumPattern}
+          onSetSig={setSig}
+          onSetTempo={setTempo}
+          onUpdateTrack={updateTrack}
         />
 
         <ProgressBar
