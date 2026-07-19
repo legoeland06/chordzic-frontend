@@ -104,6 +104,7 @@ export default function ChordApp() {
   const [chords, setChords] = useState<ChordData[]>([]);
   const [highlighted, setHighlighted] = useState(-1);
   const [playing, setPlaying] = useState(false);
+  const [currentBeat, setCurrentBeat] = useState(0);
   const [tempo, setTempo] = useState(120);
   const [volume, setVolume] = useState(127);
   const [use432, setUse432] = useState(true);
@@ -492,6 +493,17 @@ export default function ChordApp() {
   useEffect(() => {
     engineRef.current?.setWalking(walkingBass);
   }, [walkingBass]);
+  // Metronome visuel
+  useEffect(() => {
+    if (!playing) { setCurrentBeat(0); return; }
+    const msPerBeat = 60000 / tempo;
+    setCurrentBeat(0);
+    const interval = setInterval(() => {
+      setCurrentBeat(prev => (prev + 1) % 4);
+    }, msPerBeat);
+    return () => clearInterval(interval);
+  }, [playing, tempo]);
+
   useEffect(() => {
     fetch('http://localhost:4000/config', {
       method: 'POST',
@@ -862,6 +874,41 @@ export default function ChordApp() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Barre de progression + Metronome */}
+        {chords.length > 0 && playing && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-3 mb-2">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300 ease-linear"
+                  style={{ width: `${Math.round(((highlighted + 1) / chords.length) * 100)}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-gray-500 font-mono shrink-0">
+                {Math.round(((highlighted + 1) / chords.length) * 100)}%
+              </span>
+              <span className="text-[10px] text-gray-600 font-mono shrink-0">
+                {highlighted + 1}/{chords.length}
+              </span>
+            </div>
+            {/* Metronome visuel */}
+            <div className="flex items-center justify-center gap-2 mt-2">
+              {[0,1,2,3].map(b => (
+                <div key={b}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all duration-100 ${
+                    currentBeat === b
+                      ? (b === 0 ? 'bg-blue-500 text-white scale-110' : 'bg-gray-600 text-white')
+                      : 'bg-gray-800 text-gray-600'
+                  }`}
+                >
+                  {b + 1}
+                </div>
+              ))}
+              <span className="text-[10px] text-gray-600 ml-1">{tempo} bpm</span>
+            </div>
           </div>
         )}
 
