@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { Volume2 } from 'lucide-react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import { getChordColor, ChordData } from '../types/chord';
@@ -170,6 +171,19 @@ export default function TrackPanel({
               <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
             </div>
           )}
+
+          {/* MIDI switch */}
+          <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2">
+            <span className="text-[10px] text-gray-500">🎛️ MIDI:</span>
+            <button onClick={() => fetch('http://localhost:4001/midi-connect/2',{method:'POST'})}
+              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+              FluidSynth
+            </button>
+            <button onClick={() => fetch('http://localhost:4001/midi-connect/1',{method:'POST'})}
+              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+              Roland
+            </button>
+          </div>
     </>
   );
 }
