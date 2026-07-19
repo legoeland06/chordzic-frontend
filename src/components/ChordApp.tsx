@@ -169,6 +169,8 @@ export default function ChordApp() {
     for (const t of tracks) {
       engineRef.current.setTrack(t.channel, t);
     }
+    // Envoi du 432Hz initial (defaut=true, mais backend ne le sait pas encore)
+    engineRef.current?.set432Hz(use432);
   }, []);
 
   const parseInput = () => {
