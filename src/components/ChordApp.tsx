@@ -112,6 +112,7 @@ export default function ChordApp() {
     { channel: 2, label: 'Bass',    program: 33, volume: 40, mute: false },
     { channel: 3, label: 'Nappes',  program: 48, volume: 30, mute: false },
     { channel: 9, label: 'Drums',   program: 1,  volume: 80, mute: false },
+    { channel: 4, label: 'Accent',  program: 2,  volume: 20, mute: false },
   ]);
 
   // Fonction pour mettre a jour une track
