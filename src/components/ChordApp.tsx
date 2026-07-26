@@ -262,6 +262,40 @@ export default function ChordApp() {
 
   // ─── Play / Stop / Clear ───
 
+  const playChordPreview = useCallback(async (chord: ChordData) => {
+    const engine = await getEngine();
+    if (!engine) return;
+
+    engine.setTrack(0, { program: tracks[0].program, mute: tracks[0].mute });
+    engine.setWalking(walkingBass);
+    engine.set432Hz(use432);
+    engine.setVolume(volume);
+    engine.setDrums(!tracks[3].mute);
+    engine.setBass(!tracks[1].mute);
+    engine.setArpeggios(!tracks[0].mute);
+    engine.setNappes(!tracks[2].mute);
+    engine.setPattern(drumPattern);
+    engine.setSig(sig);
+    engine.onHighlight((idx) => setHighlighted(idx));
+
+    setPlaying(true);
+    setStatus('▶ Prévisualisation...');
+    setStatusColor('text-green-400');
+
+    engine.playChordPreview(chord).then(() => {
+      setPlaying(false);
+      setHighlighted(-1);
+      if (engineRef.current && !engineRef.current.isPlaying) {
+        setStatus('✅ Arrêté');
+        setStatusColor('text-gray-400');
+      }
+    }).catch((e) => {
+      setPlaying(false);
+      setStatus(`❌ Erreur: ${e.message}`);
+      setStatusColor('text-red-400');
+    });
+  }, [tempo, volume, tracks, use432, drumPattern, sig, getEngine, walkingBass]);
+
   const play = useCallback(async () => {
     const engine = await getEngine();
     if (!engine) return;
@@ -725,8 +759,11 @@ export default function ChordApp() {
 
 
         <ChordDetailModal
+          chords={chords}
           chord={selectedChord}
+          playing={() => playing}
           onClose={() => setSelectedChord(null)}
+          onPlay={() => { if (selectedChord) playChordPreview(selectedChord); }}
         />
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] text-gray-700">

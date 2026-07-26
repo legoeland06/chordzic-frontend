@@ -136,6 +136,76 @@ export class AudioEngine {
     return names;
   }
 
+  async playChordPreview(chord: ChordData): Promise<void> {
+    this.playing = true;
+    const noteNames = this.chordToNoteNames(chord);
+    const sequence = [{ notes: noteNames, beats: 4.0 }]; // une mesure
+
+    try {
+      await fetch(`${BACKEND_URL}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracks: this.tracks.map(t => ({
+            channel: t.channel,
+            program: t.program,
+            volume: t.volume,
+            mute: t.mute,
+          })),
+          pattern: this.drumPattern,
+          walking: this.walking,
+          sig: this.sig,
+          tempo: this.tempo,
+        }),
+      });
+
+      const resp = await fetch(`${BACKEND_URL}/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sequence,
+          tempo: this.tempo,
+          sig: this.sig,
+          pattern: this.drumPattern,
+          walking: this.walking,
+          loop_enabled: true,
+          tracks: this.tracks.map(t => ({
+            channel: t.channel,
+            program: t.program,
+            volume: t.volume,
+            mute: t.mute,
+          })),
+        }),
+      });
+
+      if (!resp.ok) {
+        this.playing = false;
+        return;
+      }
+    } catch (e) {
+      this.playing = false;
+      return;
+    }
+
+    // Highlight loop - un seul accord en boucle
+    const startTime = performance.now();
+    let cumulativeExpected = 0;
+    const msPerChord = (60000.0 / this.tempo) * 4;
+
+    while (this.playing) {
+      if (this.onChordHighlight) this.onChordHighlight(0);
+      cumulativeExpected += msPerChord;
+      const elapsed = performance.now() - startTime;
+      const waitMs = Math.max(0, cumulativeExpected - elapsed);
+      if (waitMs > 1) {
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+    }
+
+    if (this.onChordHighlight) this.onChordHighlight(-1);
+    this.playing = false;
+  }
+
   async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
     this.playing = true;
 

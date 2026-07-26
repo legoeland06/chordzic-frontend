@@ -1,6 +1,5 @@
 import PianoKeyboard from './PianoKeyboard';
-import { Play } from 'lucide-react';
-import { ChordData, GrilleData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
+import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
 
 function notesWithOctave(c: ChordData): string[] {
   const rv = NOTE_TO_MIDI[c.name] ?? 0;
@@ -35,7 +34,7 @@ export default function ChordDetailModal({ chords, chord, playing, onClose, onPl
           <h3 className="text-xl font-bold font-mono text-white">
             {chord.time}:{chord.chiffrage}
           </h3>
-	  <button onClick={onPlay} disabled={playing || chord.length === 0} className="text-gray-500 hover:text-white text-lg">
+	  <button onClick={onPlay} disabled={playing() || chord.length === 0} className="text-gray-500 hover:text-white text-lg">
           Jouer 
         </button>
 
