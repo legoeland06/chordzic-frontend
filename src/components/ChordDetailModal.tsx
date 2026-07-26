@@ -1,6 +1,38 @@
 import { useState, useRef, useEffect } from 'react';
 import PianoKeyboard from './PianoKeyboard';
-import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
+import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor, QUALITY_INTERVALS } from '../types/chord';
+
+// ─── Autocompletion ─────────
+const NOTE_PATTERN = /^([A-G][#b]?)(.*)/;
+const QUALITY_NAMES = Object.keys(QUALITY_INTERVALS)
+  .filter(k => k && k !== 'M' && k !== '')
+  .sort((a, b) => a.length - b.length || a.localeCompare(b));
+
+function getSuggestions(token: string): string[] {
+  if (!token || !token.includes(':')) return [];
+  const colonIdx = token.indexOf(':');
+  const timePart = token.slice(0, colonIdx + 1); // "4:"
+  const rest = token.slice(colonIdx + 1); // "Cm7"
+
+  const noteMatch = rest.match(NOTE_PATTERN);
+  if (!noteMatch) return [];
+
+  const noteName = noteMatch[1];
+  const partialQuality = noteMatch[2].toLowerCase();
+
+  if (partialQuality === rest.toLowerCase()) {
+    // Pas encore de qualite → juste la fondamentale → proposer maj
+    return [`${timePart}${noteName}`, `${timePart}${noteName}m`, `${timePart}${noteName}7`, `${timePart}${noteName}M7`];
+  }
+
+  const results: string[] = [];
+  for (const q of QUALITY_NAMES) {
+    if (q.toLowerCase().startsWith(partialQuality)) {
+      results.push(timePart + noteName + q);
+    }
+  }
+  return results.slice(0, 12);
+}
 
 function notesWithOctave(c: ChordData): string[] {
   const rv = NOTE_TO_MIDI[c.name] ?? 0;
@@ -28,6 +60,8 @@ interface ChordDetailModalProps {
 export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount, playing, onClose, onTogglePlay, onPrev, onNext, onUpdateChord}: ChordDetailModalProps) {
   const [editText, setEditText] = useState('');
   const [editing, setEditing] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestIdx, setSuggestIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Mettre a jour le texte local quand l'accord change
@@ -41,6 +75,20 @@ export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount,
     if (!editText.trim() || chordIdx < 0) return;
     onUpdateChord(chordIdx, editText.trim());
     setEditing(false);
+    setSuggestions([]);
+  };
+
+  const applySuggestion = (suggestion: string) => {
+    setEditText(suggestion);
+    setSuggestions([]);
+    setSuggestIdx(0);
+    inputRef.current?.focus();
+    // Placer le curseur a la fin
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.setSelectionRange(suggestion.length, suggestion.length);
+      }
+    });
   };
 
   if (!chord) return null;
@@ -59,20 +107,69 @@ export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount,
             className="text-gray-500 hover:text-white text-lg disabled:opacity-30 disabled:cursor-not-allowed">
             ◀
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative">
             {editing ? (
-              <input
-                ref={inputRef}
-                autoFocus
-                value={editText}
-                onChange={e => setEditText(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') commitEdit();
-                  if (e.key === 'Escape') { setEditing(false); setEditText(`${chord.time}:${chord.chiffrage}`); }
-                }}
-                onBlur={commitEdit}
-                className="bg-gray-800 text-white text-xl font-bold font-mono px-3 py-1 rounded-lg border border-blue-500 outline-none w-40"
-              />
+              <>
+                <input
+                  ref={inputRef}
+                  autoFocus
+                  value={editText}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setEditText(val);
+                    const results = getSuggestions(val);
+                    setSuggestions(results);
+                    setSuggestIdx(0);
+                  }}
+                  onKeyDown={e => {
+                    if (suggestions.length > 0) {
+                      if (e.key === 'Tab' || e.key === 'Enter') {
+                        e.preventDefault();
+                        applySuggestion(suggestions[suggestIdx]);
+                        return;
+                      }
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSuggestIdx(prev => Math.min(prev + 1, suggestions.length - 1));
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSuggestIdx(prev => Math.max(prev - 1, 0));
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        setSuggestions([]);
+                        return;
+                      }
+                    }
+                    if (e.key === 'Enter') commitEdit();
+                    if (e.key === 'Escape') { setEditing(false); setEditText(`${chord.time}:${chord.chiffrage}`); setSuggestions([]); }
+                  }}
+                  onBlur={() => {
+                    // Donner le temps de cliquer sur une suggestion
+                    setTimeout(() => { setSuggestions([]); }, 200);
+                    commitEdit();
+                  }}
+                  className="bg-gray-800 text-white text-xl font-bold font-mono px-3 py-1 rounded-lg border border-blue-500 outline-none w-40"
+                />
+                {/* Dropdown suggestions */}
+                {suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden min-w-[8rem]">
+                    {suggestions.map((s, i) => (
+                      <div key={i}
+                        onMouseDown={(e) => { e.preventDefault(); applySuggestion(s); }}
+                        className={`px-3 py-1.5 text-sm font-mono cursor-pointer transition-colors ${
+                          i === suggestIdx
+                            ? 'bg-blue-700 text-white'
+                            : 'text-gray-300 hover:bg-gray-700'
+                        }`}>
+                        {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
               <h3
                 onClick={() => { setEditing(true); setEditText(`${chord.time}:${chord.chiffrage}`); }}
