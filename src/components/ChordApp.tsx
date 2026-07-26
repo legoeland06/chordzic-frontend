@@ -599,6 +599,28 @@ export default function ChordApp() {
     };
   }, [input, tempo, suggestions.length]);
 
+  // Modification d'un accord depuis le modal
+  const handleUpdateChord = useCallback((idx: number, newText: string) => {
+    const tokens = input.trim().split(/\s+/);
+    if (idx >= 0 && idx < tokens.length) {
+      tokens[idx] = newText;
+      setInput(tokens.join(' '));
+    }
+  }, [input]);
+
+  // Synchroniser selectedChord apres re-parse (modification depuis le modal)
+  useEffect(() => {
+    if (!selectedChord || chords.length === 0) return;
+    const idx = chords.findIndex(c =>
+      c.time === selectedChord.time &&
+      c.chiffrage === selectedChord.chiffrage &&
+      c.name === selectedChord.name
+    );
+    if (idx >= 0 && idx < chords.length && chords[idx] !== selectedChord) {
+      setSelectedChord(chords[idx]);
+    }
+  }, [chords]);
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-start justify-center p-4">
       <div className="w-full max-w-4xl mx-auto">
@@ -788,6 +810,7 @@ export default function ChordApp() {
             const n = chords[selectedChordIdx + 1];
             if (n) { setSelectedChord(n); if (playing) playChordPreview(n); }
           }}
+          onUpdateChord={handleUpdateChord}
         />
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] text-gray-700">

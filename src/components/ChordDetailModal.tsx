@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import PianoKeyboard from './PianoKeyboard';
 import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
 
@@ -21,9 +22,27 @@ interface ChordDetailModalProps {
   onTogglePlay: () => void;
   onPrev: () => void;
   onNext: () => void;
+  onUpdateChord: (idx: number, text: string) => void;
 }
 
-export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount, playing, onClose, onTogglePlay, onPrev, onNext}: ChordDetailModalProps) {
+export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount, playing, onClose, onTogglePlay, onPrev, onNext, onUpdateChord}: ChordDetailModalProps) {
+  const [editText, setEditText] = useState('');
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Mettre a jour le texte local quand l'accord change
+  useEffect(() => {
+    if (chord && !editing) {
+      setEditText(`${chord.time}:${chord.chiffrage}`);
+    }
+  }, [chord, editing]);
+
+  const commitEdit = () => {
+    if (!editText.trim() || chordIdx < 0) return;
+    onUpdateChord(chordIdx, editText.trim());
+    setEditing(false);
+  };
+
   if (!chord) return null;
 
   return (
@@ -41,9 +60,28 @@ export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount,
             ◀
           </button>
           <div className="flex items-center gap-3">
-            <h3 className="text-xl font-bold font-mono text-white">
-              {chord.time}:{chord.chiffrage}
-            </h3>
+            {editing ? (
+              <input
+                ref={inputRef}
+                autoFocus
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitEdit();
+                  if (e.key === 'Escape') { setEditing(false); setEditText(`${chord.time}:${chord.chiffrage}`); }
+                }}
+                onBlur={commitEdit}
+                className="bg-gray-800 text-white text-xl font-bold font-mono px-3 py-1 rounded-lg border border-blue-500 outline-none w-40"
+              />
+            ) : (
+              <h3
+                onClick={() => { setEditing(true); setEditText(`${chord.time}:${chord.chiffrage}`); }}
+                className="text-xl font-bold font-mono text-white cursor-pointer hover:text-blue-400 transition-colors"
+                title="Cliquer pour modifier"
+              >
+                {chord.time}:{chord.chiffrage}
+              </h3>
+            )}
             <span className="text-[10px] text-gray-600 font-mono">
               {chordIdx + 1}/{chordsCount}
             </span>
