@@ -568,8 +568,8 @@ export default function ChordApp() {
               <Music className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">chordJAVA</h1>
-              <p className="text-xs text-gray-500">Moteur Harmonique</p>
+              <h1 className="text-xl font-bold text-white">chordZic</h1>
+              <p className="text-xs text-gray-500">Moteur Harmonique - by Legoeland</p>
             </div>
           </div>
           <span className={`text-xs font-mono ${statusColor}`}>{status}</span>
@@ -730,7 +730,7 @@ export default function ChordApp() {
         />
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] text-gray-700">
-          chordJAVA v2 by Legoeland — <a href="mailto:ericbruneau@gmail.com" class="text-blue-500 hover:text-blue-400">ericbruneau@gmail.com</a>
+          chordJAVA v2 by Legoeland
           &nbsp;· Tone.js · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}
         </div>
 

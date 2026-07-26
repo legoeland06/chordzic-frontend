@@ -68,7 +68,11 @@ export default function ControlBar({
         <input type="range" min={40} max={220} value={tempo}
           onChange={(e) => onTempoChange(parseInt(e.target.value))}
           className="w-16 sm:w-20 accent-blue-500 shrink-0" />
-        <span className="text-xs font-bold text-blue-400 w-10 shrink-0">{tempo}</span>
+	  
+	  <input type="number" value={tempo}
+            onChange={(e) => onTempoChange(parseInt(e.target.value))}
+        className="text-xs font-bold text-blue-400 w-10 shrink-0"/>
+	  
       </div>
     </div>
   );

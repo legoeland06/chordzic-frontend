@@ -125,7 +125,7 @@ export default function ChordInput({ input, onChange, onSuggestion }: ChordInput
         onChange={handleInputChange}
         onKeyDown={handleInputKeyDown}
         onBlur={() => { setTimeout(() => { setSuggestions([]); setSuggestToken(null); }, 200); }}
-        rows={2}
+        rows={5}
         className="w-full bg-gray-800 text-white text-sm font-mono px-4 py-3 rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
         placeholder="4:Cm7 2:FM7 4:G7 4:C"
       />

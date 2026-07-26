@@ -1,5 +1,6 @@
 import PianoKeyboard from './PianoKeyboard';
-import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
+import { Play } from 'lucide-react';
+import { ChordData, GrilleData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
 
 function notesWithOctave(c: ChordData): string[] {
   const rv = NOTE_TO_MIDI[c.name] ?? 0;
@@ -12,11 +13,14 @@ function notesWithOctave(c: ChordData): string[] {
 const INTERVAL_NAMES = ['P1','m2','M2','m3','M3','P4','b5','P5','m6','M6','m7','M7'];
 
 interface ChordDetailModalProps {
+  chords: { time: number }[];
   chord: ChordData | null;
+  playing: () => boolean;
   onClose: () => void;
+  onPlay: () => void;
 }
 
-export default function ChordDetailModal({ chord, onClose }: ChordDetailModalProps) {
+export default function ChordDetailModal({ chords, chord, playing, onClose, onPlay}: ChordDetailModalProps) {
   if (!chord) return null;
 
   return (
@@ -31,6 +35,10 @@ export default function ChordDetailModal({ chord, onClose }: ChordDetailModalPro
           <h3 className="text-xl font-bold font-mono text-white">
             {chord.time}:{chord.chiffrage}
           </h3>
+	  <button onClick={onPlay} disabled={playing || chord.length === 0} className="text-gray-500 hover:text-white text-lg">
+          Jouer 
+        </button>
+
           <button onClick={onClose}
             className="text-gray-500 hover:text-white text-lg">✕</button>
         </div>
