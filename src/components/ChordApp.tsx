@@ -604,22 +604,18 @@ export default function ChordApp() {
     const tokens = input.trim().split(/\s+/);
     if (idx >= 0 && idx < tokens.length) {
       tokens[idx] = newText;
-      setInput(tokens.join(' '));
+      const newInput = tokens.join(' ');
+      setInput(newInput);
+      // Re-parser immediatement pour mettre a jour selectedChord
+      try {
+        const grille = parseGrille(newInput, tempo);
+        setChords(grille.chords);
+        if (grille.chords.length > 0 && idx < grille.chords.length) {
+          setSelectedChord(grille.chords[idx]);
+        }
+      } catch {}
     }
-  }, [input]);
-
-  // Synchroniser selectedChord apres re-parse (modification depuis le modal)
-  useEffect(() => {
-    if (!selectedChord || chords.length === 0) return;
-    const idx = chords.findIndex(c =>
-      c.time === selectedChord.time &&
-      c.chiffrage === selectedChord.chiffrage &&
-      c.name === selectedChord.name
-    );
-    if (idx >= 0 && idx < chords.length && chords[idx] !== selectedChord) {
-      setSelectedChord(chords[idx]);
-    }
-  }, [chords]);
+  }, [input, tempo]);
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-start justify-center p-4">
