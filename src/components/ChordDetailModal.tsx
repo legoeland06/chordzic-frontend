@@ -14,12 +14,16 @@ const INTERVAL_NAMES = ['P1','m2','M2','m3','M3','P4','b5','P5','m6','M6','m7','
 interface ChordDetailModalProps {
   chords: { time: number }[];
   chord: ChordData | null;
+  chordIdx: number;
+  chordsCount: number;
   playing: () => boolean;
   onClose: () => void;
-  onPlay: () => void;
+  onTogglePlay: () => void;
+  onPrev: () => void;
+  onNext: () => void;
 }
 
-export default function ChordDetailModal({ chords, chord, playing, onClose, onPlay}: ChordDetailModalProps) {
+export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount, playing, onClose, onTogglePlay, onPrev, onNext}: ChordDetailModalProps) {
   if (!chord) return null;
 
   return (
@@ -31,12 +35,34 @@ export default function ChordDetailModal({ chords, chord, playing, onClose, onPl
 
         {/* En-tête */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold font-mono text-white">
-            {chord.time}:{chord.chiffrage}
-          </h3>
-	  <button onClick={onPlay} disabled={playing() || chord.length === 0} className="text-gray-500 hover:text-white text-lg">
-          Jouer 
-        </button>
+          <button onClick={onPrev}
+            disabled={chordIdx <= 0}
+            className="text-gray-500 hover:text-white text-lg disabled:opacity-30 disabled:cursor-not-allowed">
+            ◀
+          </button>
+          <div className="flex items-center gap-3">
+            <h3 className="text-xl font-bold font-mono text-white">
+              {chord.time}:{chord.chiffrage}
+            </h3>
+            <span className="text-[10px] text-gray-600 font-mono">
+              {chordIdx + 1}/{chordsCount}
+            </span>
+          </div>
+          <button onClick={onNext}
+            disabled={chordIdx >= chordsCount - 1}
+            className="text-gray-500 hover:text-white text-lg disabled:opacity-30 disabled:cursor-not-allowed">
+            ▶
+          </button>
+
+          <button onClick={onTogglePlay}
+            disabled={chord.length === 0}
+            className={`text-lg font-bold px-3 py-1 rounded-lg transition-colors ${
+              playing()
+                ? 'bg-red-800 hover:bg-red-700 text-red-300'
+                : 'bg-emerald-800 hover:bg-emerald-700 text-emerald-300'
+            }`}>
+            {playing() ? '■ Arrêter' : '▶ Jouer'}
+          </button>
 
           <button onClick={onClose}
             className="text-gray-500 hover:text-white text-lg">✕</button>

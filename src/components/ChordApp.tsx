@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Play, Square, Trash2, Sparkles, Music, Volume2, Gauge, Save, FolderOpen, GripVertical } from 'lucide-react';
 
 // ─── Constantes ─────────────────────────────────────────────────────────
@@ -147,6 +147,14 @@ export default function ChordApp() {
 
   // Détail accord
   const [selectedChord, setSelectedChord] = useState<ChordData | null>(null);
+  const selectedChordIdx = useMemo(() => {
+    if (!selectedChord || chords.length === 0) return -1;
+    return chords.findIndex(c =>
+      c.time === selectedChord.time &&
+      c.chiffrage === selectedChord.chiffrage &&
+      c.name === selectedChord.name
+    );
+  }, [selectedChord, chords]);
 
   // Sauvegarder / Charger
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -761,9 +769,25 @@ export default function ChordApp() {
         <ChordDetailModal
           chords={chords}
           chord={selectedChord}
+          chordIdx={selectedChordIdx}
+          chordsCount={chords.length}
           playing={() => playing}
           onClose={() => setSelectedChord(null)}
-          onPlay={() => { if (selectedChord) playChordPreview(selectedChord); }}
+          onTogglePlay={() => {
+            if (playing) {
+              stop();
+            } else if (selectedChord) {
+              playChordPreview(selectedChord);
+            }
+          }}
+          onPrev={() => {
+            const n = chords[selectedChordIdx - 1];
+            if (n) { setSelectedChord(n); if (playing) playChordPreview(n); }
+          }}
+          onNext={() => {
+            const n = chords[selectedChordIdx + 1];
+            if (n) { setSelectedChord(n); if (playing) playChordPreview(n); }
+          }}
         />
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] text-gray-700">
