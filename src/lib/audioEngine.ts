@@ -137,6 +137,7 @@ export class AudioEngine {
   }
 
   async playChordPreview(chord: ChordData): Promise<void> {
+    await this.stop(); // stoppe toute lecture en cours
     this.playing = true;
     const noteNames = this.chordToNoteNames(chord);
     const sequence = [{ notes: noteNames, beats: 4.0 }]; // une mesure
@@ -207,6 +208,7 @@ export class AudioEngine {
   }
 
   async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
+    await this.stop(); // stoppe toute lecture en cours
     this.playing = true;
 
     const buildSeq = () => {
