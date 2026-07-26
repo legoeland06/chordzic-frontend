@@ -14,6 +14,7 @@ const BACKEND_URL = 'http://localhost:4000';
 
 export class AudioEngine {
   private playing = false;
+  private playGen = 0;
   private onChordHighlight?: (idx: number) => void;
   private drumPattern = "rock";
   private walking = false;
@@ -138,6 +139,7 @@ export class AudioEngine {
 
   async playChordPreview(chord: ChordData): Promise<void> {
     await this.stop(); // stoppe toute lecture en cours
+    const gen = this.playGen;
     this.playing = true;
     const noteNames = this.chordToNoteNames(chord);
     const sequence = [{ notes: noteNames, beats: 4.0 }]; // une mesure
@@ -203,12 +205,16 @@ export class AudioEngine {
       }
     }
 
-    if (this.onChordHighlight) this.onChordHighlight(-1);
-    this.playing = false;
+    // Nettoyer seulement si aucune nouvelle lecture n'a pris le relais
+    if (this.playGen === gen) {
+      if (this.onChordHighlight) this.onChordHighlight(-1);
+      this.playing = false;
+    }
   }
 
   async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
     await this.stop(); // stoppe toute lecture en cours
+    const gen = this.playGen;
     this.playing = true;
 
     const buildSeq = () => {
@@ -281,12 +287,17 @@ export class AudioEngine {
       if (!loop) break;
     }
 
-    if (this.onChordHighlight) this.onChordHighlight(-1);
-    this.playing = false;
+    // Nettoyer seulement si aucune nouvelle lecture n'a pris le relais
+    if (this.playGen === gen) {
+      if (this.onChordHighlight) this.onChordHighlight(-1);
+      this.playing = false;
+    }
   }
 
   async stop() {
     this.playing = false;
+    this.playGen++; // invalide toute boucle anterieure
+    if (this.onChordHighlight) this.onChordHighlight(-1);
     try {
       await fetch(`${BACKEND_URL}/stop`, { method: 'POST' });
     } catch {}
