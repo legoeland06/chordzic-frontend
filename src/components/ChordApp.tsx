@@ -114,6 +114,7 @@ export default function ChordApp() {
   const [tempo, setTempo] = useState(120);
   const [volume, setVolume] = useState(127);
   const [use432, setUse432] = useState(true);
+  const [browserAudio, setBrowserAudio] = useState(false);
   const [tracks, setLocalTracks] = useState<TrackConfig[]>([
     { channel: 0, label: 'Lead',    program: 51, volume: 15, mute: false },
     { channel: 2, label: 'Bass',    program: 33, volume: 40, mute: false },
@@ -665,6 +666,7 @@ export default function ChordApp() {
           tempo={tempo}
           volume={volume}
           use432={use432}
+          browserAudio={browserAudio}
           loopOn={loopOn}
           walkingBass={walkingBass}
           drumPattern={drumPattern}
@@ -672,6 +674,7 @@ export default function ChordApp() {
           tracks={tracks}
           onSetVolume={setVolume}
           onSet432={setUse432}
+          onSetBrowserAudio={(v) => { setBrowserAudio(v); engineRef.current.browserAudio = v; }}
           onSetLoop={setLoopOn}
           onSetWalkingBass={setWalkingBass}
           onSetDrumPattern={setDrumPattern}

@@ -1,4 +1,5 @@
 import { ChordData, GrilleData } from '../types/chord';
+import { BrowserSynth } from './browserSynth';
 
 export type AudioState = 'idle' | 'playing' | 'stopped';
 
@@ -10,7 +11,13 @@ export interface TrackConfig {
   mute: boolean;
 }
 
-const BACKEND_URL = 'http://localhost:4000';
+/** URL du backend (ports PC) — utilise l'hote courant pour fonctionner en reseau */
+function backendUrl(): string {
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:4000`;
+  }
+  return 'http://localhost:4000';
+}
 
 export class AudioEngine {
   private playing = false;
@@ -20,6 +27,11 @@ export class AudioEngine {
   private walking = false;
   private tempo = 120;
   private sig = "4/4";
+  private browserSynth = new BrowserSynth();
+  private _browserAudio = false;
+
+  get browserAudio() { return this._browserAudio; }
+  set browserAudio(v: boolean) { this._browserAudio = v; }
 
   tracks: TrackConfig[] = [
     { channel: 0, label: 'Lead',  program: 51, volume: 15, mute: false },
@@ -81,7 +93,7 @@ export class AudioEngine {
   setWalking(v: boolean) { this.walking = v; this.sendConfig(); }
 
   private sendConfig(extra: any = {}) {
-    fetch(`${BACKEND_URL}/config`, {
+    fetch(`${backendUrl()}/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -101,8 +113,8 @@ export class AudioEngine {
 
   async init() {
     try {
-      const resp = await fetch(BACKEND_URL);
-      if (resp.ok) console.log('🔌 Backend MIDI', BACKEND_URL);
+      const resp = await fetch(backendUrl());
+      if (resp.ok) console.log('🔌 Backend MIDI', backendUrl());
     } catch {
       console.warn('⚠️ Backend MIDI indisponible');
     }
@@ -138,59 +150,38 @@ export class AudioEngine {
   }
 
   async playChordPreview(chord: ChordData): Promise<void> {
-    await this.stop(); // stoppe toute lecture en cours
+    await this.stop();
     const gen = this.playGen;
     this.playing = true;
-    const noteNames = this.chordToNoteNames(chord);
-    const sequence = [{ notes: noteNames, beats: 4.0 }]; // une mesure
 
-    try {
-      await fetch(`${BACKEND_URL}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tracks: this.tracks.map(t => ({
-            channel: t.channel,
-            program: t.program,
-            volume: t.volume,
-            mute: t.mute,
-          })),
-          pattern: this.drumPattern,
-          walking: this.walking,
-          sig: this.sig,
-          tempo: this.tempo,
-        }),
-      });
-
-      const resp = await fetch(`${BACKEND_URL}/play`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sequence,
-          tempo: this.tempo,
-          sig: this.sig,
-          pattern: this.drumPattern,
-          walking: this.walking,
-          loop_enabled: true,
-          tracks: this.tracks.map(t => ({
-            channel: t.channel,
-            program: t.program,
-            volume: t.volume,
-            mute: t.mute,
-          })),
-        }),
-      });
-
-      if (!resp.ok) {
-        this.playing = false;
-        return;
-      }
-    } catch (e) {
-      this.playing = false;
-      return;
+    if (this._browserAudio) {
+      // Audio navigateur : Tone.js
+      this.browserSynth.playChordPreview(chord, this.tempo).catch(() => {});
+    } else {
+      // Backend MIDI
+      const noteNames = this.chordToNoteNames(chord);
+      const sequence = [{ notes: noteNames, beats: 4.0 }];
+      try {
+        const resp = await fetch(`${backendUrl()}/play`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sequence,
+            tempo: this.tempo,
+            sig: this.sig,
+            pattern: this.drumPattern,
+            walking: this.walking,
+            loop_enabled: true,
+            tracks: this.tracks.map(t => ({
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            })),
+          }),
+        });
+        if (!resp.ok) { this.playing = false; return; }
+      } catch { this.playing = false; return; }
     }
 
-    // Highlight loop - un seul accord en boucle
+    // Highlight loop
     const startTime = performance.now();
     let cumulativeExpected = 0;
     const msPerChord = (60000.0 / this.tempo) * 4;
@@ -200,12 +191,10 @@ export class AudioEngine {
       cumulativeExpected += msPerChord;
       const elapsed = performance.now() - startTime;
       const waitMs = Math.max(0, cumulativeExpected - elapsed);
-      if (waitMs > 1) {
-        await new Promise(r => setTimeout(r, waitMs));
-      }
+      if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
     }
 
-    // Nettoyer seulement si aucune nouvelle lecture n'a pris le relais
+    // Arret : highlight -1 + playing = false (si pas de nouveau playback)
     if (this.playGen === gen) {
       if (this.onChordHighlight) this.onChordHighlight(-1);
       this.playing = false;
@@ -213,54 +202,39 @@ export class AudioEngine {
   }
 
   async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
-    await this.stop(); // stoppe toute lecture en cours
+    await this.stop();
     const gen = this.playGen;
     this.playing = true;
 
-    const buildSeq = () => {
-      const seq: Array<{ notes: string[]; beats: number }> = [];
-      for (const c of grille.chords) {
-        const noteNames = this.chordToNoteNames(c);
-        // Toujours ajouter : notes vides = silence
-        seq.push({ notes: noteNames, beats: 4.0 / c.time });
-      }
-      return seq;
-    };
+    if (grille.chords.length === 0) { this.playing = false; return; }
 
-    const sequence = buildSeq();
-    if (sequence.length === 0) { this.playing = false; return; }
-
-    try {
-      const resp = await fetch(`${BACKEND_URL}/play`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sequence,
-          tempo: this.tempo,
-          sig: this.sig,
-          pattern: this.drumPattern,
-          walking: this.walking,
-          loop_enabled: loop || false,
-          tracks: this.tracks.map(t => ({
-            channel: t.channel,
-            program: t.program,
-            volume: t.volume,
-            mute: t.mute,
-          })),
-        }),
-      });
-
-      if (!resp.ok) {
-        console.error('⚠️ Erreur backend');
-        this.playing = false;
-        if (this.onChordHighlight) this.onChordHighlight(-1);
-        return;
-      }
-    } catch (e) {
-      console.error('Erreur:', e);
-      this.playing = false;
-      if (this.onChordHighlight) this.onChordHighlight(-1);
-      return;
+    if (this._browserAudio) {
+      // Audio navigateur : Tone.js
+      this.browserSynth.playGrille(grille, this.tempo, loop).catch(() => {});
+    } else {
+      // Backend MIDI
+      const sequence = grille.chords.map(c => ({
+        notes: this.chordToNoteNames(c),
+        beats: 4.0 / c.time,
+      }));
+      try {
+        const resp = await fetch(`${backendUrl()}/play`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sequence,
+            tempo: this.tempo,
+            sig: this.sig,
+            pattern: this.drumPattern,
+            walking: this.walking,
+            loop_enabled: loop || false,
+            tracks: this.tracks.map(t => ({
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            })),
+          }),
+        });
+        if (!resp.ok) { this.playing = false; return; }
+      } catch { this.playing = false; return; }
     }
 
     // Boucle de highlight locale — avec compensation de drift
@@ -275,19 +249,13 @@ export class AudioEngine {
         const chordMs = (60000.0 / this.tempo) * beats;
         cumulativeExpected += chordMs;
 
-        // Compenser le drift : attendre le temps restant réel
         const elapsed = performance.now() - startTime;
         const waitMs = Math.max(0, cumulativeExpected - elapsed);
-        if (waitMs > 1) {
-          await new Promise(r => setTimeout(r, waitMs));
-        }
-        // waitMs ≤ 1 : on est déjà en retard sur le temps attendu
-        // → on passe à l'accord suivant sans attendre (on rattrape comme on peut)
+        if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
       }
       if (!loop) break;
     }
 
-    // Nettoyer seulement si aucune nouvelle lecture n'a pris le relais
     if (this.playGen === gen) {
       if (this.onChordHighlight) this.onChordHighlight(-1);
       this.playing = false;
@@ -296,11 +264,10 @@ export class AudioEngine {
 
   async stop() {
     this.playing = false;
-    this.playGen++; // invalide toute boucle anterieure
+    this.playGen++;
     if (this.onChordHighlight) this.onChordHighlight(-1);
-    try {
-      await fetch(`${BACKEND_URL}/stop`, { method: 'POST' });
-    } catch {}
+    this.browserSynth.stop();
+    try { await fetch(`${backendUrl()}/stop`, { method: 'POST' }); } catch {}
   }
 
   get isPlaying() { return this.playing; }

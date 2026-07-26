@@ -12,6 +12,7 @@ interface TrackPanelProps {
   tempo: number;
   volume: number;
   use432: boolean;
+  browserAudio: boolean;
   loopOn: boolean;
   walkingBass: boolean;
   drumPattern: string;
@@ -19,6 +20,7 @@ interface TrackPanelProps {
   tracks: TrackConfig[];
   onSetVolume: (v: number) => void;
   onSet432: (v: boolean) => void;
+  onSetBrowserAudio: (v: boolean) => void;
   onSetLoop: (v: boolean) => void;
   onSetWalkingBass: (v: boolean) => void;
   onSetDrumPattern: (v: string) => void;
@@ -29,8 +31,8 @@ interface TrackPanelProps {
 
 export default function TrackPanel({
   chords, highlighted, playing, currentBeat, tempo,
-  volume, use432, loopOn, walkingBass, drumPattern, sig, tracks,
-  onSetVolume, onSet432, onSetLoop, onSetWalkingBass,
+  volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
+  onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
@@ -53,6 +55,18 @@ export default function TrackPanel({
           }`}
         >
           432Hz {use432 ? '\u25cf' : '\u25cb'}
+        </button>
+
+        <button
+          onClick={() => onSetBrowserAudio(!browserAudio)}
+          className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
+            browserAudio
+              ? 'bg-purple-900/40 border-purple-500 text-purple-400'
+              : 'bg-gray-800 border-gray-700 text-gray-500'
+          }`}
+          title="Mode navigateur: son dans le navigateur (smartphone)"
+        >
+          {'\uD83D\uDCF1'} Navig. {browserAudio ? '\u25cf' : '\u25cb'}
         </button>
 
         <button
