@@ -132,7 +132,8 @@ export default function ChordApp() {
   const [walkingBass, setWalkingBass] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
-  const [useSamples, setUseSamples] = useState(false);
+  const [useLoops, setUseLoops] = useState(false);
+  const [loopOffset, setLoopOffset] = useState(0);
   const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
@@ -584,14 +585,21 @@ export default function ChordApp() {
   }, []);
   useEffect(() => { fetchSamples(); }, [fetchSamples]);
 
-  // Envoie use_samples au backend
+  // Envoie use_loops et loop_offset au backend
   useEffect(() => {
     fetch('http://localhost:4000/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ use_samples: useSamples }),
+      body: JSON.stringify({ use_loops: useLoops }),
     }).catch(() => {});
-  }, [useSamples]);
+  }, [useLoops]);
+  useEffect(() => {
+    fetch('http://localhost:4000/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loop_offset: loopOffset }),
+    }).catch(() => {});
+  }, [loopOffset]);
 
   // Rafraîchir les samples dispo quand le tempo change (nouveaux samples possibles)
   useEffect(() => {
@@ -704,14 +712,16 @@ export default function ChordApp() {
           onSet432={setUse432}
           onSetBrowserAudio={(v) => { setBrowserAudio(v); engineRef.current.browserAudio = v; }}
           onSetLoop={setLoopOn}
-          useSamples={useSamples}
+          useLoops={useLoops}
+          loopOffset={loopOffset}
           availableSamples={availableSamples}
           onSetWalkingBass={setWalkingBass}
           onSetDrumPattern={setDrumPattern}
           onSetSig={setSig}
           onSetTempo={setTempo}
           onUpdateTrack={updateTrack}
-          onSetUseSamples={(v) => { setUseSamples(v); engineRef.current?.setUseSamples(v); }}
+          onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}
+          onSetLoopOffset={(v) => { setLoopOffset(v); engineRef.current?.setLoopOffset(v); }}
         />
 
         <ProgressBar

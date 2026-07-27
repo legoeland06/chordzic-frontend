@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import { getChordColor, ChordData } from '../types/chord';
-import ProgressBar from './ProgressBar';
 
 interface TrackPanelProps {
   chords: ChordData[];
@@ -18,7 +17,8 @@ interface TrackPanelProps {
   drumPattern: string;
   sig: string;
   tracks: TrackConfig[];
-  useSamples: boolean;
+  useLoops: boolean;
+  loopOffset: number;
   availableSamples: Record<string, string[]>;
   onSetVolume: (v: number) => void;
   onSet432: (v: boolean) => void;
@@ -29,15 +29,17 @@ interface TrackPanelProps {
   onSetSig: (v: string) => void;
   onSetTempo: (v: number) => void;
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
-  onSetUseSamples: (v: boolean) => void;
+  onSetUseLoops: (v: boolean) => void;
+  onSetLoopOffset: (v: number) => void;
 }
 
 export default function TrackPanel({
   chords, highlighted, playing, currentBeat, tempo,
   volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
-  useSamples, availableSamples,
+  useLoops, loopOffset, availableSamples,
   onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
-  onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack, onSetUseSamples,
+  onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
+  onSetUseLoops, onSetLoopOffset,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
   return (
@@ -97,16 +99,41 @@ export default function TrackPanel({
         </button>
 
         <button
-          onClick={() => onSetUseSamples(!useSamples)}
+          onClick={() => onSetUseLoops(!useLoops)}
           className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
-            useSamples
+            useLoops
               ? 'bg-emerald-900/40 border-emerald-500 text-emerald-400'
               : 'bg-gray-800 border-gray-700 text-gray-500'
           }`}
-          title="Utiliser les samples WAV au lieu de la batterie MIDI"
+          title="Jouer un loop WAV en fond avec les accords"
         >
-          {'\ud83c\udfb5'} Samples {useSamples ? '\u25cf' : '\u25cb'}
+          {'\ud83c\udfb5'} Boucle {useLoops ? '\u25cf' : '\u25cb'}
         </button>
+
+        {/* Spinner offset */}
+        {useLoops && (
+          <div className="flex items-center gap-1 shrink-0 bg-gray-800 rounded-lg border border-gray-700 px-2 py-1">
+            <span className="text-[10px] text-gray-500">↕</span>
+            <button
+              onClick={() => onSetLoopOffset(loopOffset - 10)}
+              className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
+              title="-10ms"
+            >◀</button>
+            <input
+              type="number"
+              value={loopOffset}
+              onChange={e => onSetLoopOffset(parseInt(e.target.value) || 0)}
+              className="w-14 bg-gray-900 text-emerald-400 text-xs font-mono text-center rounded border border-gray-700 outline-none px-1 py-0.5"
+              step={10}
+            />
+            <span className="text-[10px] text-gray-500">ms</span>
+            <button
+              onClick={() => onSetLoopOffset(loopOffset + 10)}
+              className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
+              title="+10ms"
+            >▶</button>
+          </div>
+        )}
 
         <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
         <select value={drumPattern}
@@ -216,18 +243,23 @@ export default function TrackPanel({
             </button>
           </div>
 
-          {/* Samples disponibles */}
+          {/* Loops disponibles */}
           {availableSamples[String(tempo)] && availableSamples[String(tempo)].length > 0 && (
             <div className="mt-2 pt-2 border-t border-gray-800">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] text-gray-500">📂 Samples ({tempo} bpm):</span>
+                <span className="text-[10px] text-gray-500">📂 Boucles ({tempo} bpm):</span>
                 <span className="text-[10px] text-emerald-400">
                   {availableSamples[String(tempo)].join(', ')}
                 </span>
               </div>
-              {useSamples && (
+              {useLoops && (
                 <div className="text-[10px] text-emerald-600/60">
-                  🎧 Batterie échantillonnée active
+                  🔁 Lecture en boucle active (offset {loopOffset}ms)
+                </div>
+              )}
+              {!useLoops && (
+                <div className="text-[10px] text-gray-600">
+                  Activer « Boucle » pour lancer la lecture
                 </div>
               )}
             </div>
