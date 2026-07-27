@@ -156,7 +156,7 @@ export class AudioEngine {
 
     if (this._browserAudio) {
       // Audio navigateur : rendu WAV via backend synthé
-      this.browserSynth.playChordPreview(chord, this.tempo).catch(() => {});
+      await this.browserSynth.playChordPreview(chord, this.tempo);
     } else {
       // Backend MIDI
       const noteNames = this.chordToNoteNames(chord);
@@ -210,7 +210,7 @@ export class AudioEngine {
 
     if (this._browserAudio) {
       // Audio navigateur : rendu WAV via backend synthé
-      this.browserSynth.playGrille(grille, this.tempo, loop).catch(() => {});
+      await this.browserSynth.playGrille(grille, this.tempo, loop);
     } else {
       // Backend MIDI
       const sequence = grille.chords.map(c => ({

@@ -44,9 +44,15 @@ export class BrowserSynth {
   private async getContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext();
+      console.log('🔊 AudioContext created, state:', this.audioCtx.state);
     }
     if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
+      try {
+        await this.audioCtx.resume();
+        console.log('🔊 AudioContext resumed');
+      } catch (e) {
+        console.warn('🔊 AudioContext resume failed:', e);
+      }
     }
     return this.audioCtx;
   }
@@ -87,7 +93,8 @@ export class BrowserSynth {
       this._buffer = buffer;
       this._playBuffer(buffer, doLoop);
     } catch (e) {
-      console.warn('BrowserSynth render error:', e);
+      console.error('❌ BrowserSynth render error:', e);
+      throw e; // propager l'erreur pour que audioEngine la voie
     }
   }
 
