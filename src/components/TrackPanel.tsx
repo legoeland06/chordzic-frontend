@@ -18,6 +18,8 @@ interface TrackPanelProps {
   drumPattern: string;
   sig: string;
   tracks: TrackConfig[];
+  useSamples: boolean;
+  availableSamples: Record<string, string[]>;
   onSetVolume: (v: number) => void;
   onSet432: (v: boolean) => void;
   onSetBrowserAudio: (v: boolean) => void;
@@ -27,13 +29,15 @@ interface TrackPanelProps {
   onSetSig: (v: string) => void;
   onSetTempo: (v: number) => void;
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
+  onSetUseSamples: (v: boolean) => void;
 }
 
 export default function TrackPanel({
   chords, highlighted, playing, currentBeat, tempo,
   volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
+  useSamples, availableSamples,
   onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
-  onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
+  onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack, onSetUseSamples,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
   return (
@@ -90,6 +94,18 @@ export default function TrackPanel({
           }`}
         >
           {'\ud83c\udfb5'} WB
+        </button>
+
+        <button
+          onClick={() => onSetUseSamples(!useSamples)}
+          className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
+            useSamples
+              ? 'bg-emerald-900/40 border-emerald-500 text-emerald-400'
+              : 'bg-gray-800 border-gray-700 text-gray-500'
+          }`}
+          title="Utiliser les samples WAV au lieu de la batterie MIDI"
+        >
+          {'\ud83c\udfb5'} Samples {useSamples ? '\u25cf' : '\u25cb'}
         </button>
 
         <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
@@ -199,6 +215,23 @@ export default function TrackPanel({
               Roland
             </button>
           </div>
+
+          {/* Samples disponibles */}
+          {availableSamples[String(tempo)] && availableSamples[String(tempo)].length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-800">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] text-gray-500">📂 Samples ({tempo} bpm):</span>
+                <span className="text-[10px] text-emerald-400">
+                  {availableSamples[String(tempo)].join(', ')}
+                </span>
+              </div>
+              {useSamples && (
+                <div className="text-[10px] text-emerald-600/60">
+                  🎧 Batterie échantillonnée active
+                </div>
+              )}
+            </div>
+          )}
     </>
   );
 }

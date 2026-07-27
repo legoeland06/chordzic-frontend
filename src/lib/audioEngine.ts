@@ -127,6 +127,9 @@ export class AudioEngine {
   setVolume(vol: number) {
     this.sendConfig({ master_vol: vol });
   }
+  setUseSamples(v: boolean) {
+    this.sendConfig({ use_samples: v });
+  }
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
 
   private chordToNoteNames(c: ChordData): string[] {

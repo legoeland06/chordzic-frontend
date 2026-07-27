@@ -132,6 +132,8 @@ export default function ChordApp() {
   const [walkingBass, setWalkingBass] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
+  const [useSamples, setUseSamples] = useState(false);
+  const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
@@ -570,6 +572,32 @@ export default function ChordApp() {
     engineRef.current?.setTempo(tempo);
   }, [tempo]);
 
+  // Récupère les samples disponibles
+  const fetchSamples = useCallback(async () => {
+    try {
+      const res = await fetch('http://localhost:4000/samples-list');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableSamples(data);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => { fetchSamples(); }, [fetchSamples]);
+
+  // Envoie use_samples au backend
+  useEffect(() => {
+    fetch('http://localhost:4000/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ use_samples: useSamples }),
+    }).catch(() => {});
+  }, [useSamples]);
+
+  // Rafraîchir les samples dispo quand le tempo change (nouveaux samples possibles)
+  useEffect(() => {
+    fetchSamples();
+  }, [tempo, fetchSamples]);
+
   // Parse automatiquement l'input avec debounce (sauf pendant autocomplétion)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
@@ -676,11 +704,14 @@ export default function ChordApp() {
           onSet432={setUse432}
           onSetBrowserAudio={(v) => { setBrowserAudio(v); engineRef.current.browserAudio = v; }}
           onSetLoop={setLoopOn}
+          useSamples={useSamples}
+          availableSamples={availableSamples}
           onSetWalkingBass={setWalkingBass}
           onSetDrumPattern={setDrumPattern}
           onSetSig={setSig}
           onSetTempo={setTempo}
           onUpdateTrack={updateTrack}
+          onSetUseSamples={(v) => { setUseSamples(v); engineRef.current?.setUseSamples(v); }}
         />
 
         <ProgressBar
