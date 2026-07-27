@@ -79,16 +79,22 @@ export class BrowserSynth {
     doLoop: boolean
   ): Promise<void> {
     try {
-      const resp = await fetch(`${backendUrl()}/render-wav`, {
+      const url = backendUrl();
+      const body = JSON.stringify({ sequence, tempo });
+      console.log('🔊 Render WAV:', url + '/render-wav', body.slice(0, 120));
+      const resp = await fetch(`${url}/render-wav`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sequence, tempo }),
+        body,
       });
       if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
 
       const wavData = await resp.arrayBuffer();
+      console.log('🔊 WAV received:', (wavData.byteLength / 1024).toFixed(0), 'KB');
+
       const ctx = await this.getContext();
       const buffer = await ctx.decodeAudioData(wavData);
+      console.log('🔊 Decoded:', buffer.duration.toFixed(2), 's');
 
       this._buffer = buffer;
       this._playBuffer(buffer, doLoop);
@@ -99,23 +105,35 @@ export class BrowserSynth {
   }
 
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
-    this.stop();
+    try {
+      this.stop();
 
-    const ctx = this.audioCtx!;
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = loop;
-    source.connect(ctx.destination);
-    source.start(0);
-    this.source = source;
-    this._playing = true;
+      const ctx = this.audioCtx!;
+      console.log('🔊 Playing buffer:', buffer.duration.toFixed(2), 's,',
+        buffer.numberOfChannels, 'ch,', buffer.sampleRate, 'Hz');
 
-    source.onended = () => {
-      if (this.source === source) {
-        this._playing = false;
-        this.source = null;
-      }
-    };
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 1.0;
+      gainNode.connect(ctx.destination);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = loop;
+      source.connect(gainNode);
+      source.start();
+      this.source = source;
+      this._playing = true;
+
+      source.onended = () => {
+        console.log('🔊 Audio ended, loop:', loop);
+        if (this.source === source) {
+          this._playing = false;
+          this.source = null;
+        }
+      };
+    } catch (e) {
+      console.error('❌ _playBuffer error:', e);
+    }
   }
 
   stop() {
