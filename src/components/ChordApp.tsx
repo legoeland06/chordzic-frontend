@@ -814,7 +814,7 @@ export default function ChordApp() {
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland
-          &nbsp;· Tone.js · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}
+          &nbsp;· Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}
         </div>
 
           </div>

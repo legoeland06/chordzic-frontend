@@ -64,7 +64,7 @@ export default function TrackPanel({
               ? 'bg-purple-900/40 border-purple-500 text-purple-400'
               : 'bg-gray-800 border-gray-700 text-gray-500'
           }`}
-          title="Mode navigateur: son dans le navigateur (smartphone)"
+          title="Mode navigateur: rendu WAV via le synthé du PC"
         >
           {'\uD83D\uDCF1'} Navig. {browserAudio ? '\u25cf' : '\u25cb'}
         </button>

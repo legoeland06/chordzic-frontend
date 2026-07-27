@@ -1,178 +1,122 @@
+/** Browser audio via WAV rendu par le backend (synthé PC) */
 import { ChordData, GrilleData } from '../types/chord';
-import * as Tone from 'tone';
 
-/** Frequence MIDI -> Hz */
-function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
+function backendUrl(): string {
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:4000`;
+  }
+  return 'http://localhost:4000';
 }
 
-/** Nom de note (ex: C4, Eb3) -> MIDI */
-function noteNameToMidi(note: string): number {
-  const noteMap: Record<string, number> = {
-    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4,
-    'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8,
-    'A': 9, 'A#': 10, 'Bb': 10, 'B': 11,
-  };
-  const m = note.match(/^([A-G][#b]?)(\d+)$/);
-  if (!m) return 69;
-  return (parseInt(m[2]) + 1) * 12 + (noteMap[m[1]] ?? 0);
-}
+/** Convertit un ChordData en notes (noms) pour le backend */
+function chordToNoteNames(c: ChordData): string[] {
+  const rawValues = c.midiValues;
+  if (rawValues.length === 0) return [];
+  const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-/** Nom de note (ex: C4) -> Hz */
-function noteToFreq(note: string): number {
-  return midiToFreq(noteNameToMidi(note));
-}
+  const bassName = c.bass || c.name;
+  const bassOffset: Record<string,number> = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+  const names: string[] = [];
+  names.push(`${noteLabels[(bassOffset[bassName] ?? 0) % 12]}2`);
 
-// ─── Synthesiseur navigateur ───
+  const baseOctave = 3;
+  for (let i = 0; i < rawValues.length; i++) {
+    const v = rawValues[i];
+    const midiNumber = baseOctave * 12 + v;
+    const oct = Math.floor(midiNumber / 12);
+    names.push(`${noteLabels[midiNumber % 12]}${oct}`);
+  }
+  return names;
+}
 
 export class BrowserSynth {
-  private started = false;
-  private gainNode!: Tone.Gain;
-  private leadSynth!: Tone.PolySynth;
-  private bassSynth!: Tone.Synth;
-  private padSynth!: Tone.PolySynth;
-  private accentSynth!: Tone.PolySynth;
-  private playing = false;
+  private audioCtx: AudioContext | null = null;
+  private source: AudioBufferSourceNode | null = null;
+  private _playing = false;
+  private _buffer: AudioBuffer | null = null;
 
-  async start(): Promise<void> {
-    if (this.started) return;
-    await Tone.start();
-    this.gainNode = new Tone.Gain(0.5).toDestination();
+  get isPlaying() { return this._playing; }
 
-    // Lead : triangle doux
-    this.leadSynth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.005, decay: 0.1, sustain: 0.7, release: 0.3 },
-    }).connect(this.gainNode);
-
-    // Bass : sawtooth doux
-    this.bassSynth = new Tone.Synth({
-      oscillator: { type: 'sawtooth' },
-      envelope: { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 },
-      volume: -6,
-    }).connect(this.gainNode);
-
-    // Pads : sine suave
-    this.padSynth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.1, decay: 0.3, sustain: 0.8, release: 1.0 },
-      volume: -12,
-    }).connect(this.gainNode);
-
-    // Accent : piano-like
-    this.accentSynth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.15 },
-      volume: -8,
-    }).connect(this.gainNode);
-
-    this.started = true;
+  setVolume(v: number) {
+    // Le volume est gere par le rendu backend (master_vol)
   }
 
-  get isPlaying() { return this.playing; }
-  setVolume(v: number) { if (this.gainNode) this.gainNode.gain.value = v / 127; }
-
-  /** Convertit un ChordData en notes (noms) pour Tone.js */
-  private chordToToneNotes(c: ChordData): string[] {
-    const rawValues = c.midiValues;
-    if (rawValues.length === 0) return [];
-    const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-    const notes: string[] = [];
-
-    // Basse (octave 2)
-    const bassName = c.bass || c.name;
-    const bassOffset: Record<string,number> = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
-    const bo = bassOffset[bassName] ?? 0;
-    notes.push(`${noteLabels[bo % 12]}2`);
-
-    // Notes de l'accord (octave 3-4)
-    const baseOctave = 3;
-    for (let i = 0; i < rawValues.length; i++) {
-      const v = rawValues[i];
-      const midiNumber = baseOctave * 12 + v;
-      const oct = Math.floor(midiNumber / 12);
-      notes.push(`${noteLabels[midiNumber % 12]}${oct}`);
+  private async getContext(): Promise<AudioContext> {
+    if (!this.audioCtx) {
+      this.audioCtx = new AudioContext();
     }
-    return notes;
+    if (this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
+    return this.audioCtx;
   }
 
-  /** Joue un accord en boucle sur une mesure */
+  /** Rend un accord via le backend et le joue en boucle */
   async playChordPreview(chord: ChordData, tempo: number): Promise<void> {
-    await this.start();
-    this.playing = true;
-    const msPerChord = (60000 / tempo) * 4;
-    const notes = this.chordToToneNotes(chord);
-    // notes[0] = basse, notes[1..] = accord
+    const notes = chordToNoteNames(chord);
+    const sequence = [{ notes, beats: 4.0 }];
+    await this._playSequence(sequence, tempo, true);
+  }
 
-    const bassNote = notes[0];
-    const chordNotes = notes.slice(1);
+  /** Rend une grille via le backend et la joue */
+  async playGrille(grille: GrilleData, tempo: number, loop?: boolean): Promise<void> {
+    const sequence = grille.chords.map(c => ({
+      notes: chordToNoteNames(c),
+      beats: 4.0 / c.time,
+    }));
+    await this._playSequence(sequence, tempo, loop || false);
+  }
 
-    while (this.playing) {
-      const now = Tone.now();
+  private async _playSequence(
+    sequence: { notes: string[]; beats: number }[],
+    tempo: number,
+    doLoop: boolean
+  ): Promise<void> {
+    try {
+      const resp = await fetch(`${backendUrl()}/render-wav`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence, tempo }),
+      });
+      if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
 
-      // Lead : accord tenu
-      if (chordNotes.length > 0) {
-        this.leadSynth.triggerAttackRelease(chordNotes, `${4}n`, now);
-      }
+      const wavData = await resp.arrayBuffer();
+      const ctx = await this.getContext();
+      const buffer = await ctx.decodeAudioData(wavData);
 
-      // Basse : note grave tenue
-      if (bassNote) {
-        this.bassSynth.triggerAttackRelease(bassNote, `${4}n`, now);
-      }
-
-      // Pads : accord tenu plus doux
-      if (chordNotes.length > 0) {
-        this.padSynth.triggerAttackRelease(chordNotes, `${4}n`, now);
-      }
-
-      // Attendre la fin de la mesure
-      await new Promise(r => setTimeout(r, msPerChord));
+      this._buffer = buffer;
+      this._playBuffer(buffer, doLoop);
+    } catch (e) {
+      console.warn('BrowserSynth render error:', e);
     }
   }
 
-  /** Joue une grille complete */
-  async playGrille(grille: GrilleData, tempo: number, loop?: boolean): Promise<void> {
-    await this.start();
-    this.playing = true;
+  private _playBuffer(buffer: AudioBuffer, loop: boolean) {
+    this.stop();
 
-    do {
-      for (const c of grille.chords) {
-        if (!this.playing) break;
-        const beats = 4.0 / c.time;
-        const msPerChord = (60000 / tempo) * beats;
-        const notes = this.chordToToneNotes(c);
-        const bassNote = notes[0];
-        const chordNotes = notes.slice(1);
+    const ctx = this.audioCtx!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = loop;
+    source.connect(ctx.destination);
+    source.start(0);
+    this.source = source;
+    this._playing = true;
 
-        const now = Tone.now();
-
-        // Lead : accord
-        if (chordNotes.length > 0) {
-          this.leadSynth.triggerAttackRelease(chordNotes, `${beats}n`, now);
-        }
-
-        // Basse
-        if (bassNote) {
-          this.bassSynth.triggerAttackRelease(bassNote, `${beats}n`, now);
-        }
-
-        // Pads
-        if (chordNotes.length > 0) {
-          this.padSynth.triggerAttackRelease(chordNotes, `${beats}n`, now);
-        }
-
-        await new Promise(r => setTimeout(r, msPerChord));
+    source.onended = () => {
+      if (this.source === source) {
+        this._playing = false;
+        this.source = null;
       }
-    } while (loop && this.playing);
-
-    this.playing = false;
+    };
   }
 
   stop() {
-    this.playing = false;
-    if (this.leadSynth) this.leadSynth.releaseAll();
-    if (this.bassSynth) this.bassSynth.triggerRelease();
-    if (this.padSynth) this.padSynth.releaseAll();
-    if (this.accentSynth) this.accentSynth.releaseAll();
+    this._playing = false;
+    if (this.source) {
+      try { this.source.stop(); } catch {}
+      this.source.disconnect();
+      this.source = null;
+    }
   }
 }
