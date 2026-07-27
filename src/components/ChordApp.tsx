@@ -134,6 +134,7 @@ export default function ChordApp() {
   const [sig, setSig] = useState('4/4');
   const [useLoops, setUseLoops] = useState(false);
   const [loopOffset, setLoopOffset] = useState(0);
+  const [loopName, setLoopName] = useState('');
   const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
@@ -600,6 +601,13 @@ export default function ChordApp() {
       body: JSON.stringify({ loop_offset: loopOffset }),
     }).catch(() => {});
   }, [loopOffset]);
+  useEffect(() => {
+    fetch('http://localhost:4000/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loop_name: loopName }),
+    }).catch(() => {});
+  }, [loopName]);
 
   // Rafraîchir les samples dispo quand le tempo change (nouveaux samples possibles)
   useEffect(() => {
@@ -714,6 +722,7 @@ export default function ChordApp() {
           onSetLoop={setLoopOn}
           useLoops={useLoops}
           loopOffset={loopOffset}
+          loopName={loopName}
           availableSamples={availableSamples}
           onSetWalkingBass={setWalkingBass}
           onSetDrumPattern={setDrumPattern}
@@ -722,6 +731,7 @@ export default function ChordApp() {
           onUpdateTrack={updateTrack}
           onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}
           onSetLoopOffset={(v) => { setLoopOffset(v); engineRef.current?.setLoopOffset(v); }}
+          onSetLoopName={(v) => { setLoopName(v); engineRef.current?.setLoopOffset(loopOffset); }}
         />
 
         <ProgressBar

@@ -19,6 +19,7 @@ interface TrackPanelProps {
   tracks: TrackConfig[];
   useLoops: boolean;
   loopOffset: number;
+  loopName: string;
   availableSamples: Record<string, string[]>;
   onSetVolume: (v: number) => void;
   onSet432: (v: boolean) => void;
@@ -31,17 +32,19 @@ interface TrackPanelProps {
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
   onSetUseLoops: (v: boolean) => void;
   onSetLoopOffset: (v: number) => void;
+  onSetLoopName: (v: string) => void;
 }
 
 export default function TrackPanel({
   chords, highlighted, playing, currentBeat, tempo,
   volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
-  useLoops, loopOffset, availableSamples,
+  useLoops, loopOffset, loopName, availableSamples,
   onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
-  onSetUseLoops, onSetLoopOffset,
+  onSetUseLoops, onSetLoopOffset, onSetLoopName,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
+  const samplesHere = availableSamples[String(tempo)] || [];
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -97,43 +100,6 @@ export default function TrackPanel({
         >
           {'\ud83c\udfb5'} WB
         </button>
-
-        <button
-          onClick={() => onSetUseLoops(!useLoops)}
-          className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
-            useLoops
-              ? 'bg-emerald-900/40 border-emerald-500 text-emerald-400'
-              : 'bg-gray-800 border-gray-700 text-gray-500'
-          }`}
-          title="Jouer un loop WAV en fond avec les accords"
-        >
-          {'\ud83c\udfb5'} Boucle {useLoops ? '\u25cf' : '\u25cb'}
-        </button>
-
-        {/* Spinner offset */}
-        {useLoops && (
-          <div className="flex items-center gap-1 shrink-0 bg-gray-800 rounded-lg border border-gray-700 px-2 py-1">
-            <span className="text-[10px] text-gray-500">↕</span>
-            <button
-              onClick={() => onSetLoopOffset(loopOffset - 10)}
-              className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-              title="-10ms"
-            >◀</button>
-            <input
-              type="number"
-              value={loopOffset}
-              onChange={e => onSetLoopOffset(parseInt(e.target.value) || 0)}
-              className="w-14 bg-gray-900 text-emerald-400 text-xs font-mono text-center rounded border border-gray-700 outline-none px-1 py-0.5"
-              step={10}
-            />
-            <span className="text-[10px] text-gray-500">ms</span>
-            <button
-              onClick={() => onSetLoopOffset(loopOffset + 10)}
-              className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-              title="+10ms"
-            >▶</button>
-          </div>
-        )}
 
         <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
         <select value={drumPattern}
@@ -213,57 +179,111 @@ export default function TrackPanel({
         ))}
       </div>
 
-          {/* Accord en cours + suivant */}
-          {highlighted >= 0 && chords[highlighted] && (
-            <div className="text-center py-3 mb-1">
-              <div className="text-5xl font-bold font-mono tracking-wider"
-                style={{ color: getChordColor(highlighted) }}>
-                {chords[highlighted].chiffrage === '_' ? '—' : chords[highlighted].chiffrage}
-              </div>
-              {highlighted + 1 < chords.length && (
-                <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
-                  style={{ color: getChordColor(highlighted + 1) }}>
-                  {chords[highlighted + 1].chiffrage === '_' ? '—' : chords[highlighted + 1].chiffrage}
-                </div>
-              )}
-              <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
+      {/* Accord en cours + suivant */}
+      {highlighted >= 0 && chords[highlighted] && (
+        <div className="text-center py-3 mb-1">
+          <div className="text-5xl font-bold font-mono tracking-wider"
+            style={{ color: getChordColor(highlighted) }}>
+            {chords[highlighted].chiffrage === '_' ? '\u2014' : chords[highlighted].chiffrage}
+          </div>
+          {highlighted + 1 < chords.length && (
+            <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
+              style={{ color: getChordColor(highlighted + 1) }}>
+              {chords[highlighted + 1].chiffrage === '_' ? '\u2014' : chords[highlighted + 1].chiffrage}
             </div>
           )}
+          <div className="text-xs text-gray-600 mt-1">{tempo} bpm</div>
+        </div>
+      )}
 
-          {/* MIDI switch */}
-          <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2">
-            <span className="text-[10px] text-gray-500">🎛️ MIDI:</span>
-            <button onClick={() => { fetch('http://localhost:4001/midi-connect/2',{method:'POST'}); setMidiPort(2); }}
-              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===2 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
-              FluidSynth
+      {/* MIDI switch */}
+      <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] text-gray-500">{'\uD83C\uDF9B\uFE0F'} MIDI:</span>
+        <button onClick={() => { fetch('http://localhost:4001/midi-connect/2',{method:'POST'}); setMidiPort(2); }}
+          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===2 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+          FluidSynth
+        </button>
+        <button onClick={() => { fetch('http://localhost:4001/midi-connect/1',{method:'POST'}); setMidiPort(1); }}
+          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===1 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+          Roland
+        </button>
+      </div>
+
+      {/* Section Boucle */}
+      {samplesHere.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-800">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Toggle boucle */}
+            <button
+              onClick={() => onSetUseLoops(!useLoops)}
+              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
+                useLoops
+                  ? 'bg-emerald-900/40 border-emerald-500 text-emerald-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-500 hover:bg-gray-700'
+              }`}
+            >
+              {'\ud83c\udfb5'} Boucle {useLoops ? '\u25cf' : '\u25cb'}
             </button>
-            <button onClick={() => { fetch('http://localhost:4001/midi-connect/1',{method:'POST'}); setMidiPort(1); }}
-              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===1 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
-              Roland
-            </button>
+
+            {/* Sélecteur de loop */}
+            {samplesHere.length > 1 && (
+              <select
+                value={loopName || samplesHere[0]}
+                onChange={e => onSetLoopName(e.target.value)}
+                className="bg-gray-800 text-emerald-400 text-[10px] px-2 py-1 rounded border border-gray-700 outline-none"
+              >
+                {samplesHere.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Spinner offset */}
+            <div className="flex items-center gap-1 bg-gray-800 rounded border border-gray-700 px-2 py-1">
+              <span className="text-[10px] text-gray-500">{'\u2195'}</span>
+              <button
+                onClick={() => onSetLoopOffset(loopOffset - 10)}
+                className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
+                title="-10ms"
+              >{'◀'}</button>
+              <input
+                type="number"
+                value={loopOffset}
+                onChange={e => onSetLoopOffset(parseInt(e.target.value) || 0)}
+                className="w-14 bg-gray-900 text-emerald-400 text-xs font-mono text-center rounded border border-gray-700 outline-none px-1 py-0.5"
+                step={10}
+              />
+              <span className="text-[10px] text-gray-500">ms</span>
+              <button
+                onClick={() => onSetLoopOffset(loopOffset + 10)}
+                className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
+                title="+10ms"
+              >{'▶'}</button>
+            </div>
           </div>
 
-          {/* Loops disponibles */}
-          {availableSamples[String(tempo)] && availableSamples[String(tempo)].length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-800">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] text-gray-500">📂 Boucles ({tempo} bpm):</span>
-                <span className="text-[10px] text-emerald-400">
-                  {availableSamples[String(tempo)].join(', ')}
-                </span>
-              </div>
-              {useLoops && (
-                <div className="text-[10px] text-emerald-600/60">
-                  🔁 Lecture en boucle active (offset {loopOffset}ms)
-                </div>
-              )}
-              {!useLoops && (
-                <div className="text-[10px] text-gray-600">
-                  Activer « Boucle » pour lancer la lecture
-                </div>
-              )}
+          {samplesHere.length === 1 && (
+            <div className="text-[10px] text-gray-500 mt-1">
+              Boucle: {samplesHere[0]} ({tempo} bpm)
             </div>
           )}
+
+          {useLoops && (
+            <div className="text-[10px] text-emerald-600/60 mt-1">
+              {'\ud83d\udd01'} Lecture en boucle active (offset {loopOffset}ms)
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Message si pas de boucle dispo */}
+      {samplesHere.length === 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-800">
+          <div className="text-[10px] text-gray-600">
+            {'\uD83D\uDCC2'} Aucune boucle pour {tempo} bpm dans ~/samples/drums/
+          </div>
+        </div>
+      )}
     </>
   );
 }
