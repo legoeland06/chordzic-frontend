@@ -1,6 +1,5 @@
 import { ChordData, GrilleData } from '../types/chord';
 import { BrowserSynth } from './browserSynth';
-import { AudioStreamPlayer } from './audioStream';
 
 export type AudioState = 'idle' | 'playing' | 'stopped';
 
@@ -29,7 +28,6 @@ export class AudioEngine {
   private tempo = 120;
   private sig = "4/4";
   private browserSynth = new BrowserSynth();
-  private audioStream = new AudioStreamPlayer();
   private _browserAudio = false;
 
   get browserAudio() { return this._browserAudio; }
@@ -166,21 +164,8 @@ export class AudioEngine {
     this.playing = true;
 
     if (this._browserAudio) {
-      // Audio streaming WebSocket — le son arrive dans le navigateur
-      await this.audioStream.connectAndPlay();
-      const noteNames = this.chordToNoteNames(chord);
-      const sequence = [{ notes: noteNames, beats: 4.0 }];
-      fetch(`${backendUrl()}/play`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sequence, tempo: this.tempo, sig: this.sig,
-          pattern: this.drumPattern, walking: this.walking,
-          loop_enabled: true,
-          tracks: this.tracks.map(t => ({
-            channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
-          })),
-        }),
-      }).catch(() => {});
+      // Audio navigateur : rendu WAV via backend synthé
+      await this.browserSynth.playChordPreview(chord, this.tempo);
     } else {
       // Backend MIDI
       const noteNames = this.chordToNoteNames(chord);
@@ -233,23 +218,8 @@ export class AudioEngine {
     if (grille.chords.length === 0) { this.playing = false; return; }
 
     if (this._browserAudio) {
-      // Audio streaming WebSocket
-      await this.audioStream.connectAndPlay();
-      const sequence = grille.chords.map(c => ({
-        notes: this.chordToNoteNames(c),
-        beats: 4.0 / c.time,
-      }));
-      fetch(`${backendUrl()}/play`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sequence, tempo: this.tempo, sig: this.sig,
-          pattern: this.drumPattern, walking: this.walking,
-          loop_enabled: loop || false,
-          tracks: this.tracks.map(t => ({
-            channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
-          })),
-        }),
-      }).catch(() => {});
+      // Audio navigateur : rendu WAV via backend synthé
+      await this.browserSynth.playGrille(grille, this.tempo, loop);
     } else {
       // Backend MIDI
       const sequence = grille.chords.map(c => ({
@@ -306,7 +276,6 @@ export class AudioEngine {
     this.playGen++;
     if (this.onChordHighlight) this.onChordHighlight(-1);
     this.browserSynth.stop();
-    this.audioStream.stop();
     try { await fetch(`${backendUrl()}/stop`, { method: 'POST' }); } catch {}
   }
 
