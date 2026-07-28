@@ -33,6 +33,8 @@ interface TrackPanelProps {
   onSetUseLoops: (v: boolean) => void;
   onSetLoopOffset: (v: number) => void;
   onSetLoopName: (v: string) => void;
+  onSetLoopVolume: (v: number) => void;
+  loopVolume: number;
 }
 
 export default function TrackPanel({
@@ -40,8 +42,9 @@ export default function TrackPanel({
   volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
   useLoops, loopOffset, loopName, availableSamples,
   onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
+  loopVolume,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
-  onSetUseLoops, onSetLoopOffset, onSetLoopName,
+  onSetUseLoops, onSetLoopOffset, onSetLoopName, onSetLoopVolume,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
   const samplesHere = availableSamples[String(tempo)] || [];
@@ -213,6 +216,12 @@ export default function TrackPanel({
       {samplesHere.length > 0 && (
         <div className="mt-2 pt-2 border-t border-gray-800">
           <div className="flex flex-wrap items-center gap-2">
+            {/* Volume boucle */}
+            <span className="text-[10px] text-gray-500 shrink-0">Vol:</span>
+            <input type="range" min={1} max={127} value={loopVolume}
+              onChange={(e) => onSetLoopVolume(parseInt(e.target.value))}
+              className="w-16 accent-emerald-500 shrink-0" />
+
             {/* Toggle boucle */}
             <button
               onClick={() => onSetUseLoops(!useLoops)}

@@ -135,6 +135,7 @@ export default function ChordApp() {
   const [useLoops, setUseLoops] = useState(false);
   const [loopOffset, setLoopOffset] = useState(0);
   const [loopName, setLoopName] = useState('');
+  const [loopVolume, setLoopVolume] = useState(80);
   const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
@@ -729,9 +730,11 @@ export default function ChordApp() {
           onSetSig={setSig}
           onSetTempo={setTempo}
           onUpdateTrack={updateTrack}
+          loopVolume={loopVolume}
           onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}
           onSetLoopOffset={(v) => { setLoopOffset(v); engineRef.current?.setLoopOffset(v); }}
           onSetLoopName={(v) => { setLoopName(v); engineRef.current?.setLoopOffset(loopOffset); }}
+          onSetLoopVolume={(v) => { setLoopVolume(v); engineRef.current?.setLoopVolume(v); }}
         />
 
         <ProgressBar

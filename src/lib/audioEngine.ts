@@ -127,8 +127,14 @@ export class AudioEngine {
   setVolume(vol: number) {
     this.sendConfig({ master_vol: vol });
   }
-  setUseSamples(v: boolean) {
-    this.sendConfig({ use_samples: v });
+  setUseLoops(v: boolean) {
+    this.sendConfig({ use_loops: v });
+  }
+  setLoopOffset(ms: number) {
+    this.sendConfig({ loop_offset: ms });
+  }
+  setLoopVolume(v: number) {
+    this.sendConfig({ loop_volume: v });
   }
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
 
