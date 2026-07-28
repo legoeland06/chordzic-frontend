@@ -164,8 +164,13 @@ export class AudioEngine {
     this.playing = true;
 
     if (this._browserAudio) {
-      // Audio navigateur : rendu WAV via backend synthé
-      await this.browserSynth.playChordPreview(chord, this.tempo);
+      await this.browserSynth.playChordPreview(chord, this.tempo, {
+        tempo: this.tempo,
+        pattern: this.drumPattern,
+        walking: this.walking,
+        sig: this.sig,
+        tracks: this.tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+      });
     } else {
       // Backend MIDI
       const noteNames = this.chordToNoteNames(chord);
@@ -218,8 +223,13 @@ export class AudioEngine {
     if (grille.chords.length === 0) { this.playing = false; return; }
 
     if (this._browserAudio) {
-      // Audio navigateur : rendu WAV via backend synthé
-      await this.browserSynth.playGrille(grille, this.tempo, loop);
+      await this.browserSynth.playGrille(grille, this.tempo, loop, {
+        tempo: this.tempo,
+        pattern: this.drumPattern,
+        walking: this.walking,
+        sig: this.sig,
+        tracks: this.tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+      });
     } else {
       // Backend MIDI
       const sequence = grille.chords.map(c => ({

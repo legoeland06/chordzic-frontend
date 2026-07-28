@@ -1,6 +1,22 @@
 /** Browser audio via WAV rendu par le backend (synthé PC) */
 import { ChordData, GrilleData } from '../types/chord';
 
+export interface TrackCfg {
+  channel: number;
+  program?: number;
+  volume?: number;
+  mute?: boolean;
+}
+
+export interface RenderOptions {
+  tempo: number;
+  pattern?: string;
+  walking?: boolean;
+  sig?: string;
+  tracks?: TrackCfg[];
+  master_vol?: number;
+}
+
 function backendUrl(): string {
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:4000`;
@@ -44,78 +60,69 @@ export class BrowserSynth {
   private async getContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext();
-      console.log('🔊 AudioContext created, state:', this.audioCtx.state);
     }
     if (this.audioCtx.state === 'suspended') {
-      try {
-        await this.audioCtx.resume();
-        console.log('🔊 AudioContext resumed');
-      } catch (e) {
-        console.warn('🔊 AudioContext resume failed:', e);
-      }
+      try { await this.audioCtx.resume(); } catch (e) { console.warn('🔊 resume failed:', e); }
     }
     return this.audioCtx;
   }
 
-  /** Rend un accord via le backend et le joue en boucle */
-  async playChordPreview(chord: ChordData, tempo: number): Promise<void> {
+  async playChordPreview(chord: ChordData, tempo: number, opts?: RenderOptions): Promise<void> {
     const notes = chordToNoteNames(chord);
     const sequence = [{ notes, beats: 4.0 }];
-    await this._playSequence(sequence, tempo, true);
+    await this._playSequence(sequence, tempo, true, opts);
   }
 
-  /** Rend une grille via le backend et la joue */
-  async playGrille(grille: GrilleData, tempo: number, loop?: boolean): Promise<void> {
+  async playGrille(grille: GrilleData, tempo: number, loop?: boolean, opts?: RenderOptions): Promise<void> {
     const sequence = grille.chords.map(c => ({
       notes: chordToNoteNames(c),
       beats: 4.0 / c.time,
     }));
-    await this._playSequence(sequence, tempo, loop || false);
+    await this._playSequence(sequence, tempo, loop || false, opts);
   }
 
   private async _playSequence(
     sequence: { notes: string[]; beats: number }[],
     tempo: number,
-    doLoop: boolean
+    doLoop: boolean,
+    opts?: RenderOptions
   ): Promise<void> {
     try {
+      const body: Record<string, unknown> = { sequence, tempo };
+      if (opts) {
+        if (opts.pattern) body.pattern = opts.pattern;
+        if (opts.walking !== undefined) body.walking = opts.walking;
+        if (opts.sig) body.sig = opts.sig;
+        if (opts.tracks) body.tracks = opts.tracks;
+        if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
+      }
+
       const url = backendUrl();
-      const body = JSON.stringify({ sequence, tempo });
-      console.log('🔊 Render WAV:', url + '/render-wav', body.slice(0, 120));
       const resp = await fetch(`${url}/render-wav`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
 
       const wavData = await resp.arrayBuffer();
-      console.log('🔊 WAV received:', (wavData.byteLength / 1024).toFixed(0), 'KB');
-
       const ctx = await this.getContext();
       const buffer = await ctx.decodeAudioData(wavData);
-      console.log('🔊 Decoded:', buffer.duration.toFixed(2), 's');
-
       this._buffer = buffer;
       this._playBuffer(buffer, doLoop);
     } catch (e) {
       console.error('❌ BrowserSynth render error:', e);
-      throw e; // propager l'erreur pour que audioEngine la voie
+      throw e;
     }
   }
 
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     try {
       this.stop();
-
       const ctx = this.audioCtx!;
-      console.log('🔊 Playing buffer:', buffer.duration.toFixed(2), 's,',
-        buffer.numberOfChannels, 'ch,', buffer.sampleRate, 'Hz');
-
       const gainNode = ctx.createGain();
       gainNode.gain.value = 1.0;
       gainNode.connect(ctx.destination);
-
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.loop = loop;
@@ -123,17 +130,10 @@ export class BrowserSynth {
       source.start();
       this.source = source;
       this._playing = true;
-
       source.onended = () => {
-        console.log('🔊 Audio ended, loop:', loop);
-        if (this.source === source) {
-          this._playing = false;
-          this.source = null;
-        }
+        if (this.source === source) { this._playing = false; this.source = null; }
       };
-    } catch (e) {
-      console.error('❌ _playBuffer error:', e);
-    }
+    } catch (e) { console.error('❌ _playBuffer error:', e); }
   }
 
   stop() {
