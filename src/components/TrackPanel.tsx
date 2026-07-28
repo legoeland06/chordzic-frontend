@@ -242,22 +242,22 @@ export default function TrackPanel({
             <div className="flex items-center gap-1 bg-gray-800 rounded border border-gray-700 px-2 py-1">
               <span className="text-[10px] text-gray-500">{'\u2195'}</span>
               <button
-                onClick={() => onSetLoopOffset(loopOffset - 10)}
+                onClick={() => onSetLoopOffset(loopOffset - 1)}
                 className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-                title="-10ms"
+                title="-1ms"
               >{'◀'}</button>
               <input
                 type="number"
                 value={loopOffset}
                 onChange={e => onSetLoopOffset(parseInt(e.target.value) || 0)}
                 className="w-14 bg-gray-900 text-emerald-400 text-xs font-mono text-center rounded border border-gray-700 outline-none px-1 py-0.5"
-                step={10}
+                step={1}
               />
               <span className="text-[10px] text-gray-500">ms</span>
               <button
-                onClick={() => onSetLoopOffset(loopOffset + 10)}
+                onClick={() => onSetLoopOffset(loopOffset + 1)}
                 className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-                title="+10ms"
+                title="+1ms"
               >{'▶'}</button>
             </div>
           </div>
