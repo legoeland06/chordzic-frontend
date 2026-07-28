@@ -62,10 +62,9 @@ function getSuggestions(token: string, lastChordChiffrage: string): string[] {
 interface ChordInputProps {
   input: string;
   onChange: (val: string) => void;
-  onSuggestion: () => void;
 }
 
-export default function ChordInput({ input, onChange, onSuggestion }: ChordInputProps) {
+export default function ChordInput({ input, onChange }: ChordInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestIdx, setSuggestIdx] = useState(0);

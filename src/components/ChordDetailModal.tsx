@@ -190,7 +190,7 @@ export default function ChordDetailModal({ chords, chord, chordIdx, chordsCount,
           </button>
 
           <button onClick={onTogglePlay}
-            disabled={chord.length === 0}
+            disabled={!chord || chord.midiValues.length === 0}
             className={`text-lg font-bold px-3 py-1 rounded-lg transition-colors ${
               playing()
                 ? 'bg-red-800 hover:bg-red-700 text-red-300'
