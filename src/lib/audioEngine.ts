@@ -1,27 +1,35 @@
+/**
+ * AudioEngine — moteur audio principal.
+ *
+ * Point de communication avec le backend Rust (MIDI live ou render WAV).
+ * Gère :
+ * - L'envoi de séquences d'accords au backend MIDI
+ * - Le highlight synchrone des accords (compensation de drift)
+ * - La configuration des pistes (instruments, volumes, mutes)
+ * - Le switch entre mode MIDI (live) et BrowserSynth (WAV)
+ *
+ * Les conversions de notes et l'URL du backend sont partagés via
+ * lib/chordUtils.ts (évite la duplication avec browserSynth.ts).
+ */
 import { ChordData, GrilleData } from '../types/chord';
 import { BrowserSynth } from './browserSynth';
+import { backendUrl, chordToNoteNames } from './chordUtils';
 
+/** États possibles du moteur audio. */
 export type AudioState = 'idle' | 'playing' | 'stopped';
 
+/** Configuration d'une piste MIDI, partagée avec le backend. */
 export interface TrackConfig {
-  channel: number;
-  label: string;
-  program: number;
-  volume: number;
-  mute: boolean;
-}
-
-/** URL du backend (ports PC) — utilise l'hote courant pour fonctionner en reseau */
-function backendUrl(): string {
-  if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:4000`;
-  }
-  return 'http://localhost:4000';
+  channel: number;    // Canal MIDI (0=lead, 2=bass, 3=nappes, 4=accent, 9=drums)
+  label: string;      // Nom d'affichage
+  program: number;    // Instrument GM (0-127)
+  volume: number;     // Volume (0-127)
+  mute: boolean;      // Mute
 }
 
 export class AudioEngine {
   private playing = false;
-  private playGen = 0;
+  private playGen = 0;                      // Génération de lecture (évite les conflits)
   private onChordHighlight?: (idx: number) => void;
   private drumPattern = "rock";
   private walking = false;
@@ -33,14 +41,16 @@ export class AudioEngine {
   get browserAudio() { return this._browserAudio; }
   set browserAudio(v: boolean) { this._browserAudio = v; }
 
+  /** Configuration des 5 pistes MIDI. */
   tracks: TrackConfig[] = [
-    { channel: 0, label: 'Lead',  program: 51, volume: 15, mute: false },
-    { channel: 2, label: 'Bass',  program: 33, volume: 40, mute: false },
-    { channel: 3, label: 'Nappes', program: 48, volume: 30, mute: false },
-    { channel: 4, label: 'Accent', program: 2,  volume: 20, mute: false },
-    { channel: 9, label: 'Drums', program: 1,  volume: 80, mute: false },
+    { channel: 0, label: 'Lead',    program: 51, volume: 15, mute: false },
+    { channel: 2, label: 'Bass',    program: 33, volume: 40, mute: false },
+    { channel: 3, label: 'Nappes',  program: 48, volume: 30, mute: false },
+    { channel: 4, label: 'Accent',  program: 2,  volume: 20, mute: false },
+    { channel: 9, label: 'Drums',   program: 1,  volume: 80, mute: false },
   ];
 
+  /** Liste complète des instruments GM (128 noms). */
   static readonly INSTRUMENTS = [
     'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano', 'Honky-tonk Piano',
     'Electric Piano 1', 'Electric Piano 2', 'Harpsichord', 'Clavinet',
@@ -76,6 +86,9 @@ export class AudioEngine {
     'Telephone Ring', 'Helicopter', 'Applause', 'Gunshot',
   ];
 
+  // ── Méthodes de configuration ──
+
+  /** Modifie la configuration d'une piste et l'envoie au backend. */
   setTrack(channel: number, config: Partial<TrackConfig>) {
     const t = this.tracks.find(tc => tc.channel === channel);
     if (!t) return;
@@ -83,25 +96,23 @@ export class AudioEngine {
     this.sendConfig();
   }
 
-  setDrums(v: boolean) { this.setTrack(9, { mute: !v }); }
-  setBass(v: boolean) { this.setTrack(2, { mute: !v }); }
-  setArpeggios(v: boolean) { this.setTrack(0, { mute: !v }); }
-  setNappes(v: boolean) { this.setTrack(3, { mute: !v }); }
-  setPattern(p: string) { this.drumPattern = p; this.sendConfig(); }
-  setSig(s: string) { this.sig = s; this.sendConfig(); }
-  setTempo(t: number) { this.tempo = t; this.sendConfig({tempo: t}); }
-  setWalking(v: boolean) { this.walking = v; this.sendConfig(); }
+  setDrums(v: boolean)         { this.setTrack(9, { mute: !v }); }
+  setBass(v: boolean)          { this.setTrack(2, { mute: !v }); }
+  setArpeggios(v: boolean)     { this.setTrack(0, { mute: !v }); }
+  setNappes(v: boolean)        { this.setTrack(3, { mute: !v }); }
+  setPattern(p: string)        { this.drumPattern = p; this.sendConfig(); }
+  setSig(s: string)            { this.sig = s; this.sendConfig(); }
+  setTempo(t: number)          { this.tempo = t; this.sendConfig({tempo: t}); }
+  setWalking(v: boolean)       { this.walking = v; this.sendConfig(); }
 
+  /** Envoie la configuration courante au backend (POST /config). */
   private sendConfig(extra: any = {}) {
     fetch(`${backendUrl()}/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tracks: this.tracks.map(t => ({
-          channel: t.channel,
-          program: t.program,
-          volume: t.volume,
-          mute: t.mute,
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         })),
         pattern: this.drumPattern,
         walking: this.walking,
@@ -111,6 +122,7 @@ export class AudioEngine {
     }).catch(() => {});
   }
 
+  /** Vérifie que le backend est accessible. */
   async init() {
     try {
       const resp = await fetch(backendUrl());
@@ -120,44 +132,25 @@ export class AudioEngine {
     }
   }
 
-  setProgram(index: number) { this.setTrack(0, { program: index }); }
-  set432Hz(enabled: boolean) {
-    this.sendConfig({ use432: enabled });
-  }
-  setVolume(vol: number) {
-    this.sendConfig({ master_vol: vol });
-  }
-  setUseLoops(v: boolean) {
-    this.sendConfig({ use_loops: v });
-  }
-  setLoopOffset(ms: number) {
-    this.sendConfig({ loop_offset: ms });
-  }
-  setLoopVolume(v: number) {
-    this.sendConfig({ loop_volume: v });
-  }
+  setProgram(index: number)     { this.setTrack(0, { program: index }); }
+  set432Hz(enabled: boolean)    { this.sendConfig({ use432: enabled }); }
+  setVolume(vol: number)        { this.sendConfig({ master_vol: vol }); }
+  setUseLoops(v: boolean)       { this.sendConfig({ use_loops: v }); }
+  setLoopOffset(ms: number)     { this.sendConfig({ loop_offset: ms }); }
+  setLoopVolume(v: number)      { this.sendConfig({ loop_volume: v }); }
+
+  /** Enregistre un callback pour le highlight des accords. */
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }
 
-  private chordToNoteNames(c: ChordData): string[] {
-    const rawValues = c.midiValues;
-    if (rawValues.length === 0) return [];
-    const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-    const names: string[] = [];
+  // ── Conversion notes ──
+  // La fonction `chordToNoteNames()` est importée depuis lib/chordUtils.ts.
 
-    const bassName = c.bass || c.name;
-    const bassOffset = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11}[bassName] ?? 0;
-    names.push(`${noteLabels[bassOffset % 12]}2`);
+  // ── Lecture / arrêt ──
 
-    const baseOctave = 3;
-    for (let i = 0; i < rawValues.length; i++) {
-      const v = rawValues[i];
-      const midiNumber = baseOctave * 12 + v;
-      const oct = Math.floor(midiNumber / 12);
-      names.push(`${noteLabels[midiNumber % 12]}${oct}`);
-    }
-    return names;
-  }
-
+  /**
+   * Joue un aperçu d'un accord en boucle.
+   * Highlight synchrone avec compensation de drift via performance.now().
+   */
   async playChordPreview(chord: ChordData): Promise<void> {
     await this.stop();
     const gen = this.playGen;
@@ -166,40 +159,36 @@ export class AudioEngine {
     if (this._browserAudio) {
       await this.browserSynth.playChordPreview(chord, this.tempo, {
         tempo: this.tempo,
-        pattern: this.drumPattern,
-        walking: this.walking,
+        pattern: this.drumPattern, walking: this.walking,
         sig: this.sig,
-        tracks: this.tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+        tracks: this.tracks.map(t => ({
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        })),
       });
     } else {
-      // Backend MIDI
-      const noteNames = this.chordToNoteNames(chord);
+      const noteNames = chordToNoteNames(chord);
       const sequence = [{ notes: noteNames, beats: 4.0 }];
       try {
         const resp = await fetch(`${backendUrl()}/play`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sequence,
-            tempo: this.tempo,
-            sig: this.sig,
-            pattern: this.drumPattern,
-            walking: this.walking,
-            loop_enabled: true,
+            sequence, tempo: this.tempo, sig: this.sig,
+            pattern: this.drumPattern, walking: this.walking, loop_enabled: true,
             tracks: this.tracks.map(t => ({
               channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
             })),
           }),
         });
         if (!resp.ok) { this.playing = false; return; }
-      } catch { this.playing = false; return; }
+      } catch {
+        this.playing = false; return;
+      }
     }
 
-    // Highlight loop
     const startTime = performance.now();
     let cumulativeExpected = 0;
     const msPerChord = (60000.0 / this.tempo) * 4;
-
     while (this.playing) {
       if (this.onChordHighlight) this.onChordHighlight(0);
       cumulativeExpected += msPerChord;
@@ -207,74 +196,64 @@ export class AudioEngine {
       const waitMs = Math.max(0, cumulativeExpected - elapsed);
       if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
     }
-
-    // Arret : highlight -1 + playing = false (si pas de nouveau playback)
     if (this.playGen === gen) {
       if (this.onChordHighlight) this.onChordHighlight(-1);
       this.playing = false;
     }
   }
 
+  /**
+   * Joue une grille complète d'accords, avec ou sans boucle.
+   */
   async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
-
     if (grille.chords.length === 0) { this.playing = false; return; }
 
     if (this._browserAudio) {
       await this.browserSynth.playGrille(grille, this.tempo, loop, {
-        tempo: this.tempo,
-        pattern: this.drumPattern,
-        walking: this.walking,
-        sig: this.sig,
-        tracks: this.tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+        tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
+        tracks: this.tracks.map(t => ({
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        })),
       });
     } else {
-      // Backend MIDI
       const sequence = grille.chords.map(c => ({
-        notes: this.chordToNoteNames(c),
-        beats: 4.0 / c.time,
+        notes: chordToNoteNames(c), beats: 4.0 / c.time,
       }));
       try {
         const resp = await fetch(`${backendUrl()}/play`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sequence,
-            tempo: this.tempo,
-            sig: this.sig,
-            pattern: this.drumPattern,
-            walking: this.walking,
-            loop_enabled: loop || false,
+            sequence, tempo: this.tempo, sig: this.sig,
+            pattern: this.drumPattern, walking: this.walking, loop_enabled: loop || false,
             tracks: this.tracks.map(t => ({
               channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
             })),
           }),
         });
         if (!resp.ok) { this.playing = false; return; }
-      } catch { this.playing = false; return; }
+      } catch {
+        this.playing = false; return;
+      }
     }
 
-    // Boucle de highlight locale — avec compensation de drift
     const startTime = performance.now();
     let cumulativeExpected = 0;
-
     while (this.playing) {
       for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
         if (this.onChordHighlight) this.onChordHighlight(idx);
         const c = grille.chords[idx];
         const beats = 4.0 / c.time;
-        const chordMs = (60000.0 / this.tempo) * beats;
-        cumulativeExpected += chordMs;
-
+        cumulativeExpected += (60000.0 / this.tempo) * beats;
         const elapsed = performance.now() - startTime;
         const waitMs = Math.max(0, cumulativeExpected - elapsed);
         if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
       }
       if (!loop) break;
     }
-
     if (this.playGen === gen) {
       if (this.onChordHighlight) this.onChordHighlight(-1);
       this.playing = false;

@@ -1,3 +1,16 @@
+/**
+ * PianoKeyboard — mini clavier de piano visuel (2 octaves).
+ *
+ * Affichage : touches blanches + noires disposées comme un vrai piano,
+ * avec surbrillance des notes actives.
+ *
+ * Deux modes de surbrillance :
+ * - `activeNotes` (recommandé) : notes précises avec octave → "F3", "G#4"
+ *   → seules ces touches spécifiques s'allument.
+ * - `highlightedNotes` (legacy) : notes sans octave → "F", "G#"
+ *   → toutes les occurrences sur les 2 octaves s'allument.
+ */
+
 import React from 'react';
 
 interface PianoKeyboardProps {
@@ -11,14 +24,22 @@ interface PianoKeyboardProps {
   startOctave?: number;
 }
 
+// Mapping index chromatique → nom de note
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+// Indices des touches blanches dans les 12 demi-tons
 const WHITE_KEYS = [0, 2, 4, 5, 7, 9, 11];
+// Indices des touches noires
 const BLACK_KEYS = [1, 3, 6, 8, 10];
 
 /**
- * Mini clavier de piano 2 octaves.
- * activeNotes = ["F3","G#3","C4"] → seules ces touches s'allument.
- * highlightedNotes = ["F","G#"] (legacy) → toutes les occurrences sur 2 octaves.
+ * Mini clavier de piano, 2 octaves (C3 à B4 par défaut).
+ *
+ * Layout :
+ * - Touches blanches : côte à côte, largeur égale
+ * - Touches noires : positionnées par-dessus, décalées selon leur position
+ *   dans l'octave (positions relatives aux touches blanches)
+ *
+ * La hauteur totale est fixe (84px) pour s'intégrer dans le modal de détail.
  */
 export default function PianoKeyboard({
   activeNotes,
@@ -26,13 +47,15 @@ export default function PianoKeyboard({
   octaves = 2,
   startOctave = 3,
 }: PianoKeyboardProps) {
-  // Construire un Set pour lookup rapide
+  // Construire un Set pour lookup rapide (évite de re-parcourir le tableau)
   const activeSet = new Set(activeNotes ?? []);
   const legacySet = new Set(highlightedNotes ?? []);
 
+  // Tableaux des touches avec leurs propriétés de rendu
   const whiteKeys: { note: string; octave: number; isHighlighted: boolean }[] = [];
   const blackKeys: { note: string; octave: number; isHighlighted: boolean }[] = [];
 
+  // Générer toutes les touches sur les octaves demandées
   for (let o = startOctave; o < startOctave + octaves; o++) {
     for (let i = 0; i < 12; i++) {
       const noteName = NOTE_NAMES[i];
@@ -55,11 +78,12 @@ export default function PianoKeyboard({
     }
   }
 
+  // Largeur de chaque touche blanche en pourcentage
   const whiteKeyWidth = 100 / whiteKeys.length;
 
   return (
     <div className="relative w-full" style={{ height: 84 }}>
-      {/* Touches blanches */}
+      {/* ---------- Touches blanches ---------- */}
       <div className="absolute inset-0 flex">
         {whiteKeys.map((k, i) => (
           <div
@@ -83,9 +107,12 @@ export default function PianoKeyboard({
         ))}
       </div>
 
-      {/* Touches noires */}
+      {/* ---------- Touches noires ---------- */}
+      {/* Positionnées en absolu par-dessus les blanches, plus courtes (52px) */}
       <div className="absolute inset-0" style={{ height: 52, pointerEvents: 'none' }}>
         {blackKeys.map((k, i) => {
+          // Positions relatives des noires dans l'octave (index des blanches)
+          // Do# = entre Do et Ré, Ré# = entre Ré et Mi, etc.
           const octaveOffset = Math.floor(i / 5) * 7;
           const blackPositions = [0.6, 1.6, 3.6, 4.6, 5.6];
           const posInOctave = i % 5;
@@ -113,7 +140,7 @@ export default function PianoKeyboard({
         })}
       </div>
 
-      {/* Légende en bas */}
+      {/* Légende : plage d'octaves */}
       <div className="absolute -bottom-3.5 left-0 right-0 text-center text-[7px] text-gray-600 select-none">
         C{startOctave} — B{startOctave + octaves - 1}
       </div>

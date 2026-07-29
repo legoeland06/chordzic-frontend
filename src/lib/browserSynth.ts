@@ -1,5 +1,14 @@
-/** Browser audio via WAV rendu par le backend (synthé PC) */
+/**
+ * BrowserSynth — rendu audio via le backend + lecture dans le navigateur.
+ *
+ * Mode alternatif au MIDI live : le backend génère un fichier WAV complet
+ * (via `/render-wav`), joué ensuite via l'API Web Audio.
+ *
+ * Les conversions de notes et l'URL backend sont importés depuis
+ * lib/chordUtils.ts (partagé avec audioEngine.ts).
+ */
 import { ChordData, GrilleData } from '../types/chord';
+import { backendUrl, chordToNoteNames } from './chordUtils';
 
 export interface TrackCfg {
   channel: number;
@@ -17,34 +26,10 @@ export interface RenderOptions {
   master_vol?: number;
 }
 
-function backendUrl(): string {
-  if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:4000`;
-  }
-  return 'http://localhost:4000';
-}
-
-/** Convertit un ChordData en notes (noms) pour le backend */
-function chordToNoteNames(c: ChordData): string[] {
-  const rawValues = c.midiValues;
-  if (rawValues.length === 0) return [];
-  const noteLabels = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-
-  const bassName = c.bass || c.name;
-  const bassOffset: Record<string,number> = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
-  const names: string[] = [];
-  names.push(`${noteLabels[(bassOffset[bassName] ?? 0) % 12]}2`);
-
-  const baseOctave = 3;
-  for (let i = 0; i < rawValues.length; i++) {
-    const v = rawValues[i];
-    const midiNumber = baseOctave * 12 + v;
-    const oct = Math.floor(midiNumber / 12);
-    names.push(`${noteLabels[midiNumber % 12]}${oct}`);
-  }
-  return names;
-}
-
+/**
+ * Synthétiseur audio navigateur — utilise le backend pour le rendu WAV
+ * et l'API Web Audio pour la lecture.
+ */
 export class BrowserSynth {
   private audioCtx: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
@@ -53,10 +38,11 @@ export class BrowserSynth {
 
   get isPlaying() { return this._playing; }
 
-  setVolume(v: number) {
-    // Le volume est gere par le rendu backend (master_vol)
+  setVolume(_v: number) {
+    // Le volume est géré par le rendu backend (master_vol)
   }
 
+  /** Retourne ou crée le AudioContext (et le resume si suspendu). */
   private async getContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext();
@@ -67,25 +53,24 @@ export class BrowserSynth {
     return this.audioCtx;
   }
 
+  /** Joue un aperçu d'un seul accord (boucle). */
   async playChordPreview(chord: ChordData, tempo: number, opts?: RenderOptions): Promise<void> {
     const notes = chordToNoteNames(chord);
-    const sequence = [{ notes, beats: 4.0 }];
-    await this._playSequence(sequence, tempo, true, opts);
+    await this._playSequence([{ notes, beats: 4.0 }], tempo, true, opts);
   }
 
+  /** Joue une grille complète, avec ou sans boucle. */
   async playGrille(grille: GrilleData, tempo: number, loop?: boolean, opts?: RenderOptions): Promise<void> {
     const sequence = grille.chords.map(c => ({
-      notes: chordToNoteNames(c),
-      beats: 4.0 / c.time,
+      notes: chordToNoteNames(c), beats: 4.0 / c.time,
     }));
     await this._playSequence(sequence, tempo, loop || false, opts);
   }
 
+  /** 1. Appelle /render-wav → 2. décode → 3. joue. */
   private async _playSequence(
     sequence: { notes: string[]; beats: number }[],
-    tempo: number,
-    doLoop: boolean,
-    opts?: RenderOptions
+    tempo: number, doLoop: boolean, opts?: RenderOptions,
   ): Promise<void> {
     try {
       const body: Record<string, unknown> = { sequence, tempo };
@@ -97,8 +82,7 @@ export class BrowserSynth {
         if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
       }
 
-      const url = backendUrl();
-      const resp = await fetch(`${url}/render-wav`, {
+      const resp = await fetch(`${backendUrl()}/render-wav`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -116,6 +100,7 @@ export class BrowserSynth {
     }
   }
 
+  /** Lance la lecture d'un AudioBuffer via AudioBufferSourceNode. */
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     try {
       this.stop();

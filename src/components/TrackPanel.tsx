@@ -1,3 +1,17 @@
+/**
+ * TrackPanel — panneau de contrôle des pistes et paramètres audio.
+ *
+ * Contient :
+ * - Volume master + 432Hz toggle
+ * - Mode navigateur (WAV render) / MIDI live
+ * - Loop toggle
+ * - Walking bass toggle
+ * - Sélecteur de pattern drums (rock, pop, reggae, jazz, bossa, onedrop)
+ * - Sélecteur de signature rythmique (4/4, 3/4, 6/8)
+ * - Contrôles individuels par piste (instrument, mute, volume)
+ * - Sélecteur MIDI (FluidSynth / Roland)
+ * - Section boucle WAV drums (volume, sélecteur, offset spinner)
+ */
 import React, { useState } from 'react';
 import { Volume2 } from 'lucide-react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
@@ -47,17 +61,25 @@ export default function TrackPanel({
   onSetUseLoops, onSetLoopOffset, onSetLoopName, onSetLoopVolume,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
+  // Échantillons disponibles pour le tempo courant
   const samplesHere = availableSamples[String(tempo)] || [];
+
   return (
     <>
+      {/* ── Rangée 1 : contrôles généraux ── */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+
+        {/* Volume master */}
         <Volume2 className="w-3 h-3 text-gray-500 shrink-0" />
         <span className="text-xs text-gray-500 shrink-0">Vol:</span>
-        <input type="range" min={10} max={127} value={volume}
+        <input
+          type="range" min={10} max={127} value={volume}
           onChange={(e) => onSetVolume(parseInt(e.target.value))}
-          className="w-16 sm:w-20 accent-green-500 shrink-0" />
+          className="w-16 sm:w-20 accent-green-500 shrink-0"
+        />
         <span className="text-xs text-gray-400 w-6 shrink-0">{volume}</span>
 
+        {/* 432Hz toggle */}
         <button
           onClick={() => onSet432(!use432)}
           className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
@@ -69,6 +91,7 @@ export default function TrackPanel({
           432Hz {use432 ? '\u25cf' : '\u25cb'}
         </button>
 
+        {/* Mode navigateur (WAV render) */}
         <button
           onClick={() => onSetBrowserAudio(!browserAudio)}
           className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
@@ -81,6 +104,7 @@ export default function TrackPanel({
           {'\uD83D\uDCF1'} Navig. {browserAudio ? '\u25cf' : '\u25cb'}
         </button>
 
+        {/* Loop toggle */}
         <button
           onClick={() => onSetLoop(!loopOn)}
           className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
@@ -93,6 +117,7 @@ export default function TrackPanel({
           {'\ud83d\udd04'} Loop
         </button>
 
+        {/* Walking Bass toggle */}
         <button
           onClick={() => onSetWalkingBass(!walkingBass)}
           className={`px-2 py-1.5 text-xs font-bold rounded-lg border transition-colors shrink-0 ${
@@ -104,10 +129,13 @@ export default function TrackPanel({
           {'\ud83c\udfb5'} WB
         </button>
 
+        {/* Pattern drums */}
         <span className="text-xs text-gray-500 shrink-0">Pattern:</span>
-        <select value={drumPattern}
+        <select
+          value={drumPattern}
           onChange={e => onSetDrumPattern(e.target.value)}
-          className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0">
+          className="bg-gray-800 text-orange-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0"
+        >
           <option value="rock">{'\ud83c\udfb8'} Rock</option>
           <option value="pop">{'\ud83c\udfa4'} Pop</option>
           <option value="reggae">{'\ud83c\udf34'} Reggae</option>
@@ -116,29 +144,46 @@ export default function TrackPanel({
           <option value="jazz">{'\ud83c\udfb7'} Jazz</option>
         </select>
 
+        {/* Signature rythmique */}
         <span className="text-xs text-gray-500 shrink-0">Mesure:</span>
-        <select value={sig}
+        <select
+          value={sig}
           onChange={e => onSetSig(e.target.value)}
-          className="bg-gray-800 text-teal-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0">
+          className="bg-gray-800 text-teal-400 text-xs px-2 py-1.5 rounded-lg border border-gray-700 outline-none shrink-0"
+        >
           <option value="4/4">4/4</option>
           <option value="3/4">3/4</option>
           <option value="6/8">6/8</option>
         </select>
       </div>
 
-      {/* Tracks individuelles */}
+      {/* ── Pistes individuelles ── */}
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         {tracks.map(t => (
-          <div key={t.channel}
+          <div
+            key={t.channel}
             className={`rounded-lg border px-3 py-2 ${
-              t.mute ? 'border-gray-800 bg-gray-900/30 opacity-50' : 'border-gray-700 bg-gray-800/50'
+              t.mute
+                ? 'border-gray-800 bg-gray-900/30 opacity-50'
+                : 'border-gray-700 bg-gray-800/50'
             }`}
           >
+            {/* En-tête : icône + label + bouton mute */}
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold" style={{
-                color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : t.channel === 3 ? '#c084fc' : '#f87171'
-              }}>
-                {t.channel === 0 ? '\ud83c\udfb9' : t.channel === 2 ? '\ud83c\udfb8' : t.channel === 3 ? '\ud83c\udfbb' : '\ud83e\udd41'} {t.label}
+              <span
+                className="text-xs font-bold"
+                style={{
+                  color: t.channel === 0 ? '#60a5fa'
+                       : t.channel === 2 ? '#fbbf24'
+                       : t.channel === 3 ? '#c084fc'
+                       : '#f87171',
+                }}
+              >
+                {/* Icônes par type de piste */}
+                {t.channel === 0 ? '\ud83c\udfb9'
+                 : t.channel === 2 ? '\ud83c\udfb8'
+                 : t.channel === 3 ? '\ud83c\udfbb'
+                 : '\ud83e\udd41'} {t.label}
               </span>
               <button
                 onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
@@ -152,12 +197,17 @@ export default function TrackPanel({
               </button>
             </div>
 
+            {/* Sélecteur d'instrument (sauf pour drums — kit fixe) */}
             {t.channel !== 9 ? (
               <select
                 value={t.program}
                 onChange={e => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
                 className="w-full bg-gray-900 text-xs px-1.5 py-1 rounded border border-gray-700 outline-none mb-1.5"
-                style={{ color: t.channel === 0 ? '#60a5fa' : t.channel === 2 ? '#fbbf24' : '#c084fc' }}
+                style={{
+                  color: t.channel === 0 ? '#60a5fa'
+                       : t.channel === 2 ? '#fbbf24'
+                       : '#c084fc',
+                }}
               >
                 {AudioEngine.INSTRUMENTS.map((name, i) => (
                   <option key={i} value={i}>{name}</option>
@@ -167,11 +217,11 @@ export default function TrackPanel({
               <div className="h-6" />
             )}
 
+            {/* Volume de la piste */}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-gray-500 w-4">Vol</span>
               <input
-                type="range"
-                min={1} max={127}
+                type="range" min={1} max={127}
                 value={t.volume}
                 onChange={e => onUpdateTrack(t.channel, { volume: parseInt(e.target.value) })}
                 className="flex-1 h-1 accent-blue-500"
@@ -182,16 +232,22 @@ export default function TrackPanel({
         ))}
       </div>
 
-      {/* Accord en cours + suivant */}
+      {/* ── Accord en cours + suivant ── */}
       {highlighted >= 0 && chords[highlighted] && (
         <div className="text-center py-3 mb-1">
-          <div className="text-5xl font-bold font-mono tracking-wider"
-            style={{ color: getChordColor(highlighted) }}>
+          {/* Accord courant (gros) */}
+          <div
+            className="text-5xl font-bold font-mono tracking-wider"
+            style={{ color: getChordColor(highlighted) }}
+          >
             {chords[highlighted].chiffrage === '_' ? '\u2014' : chords[highlighted].chiffrage}
           </div>
+          {/* Accord suivant (petit, transparent) */}
           {highlighted + 1 < chords.length && (
-            <div className="text-2xl font-mono tracking-wider mt-1 opacity-40"
-              style={{ color: getChordColor(highlighted + 1) }}>
+            <div
+              className="text-2xl font-mono tracking-wider mt-1 opacity-40"
+              style={{ color: getChordColor(highlighted + 1) }}
+            >
               {chords[highlighted + 1].chiffrage === '_' ? '\u2014' : chords[highlighted + 1].chiffrage}
             </div>
           )}
@@ -199,28 +255,48 @@ export default function TrackPanel({
         </div>
       )}
 
-      {/* MIDI switch */}
+      {/* ── Sélecteur MIDI (FluidSynth / Roland) ── */}
       <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-2 flex-wrap">
         <span className="text-[10px] text-gray-500">{'\uD83C\uDF9B\uFE0F'} MIDI:</span>
-        <button onClick={() => { fetch('http://localhost:4001/midi-connect/2',{method:'POST'}); setMidiPort(2); }}
-          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===2 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+        <button
+          onClick={() => {
+            fetch('http://localhost:4001/midi-connect/2', { method: 'POST' });
+            setMidiPort(2);
+          }}
+          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
+            midiPort === 2
+              ? 'bg-green-900/40 border-green-600 text-green-400'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
           FluidSynth
         </button>
-        <button onClick={() => { fetch('http://localhost:4001/midi-connect/1',{method:'POST'}); setMidiPort(1); }}
-          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${midiPort===1 ? 'bg-green-900/40 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+        <button
+          onClick={() => {
+            fetch('http://localhost:4001/midi-connect/1', { method: 'POST' });
+            setMidiPort(1);
+          }}
+          className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
+            midiPort === 1
+              ? 'bg-green-900/40 border-green-600 text-green-400'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
           Roland
         </button>
       </div>
 
-      {/* Section Boucle */}
+      {/* ── Section boucle WAV drums ── */}
       {samplesHere.length > 0 && (
         <div className="mt-2 pt-2 border-t border-gray-800">
           <div className="flex flex-wrap items-center gap-2">
             {/* Volume boucle */}
             <span className="text-[10px] text-gray-500 shrink-0">Vol:</span>
-            <input type="range" min={1} max={127} value={loopVolume}
+            <input
+              type="range" min={1} max={127} value={loopVolume}
               onChange={(e) => onSetLoopVolume(parseInt(e.target.value))}
-              className="w-16 accent-emerald-500 shrink-0" />
+              className="w-16 accent-emerald-500 shrink-0"
+            />
 
             {/* Toggle boucle */}
             <button
@@ -234,7 +310,7 @@ export default function TrackPanel({
               {'\ud83c\udfb5'} Boucle {useLoops ? '\u25cf' : '\u25cb'}
             </button>
 
-            {/* Sélecteur de loop */}
+            {/* Sélecteur de fichier boucle */}
             {samplesHere.length > 1 && (
               <select
                 value={loopName || samplesHere[0]}
@@ -247,7 +323,7 @@ export default function TrackPanel({
               </select>
             )}
 
-            {/* Spinner offset */}
+            {/* Spinner offset (décalage en ms) */}
             <div className="flex items-center gap-1 bg-gray-800 rounded border border-gray-700 px-2 py-1">
               <span className="text-[10px] text-gray-500">{'\u2195'}</span>
               <button
@@ -271,12 +347,14 @@ export default function TrackPanel({
             </div>
           </div>
 
+          {/* Info boucle unique */}
           {samplesHere.length === 1 && (
             <div className="text-[10px] text-gray-500 mt-1">
               Boucle: {samplesHere[0]} ({tempo} bpm)
             </div>
           )}
 
+          {/* Statut boucle active */}
           {useLoops && (
             <div className="text-[10px] text-emerald-600/60 mt-1">
               {'\ud83d\udd01'} Lecture en boucle active (offset {loopOffset}ms)
@@ -285,7 +363,7 @@ export default function TrackPanel({
         </div>
       )}
 
-      {/* Message si pas de boucle dispo */}
+      {/* Message si pas de boucle pour ce tempo */}
       {samplesHere.length === 0 && (
         <div className="mt-2 pt-2 border-t border-gray-800">
           <div className="text-[10px] text-gray-600">

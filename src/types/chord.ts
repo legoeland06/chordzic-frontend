@@ -1,19 +1,39 @@
+/**
+ * Types et fonctions utilitaires pour la manipulation des accords.
+ *
+ * Point central de la logique harmonique : parse les notations textuelles
+ * (ex: "4:Cm7", "2:Fmaj7/G") en données structurées ChordData avec :
+ * - Notes MIDI (avec octaves)
+ * - Qualités d'accords (70+ types, de la triade aux 13èmes altérées)
+ * - Intervalles
+ *
+ * Le format d'entrée : `<durée en temps>:<Fondamentale><Qualité>[/<Basse alternative>]`
+ */
+
+// ─── Types ──────────────────────────────────────────────────────────────
+
+/** Données structurées d'un accord après parsing. */
 export interface ChordData {
-  time: number;
-  name: string;
-  quality: string;
-  bass: string;
-  chiffrage: string;
-  notes: string[];
-  midiValues: number[];
+  time: number;             // Durée en temps (4 = noire)
+  name: string;             // Fondamentale (ex: "C", "F#")
+  quality: string;          // Qualité (ex: "m7", "M7", "dim")
+  bass: string;             // Note de basse (fondamentale ou basse alternative)
+  chiffrage: string;        // Représentation complète (ex: "Cm7", "G7/B")
+  notes: string[];          // Noms des notes (ex: ["C", "Eb", "G", "Bb"])
+  midiValues: number[];     // Intervalles MIDI depuis C0 (ex: [0, 3, 7, 10])
 }
 
+/** Grille complète (session). */
 export interface GrilleData {
   titre: string;
   tempo: number;
   chords: ChordData[];
 }
 
+// ─── Mapping notes → MIDI ──────────────────────────────────────────────
+
+/** Index chromatique de chaque note depuis C (0) jusqu'à B (11).
+ *  Les bémols sont redirigés vers leur équivalent dièse. */
 export const NOTE_TO_MIDI: Record<string, number> = {
   'C': 0, 'C#': 1, 'Db': 1,
   'D': 2, 'D#': 3, 'Eb': 3,
@@ -23,15 +43,19 @@ export const NOTE_TO_MIDI: Record<string, number> = {
   'Bb': 10, 'B': 11,
 };
 
+/** Tableau des noms de notes dans l'ordre chromatique. */
 export const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
+// ─── Qualités d'accords — intervalles ──────────────────────────────────
+
 /**
- * Toutes les qualités d'accords — 70+ venues du moteur Java original.
- * Les intervalles sont en demi-tons depuis la fondamentale.
- * Les intervalles ≥ 12 ajoutent une octave (ex: 9 = 14, 13 = 21).
+ * Toutes les qualités d'accords (70+) venues du moteur Java original.
+ * Chaque entrée est un tableau d'intervalles en demi-tons depuis la
+ * fondamentale. Les intervalles ≥ 12 ajoutent une octave (ex: 9 = 14,
+ * 13 = 21), ce qui encode directement la hauteur des notes dans l'octave.
  */
 export const QUALITY_INTERVALS: Record<string, number[]> = {
-  // Triades de base
+  // ── Triades de base ──
   '':       [0, 4, 7],      // Maj (par défaut)
   'M':      [0, 4, 7],      // Maj
   'maj':    [0, 4, 7],
@@ -47,18 +71,18 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   'sus':    [0, 5, 7],
   '5':      [0, 7],          // quinte (power chord)
 
-  // Accords spéciaux (sans tierce)
+  // ── Accords spéciaux (sans tierce) ──
   'no5':    [0, 4],
   'omit5':  [0, 4],
   'm(no5)': [0, 3],
   'm(omit5)': [0, 3],
 
-  // Sixte
+  // ── Sixte ──
   '6':      [0, 4, 7, 9],
   'm6':     [0, 3, 7, 9],
   'dim6':   [0, 3, 6, 8],
 
-  // Septième
+  // ── Septième ──
   '7':      [0, 4, 7, 10],
   '7b5':    [0, 4, 6, 10],
   '7-5':    [0, 4, 6, 10],
@@ -73,14 +97,14 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   'dim7':   [0, 3, 6, 9],
   '7alt':   [0, 3, 6, 9],  // alt = dim7
 
-  // Septième majeure
+  // ── Septième majeure ──
   'M7':     [0, 4, 7, 11],
   'maj7':   [0, 4, 7, 11],
   'M7#5':   [0, 4, 8, 11],
   'M7+5':   [0, 4, 8, 11],
   'mM7':    [0, 3, 7, 11],
 
-  // Add
+  // ── Add (notes ajoutées sans septième) ──
   'add4':     [0, 4, 5, 7],
   'Madd4':    [0, 4, 5, 7],
   'madd4':    [0, 3, 5, 7],
@@ -91,12 +115,12 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   '2':        [0, 4, 7, 14],  // add9
   '4':        [0, 4, 7, 17],  // add11
 
-  // Sus avec ajouts
+  // ── Sus avec ajouts ──
   'sus4add9':   [0, 5, 7, 14],
   'sus4add2':   [0, 2, 5, 7],
   '9sus4':      [0, 5, 7, 10, 14],
 
-  // Neuvième
+  // ── Neuvième ──
   '9':      [0, 4, 7, 10, 14],
   'm9':     [0, 3, 7, 10, 14],
   'M9':     [0, 4, 7, 11, 14],
@@ -115,9 +139,9 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   '7#9#5':  [0, 4, 8, 10, 15],
   'm7b9b5': [0, 3, 6, 10, 13],
 
-  // Onzième
+  // ── Onzième ──
   '11':       [0, 7, 10, 14, 17],
-  'm11':      [0, 3, 7, 17],     // version simplifiée
+  'm11':      [0, 3, 7, 17],
   '7#11':     [0, 4, 7, 10, 18],
   '7+11':     [0, 4, 7, 10, 18],
   'M7#11':    [0, 4, 7, 11, 18],
@@ -129,7 +153,7 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   'M7add11':  [0, 4, 7, 11, 17],
   'mM7add11': [0, 3, 7, 11, 17],
 
-  // Treizième
+  // ── Treizième ──
   '13':       [0, 4, 7, 10, 14, 21],
   '13b9':     [0, 4, 7, 10, 13, 21],
   '13-9':     [0, 4, 7, 10, 13, 21],
@@ -141,39 +165,49 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   '7-13':     [0, 4, 7, 10, 20],
   '7b9b13':   [0, 4, 7, 10, 13, 17, 20],
 
-  // Spéciales
+  // ── Spéciales ──
   'm69':      [0, 3, 7, 9, 14],
   '69':       [0, 4, 7, 9, 14],
   'Mb5':      [0, 4, 6],
   'ø':        [0, 3, 6, 10],     // demi-diminué = m7b5
   '°':        [0, 3, 6],         // diminué
-
-  // Neuvième #11 (attention : sans 7e, version simplifiée)
   '9#11':     [0, 4, 7, 10, 14, 18],
   '9+11':     [0, 4, 7, 10, 14, 18],
-
-  // Majeure avec treizième
   'M7add13':  [0, 4, 7, 9, 11, 14],
-
-  // Divers
   'm13':      [0, 3, 7, 10, 14, 21],
   'dim/M7':   [0, 3, 6, 11],
   'mb5':      [0, 4, 6],
   'm7b9':     [0, 3, 7, 10, 13],
 };
 
+// ─── Parseurs ───────────────────────────────────────────────────────────
+
+/**
+ * Parse une chaîne d'accord au format "4:Cm7" ou "4:Cmaj7/G".
+ *
+ * Étapes :
+ * 1. Extraire la durée (temps) avant les ":"
+ * 2. Si le reste est "_", c'est un silence → notes vides
+ * 3. Extraire la basse alternative après "/" si présente
+ * 4. Extraire la fondamentale (note) et sa qualité
+ * 5. Résoudre les intervalles de la qualité → notes MIDI
+ * 6. Dédupliquer et retourner ChordData
+ */
 export function parseChord(input: string): ChordData {
-  // Formats: "4:Cmaj7" "2:Fm7" "1:Cmaj7/G" "4:G7" "4:_" (silence)
+  // Séparer durée et reste
   const parts = input.split(':');
   const time = parseInt(parts[0]) || 4;
   const rest = parts[1] || parts[0];
 
   // Silence
   if (rest.trim() === '_') {
-    return { time, name: '_', quality: '', bass: '', chiffrage: '_', notes: [], midiValues: [] };
+    return {
+      time, name: '_', quality: '', bass: '',
+      chiffrage: '_', notes: [], midiValues: [],
+    };
   }
 
-  // Extraire la basse après /
+  // Extraire la basse alternative (après "/")
   let chordStr = rest;
   let bass = '';
   if (rest.includes('/')) {
@@ -182,68 +216,79 @@ export function parseChord(input: string): ChordData {
     bass = split[1];
   }
 
-  // Extraire le nom de note fondamentale
+  // Extraire la fondamentale (1ère note avec altération optionnelle)
   const noteMatch = chordStr.match(/^([A-G][#b]?)(.*)/);
   if (!noteMatch) throw new Error(`Format invalide: ${input}`);
 
-  const name = noteMatch[1];
-  const quality = noteMatch[2] || 'M';
+  const name = noteMatch[1];           // Ex: "C", "F#", "Bb"
+  const quality = noteMatch[2] || 'M'; // Ex: "m7", "maj7", "dim" (défaut: Majeure)
   const bassNote = bass || name;
 
   // Résoudre les intervalles
   const rootVal = NOTE_TO_MIDI[name] ?? 0;
   const intervals = resolveQuality(quality);
-  // rawValues = root + interval (sans modulo 12 — les octaves comptent !)
   const rawValues: number[] = [];
   for (const i of intervals) {
     const v = rootVal + i;
-    // Éviter les doublons strictement identiques
     if (!rawValues.includes(v)) {
       rawValues.push(v);
     }
   }
 
-  // Noms des notes (toujours en 0-11 pour l'affichage, mais on garde l'octave pour le MIDI)
-  const notes = rawValues.map((v: number) => {
-    return NOTE_NAMES[v % 12];
-  });
+  // Noms des notes (en 0-11 pour l'affichage, mais on garde l'octave pour le MIDI)
+  const notes = rawValues.map((v: number) => NOTE_NAMES[v % 12]);
 
   const chiffrage = `${name}${quality}${bass !== name ? '/' + bass : ''}`;
 
-  return { time, name, quality, bass: bassNote, chiffrage, notes, midiValues: rawValues };
+  return {
+    time, name, quality, bass: bassNote, chiffrage, notes, midiValues: rawValues,
+  };
 }
 
-/** Résout une qualité avec ses alias, fallback sur Majeure si inconnue */
+/**
+ * Résout une qualité textuelle en tableau d'intervalles.
+ * Gère les alias (min→m, maj→M, les parenthèses, etc.).
+ * Fallback sur Majeure si la qualité est inconnue.
+ */
 function resolveQuality(q: string): number[] {
-  // Normalisation : enlever les parenthèses, espaces
   const cleaned = q.trim().replace(/[()]/g, '');
 
-  // Chercher d'abord exacte
+  // Recherche exacte
   if (QUALITY_INTERVALS[cleaned]) return QUALITY_INTERVALS[cleaned];
 
-  // Essayer minuscule/majuscule
+  // Essayer minuscule / majuscule
   const lowered = cleaned.toLowerCase();
   const uppered = cleaned.toUpperCase();
   if (QUALITY_INTERVALS[lowered]) return QUALITY_INTERVALS[lowered];
   if (QUALITY_INTERVALS[uppered]) return QUALITY_INTERVALS[uppered];
 
-  // Fallback sur Majeure
+  // Fallback Majeure
   console.warn(`Qualité inconnue: "${q}", fallback Maj`);
   return QUALITY_INTERVALS['M'];
 }
 
+/**
+ * Parse une grille complète (espacement des accords).
+ * Format : "4:Cm7 4:F7 2:G7 4:C"
+ */
 export function parseGrille(input: string, tempo: number = 120): GrilleData {
   const parts = input.trim().split(/\s+/);
   const chords = parts.map(p => parseChord(p));
   return { titre: 'Session', tempo, chords };
 }
 
+// ─── Couleurs ───────────────────────────────────────────────────────────
+
+/** Palette cyclique pour colorer les accords. */
 export function getChordColor(idx: number): string {
-  const colors = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#f97316', '#a855f7',
-                  '#ec4899', '#14b8a6', '#8b5cf6', '#f43f5e'];
+  const colors = [
+    '#3b82f6', '#ef4444', '#22c55e', '#eab308', '#f97316',
+    '#a855f7', '#ec4899', '#14b8a6', '#8b5cf6', '#f43f5e',
+  ];
   return colors[idx % colors.length];
 }
 
+/** Couleur par note (pour l'affichage des notes individuelles). */
 export function getNoteColor(note: string): string {
   if (note.includes('#') || note.includes('b')) return '#60a5fa';
   const colors: Record<string, string> = {

@@ -1,3 +1,7 @@
+/**
+ * Point d'entrée React — monte le composant principal ChordApp
+ * dans l'élément #root du DOM, avec StrictMode activé.
+ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './components/ChordApp';
