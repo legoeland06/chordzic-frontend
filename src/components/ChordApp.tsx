@@ -295,8 +295,8 @@ export default function ChordApp() {
       updateTrack(0, { program: 16, volume: 114 });  // Lead → Drawbar Organ
       updateTrack(4, { program: 4, volume: 114 });   // Accent → Electric Piano 1
       updateTrack(2, { program: 32, volume: 109 });  // Bass → Acoustic Bass
-      updateTrack(3, { mute: true });                 // Nappes → mute
       updateTrack(9, { volume: 127 });                // Drums → vol max
+      updateTrack(3, { program: 0, volume: 80, mute: false }); // Nappes → Acoustic Grand Piano (joue seulement sur accords courts)
       setLoopOn(true);                                 // Loop activé
     }
     engineRef.current?.setPattern(drumPattern);
