@@ -288,7 +288,19 @@ export default function ChordApp() {
   useEffect(() => { const t = tracks.find(tc => tc.channel === 2); if (t) engineRef.current?.setBass(!t.mute); }, [tracks[1].mute]);
   useEffect(() => { const t = tracks.find(tc => tc.channel === 0); if (t) engineRef.current?.setArpeggios(!t.mute); }, [tracks[0].mute]);
   useEffect(() => { const t = tracks.find(tc => tc.channel === 3); if (t) engineRef.current?.setNappes(!t.mute); }, [tracks[2].mute]);
-  useEffect(() => { engineRef.current?.setPattern(drumPattern); }, [drumPattern]);
+  useEffect(() => {
+    // Auto-config Reggae : quand on sélectionne le pattern reggae,
+    // les paramètres suivants sont forcés automatiquement.
+    if (drumPattern === 'reggae') {
+      updateTrack(0, { program: 16, volume: 114 });  // Lead → Drawbar Organ
+      updateTrack(4, { program: 4, volume: 114 });   // Accent → Electric Piano 1
+      updateTrack(2, { program: 32, volume: 109 });  // Bass → Acoustic Bass
+      updateTrack(3, { mute: true });                 // Nappes → mute
+      updateTrack(9, { volume: 127 });                // Drums → vol max
+      setLoopOn(true);                                 // Loop activé
+    }
+    engineRef.current?.setPattern(drumPattern);
+  }, [drumPattern]);
   useEffect(() => { engineRef.current?.setWalking(walkingBass); }, [walkingBass]);
 
   useEffect(() => {
