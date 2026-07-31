@@ -368,14 +368,18 @@ export default function PianoRoll({
       if (dragSelRef.current) {
         const { startPx, startPy, orig } = dragSelRef.current;
         const dBeat = (coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH - startPx) / effectivePixelsPerBeat;
-        const dPitch = Math.round((coord.py - startPy) / WHITE_KEY_HEIGHT);
+        // Canvas : y décroît quand le pitch monte → delta inversé
+        const dPitch = -Math.round((coord.py - startPy) / WHITE_KEY_HEIGHT);
         if (dBeat !== 0 || dPitch !== 0) {
           const ids = new Set(orig.map(n => n.id));
-          localNotesRef.current = localNotesRef.current.map(n => ids.has(n.id) ? {
+          // Toujours repartir des notes ORIGINALES + delta total (jamais
+          // des notes déjà déplacées → évite l'accumulation géométrique)
+          const moved = new Map(orig.map(n => [n.id, {
             ...n,
             startTime: Math.max(0, Math.round((n.startTime + dBeat) / SNAP_UNIT) * SNAP_UNIT),
             pitch: Math.min(userMaxPitch, Math.max(userMinPitch, n.pitch + dPitch)),
-          } : n);
+          }]));
+          localNotesRef.current = localNotesRef.current.map(n => moved.get(n.id) ?? n);
           draw();
         }
         return;
