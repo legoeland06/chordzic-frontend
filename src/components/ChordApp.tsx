@@ -133,6 +133,7 @@ export default function ChordApp() {
   // ── État : sauvegarde / chargement ─────────────────────────────────
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [savedGrilles, setSavedGrilles] = useState<
     Array<{name:string; input:string; tempo:number; sig:string; date:string; pianoNotes?: Record<number, PianoNote[]>}>
   >(() => {
@@ -331,7 +332,9 @@ export default function ChordApp() {
 
   const handleDeleteSave = (name: string) => persistGrilles(savedGrilles.filter(g => g.name !== name));
 
-  const handleExport = () => {
+  const handleExport = () => setShowExportModal(true);
+
+  const doExport = (name: string) => {
     const hasPianoNotes = Object.keys(pianoNotes).length > 0 &&
       Object.values(pianoNotes).some(notes => notes.length > 0);
     const data: Record<string, unknown> = {
@@ -343,12 +346,15 @@ export default function ChordApp() {
     if (hasPianoNotes) {
       data.pianoNotes = pianoNotes;
     }
+    // Nom de fichier lisible : sanitisation du nom choisi par l'utilisateur
+    const safeName = name.trim().replace(/[^\w\-]+/g, '_').replace(/_+/g, '_') || 'grille';
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `chordjava-${Date.now()}.json`;
+    a.href = url; a.download = `${safeName}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowExportModal(false);
     setStatus('📤 Grille exportée en JSON'); setStatusColor('text-green-400');
   };
 
@@ -536,6 +542,14 @@ export default function ChordApp() {
           show={showSaveModal}
           onClose={() => setShowSaveModal(false)}
           onSave={handleSave}
+        />
+        <SaveModal
+          show={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          onSave={doExport}
+          title="📤 Exporter la grille en JSON"
+          placeholder="Nom du fichier"
+          buttonLabel="Exporter"
         />
         <LoadModal
           show={showLoadModal}

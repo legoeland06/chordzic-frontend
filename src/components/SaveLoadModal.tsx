@@ -13,6 +13,12 @@ interface SaveModalProps {
   show: boolean;
   onClose: () => void;
   onSave: (name: string) => void;
+  /** Titre du modal (défaut : Sauvegarder la grille). */
+  title?: string;
+  /** Placeholder du champ (défaut : Nom de la grille). */
+  placeholder?: string;
+  /** Libellé du bouton (défaut : Sauvegarder). */
+  buttonLabel?: string;
 }
 
 interface LoadModalProps {
@@ -25,7 +31,7 @@ interface LoadModalProps {
 
 // ─── SaveModal ──────────────────────────────────────────────────────────
 
-export function SaveModal({ show, onClose, onSave }: SaveModalProps) {
+export function SaveModal({ show, onClose, onSave, title, placeholder, buttonLabel }: SaveModalProps) {
   const [name, setName] = useState('');
 
   if (!show) return null;
@@ -39,7 +45,7 @@ export function SaveModal({ show, onClose, onSave }: SaveModalProps) {
         className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-80 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="text-sm font-bold text-white mb-3">💾 Sauvegarder la grille</h3>
+        <h3 className="text-sm font-bold text-white mb-3">{title ?? '💾 Sauvegarder la grille'}</h3>
         <input
           autoFocus
           value={name}
@@ -49,7 +55,7 @@ export function SaveModal({ show, onClose, onSave }: SaveModalProps) {
             if (e.key === 'Escape') onClose();
           }}
           className="w-full bg-gray-800 text-white text-sm font-mono px-3 py-2 rounded-lg border border-gray-700 focus:border-blue-500 outline-none mb-4"
-          placeholder="Nom de la grille"
+          placeholder={placeholder ?? 'Nom de la grille'}
         />
         <div className="flex gap-2">
           <button
@@ -57,7 +63,7 @@ export function SaveModal({ show, onClose, onSave }: SaveModalProps) {
             disabled={!name.trim()}
             className="flex-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-xs font-bold rounded-lg transition-colors"
           >
-            Sauvegarder
+            {buttonLabel ?? 'Sauvegarder'}
           </button>
           <button
             onClick={onClose}
