@@ -46,6 +46,7 @@ export class BrowserSynth {
   private _buffer: AudioBuffer | null = null;
   private ctxTimeAtStart = 0;
   private _loopTimer: ReturnType<typeof setTimeout> | null = null;
+  private sources: AudioBufferSourceNode[] = [];
 
   get isPlaying() { return this._playing; }
 
@@ -184,6 +185,7 @@ export class BrowserSynth {
       const xf = Math.min(0.08, dur / 3); // 80 ms de crossfade
       let cycleStart = ctx.currentTime + 0.05;
       let first = true;
+      this.sources = [];
 
       // Source factice : la « leader » (pour stop/getPosition)
       const leader = ctx.createBufferSource();
@@ -198,13 +200,14 @@ export class BrowserSynth {
         const g = ctx.createGain();
         s.connect(g);
         g.connect(out);
+        this.sources.push(s); // pour pouvoir tout arrêter au stop()
 
         const start = cycleStart;
         if (first) {
           g.gain.value = 1;
           first = false;
         } else {
-          // Fondu entrant sur la durée du crossfade
+          // Fondu entrant sur la durée du crossfade (chevauchement)
           g.gain.setValueAtTime(0, start);
           g.gain.linearRampToValueAtTime(1, start + xf);
         }
@@ -214,28 +217,33 @@ export class BrowserSynth {
 
         s.start(start, 0);
         s.stop(start + dur);
-        cycleStart += dur;
+        // Le cycle suivant démarre xf AVANT la fin de celui-ci → vrai
+        // chevauchement : la fin (queues) se fond dans le début (beat 1)
+        cycleStart = start + dur - xf;
         // Programmer le cycle suivant
         scheduleNext();
       };
 
       // On programme un cycle à la fois, un peu à l'avance (timing audio)
-      let timer: ReturnType<typeof setTimeout> | null = null;
       const scheduleNext = () => {
         const lead = cycleStart - ctx.currentTime - 0.1;
-        timer = setTimeout(() => {
+        this._loopTimer = setTimeout(() => {
           if (this._playing) scheduleCycle();
         }, Math.max(0, lead * 1000));
       };
       scheduleCycle();
-      // Nettoyage du timer quand on arrête
-      this._loopTimer = timer;
     } catch (e) { console.error('❌ _playBuffer error:', e); }
   }
 
   stop() {
     this._playing = false;
     if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
+    // Arrêter TOUTES les sources actives (boucle crossfade inclus)
+    for (const s of this.sources) {
+      try { s.stop(); } catch {}
+      s.disconnect();
+    }
+    this.sources = [];
     if (this.source) {
       try { this.source.stop(); } catch {}
       this.source.disconnect();
