@@ -376,6 +376,7 @@ export default function PianoRoll({
           // des notes déjà déplacées → évite l'accumulation géométrique)
           const moved = new Map(orig.map(n => [n.id, {
             ...n,
+            edited: true,
             startTime: Math.max(0, Math.round((n.startTime + dBeat) / SNAP_UNIT) * SNAP_UNIT),
             pitch: Math.min(userMaxPitch, Math.max(userMinPitch, n.pitch + dPitch)),
           }]));
@@ -463,7 +464,7 @@ export default function PianoRoll({
         const endTime = Math.max(0, adjustedCoord.px / effectivePixelsPerBeat);
         const snappedEnd = Math.max(SNAP_UNIT, snapToGrid(endTime));
         const duration = Math.max(SNAP_UNIT, snappedEnd - creatingNote.startTime);
-        const finalNote = { ...creatingNote, duration };
+        const finalNote = { ...creatingNote, duration, edited: true };
         const newNotes = [...localNotesRef.current, finalNote];
         localNotesRef.current = newNotes;
         onNotesChange(newNotes);
@@ -475,7 +476,7 @@ export default function PianoRoll({
 
       if (result.note && ctx.targetId) {
         const updated = localNotesRef.current.map(n =>
-          n.id === ctx.targetId ? { ...n, ...result.note } : n
+          n.id === ctx.targetId ? { ...n, ...result.note, edited: true } : n
         );
         localNotesRef.current = updated;
         onNotesChange(updated);
@@ -588,7 +589,7 @@ export default function PianoRoll({
   const applyVelocity = (v: number) => {
     const ids = selectedIdsRef.current;
     if (ids.size === 0) return;
-    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v } : n);
+    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v, edited: true } : n);
     localNotesRef.current = updated;
     setVelValue(v);
     onNotesChange(updated);

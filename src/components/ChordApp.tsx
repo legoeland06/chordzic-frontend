@@ -74,17 +74,15 @@ export default function ChordApp() {
   }, []);
 
   // ── Pré-remplissage du PianoRoll avec les notes du mode classique ──
-  // À l'ouverture d'une piste jamais éditée (ou encore en état « seed » =
-  // notes pré-remplies non modifiées), on demande au backend les notes que
-  // jouerait le mode classique pour la grille COURANTE. Re-déclenché
-  // automatiquement quand la grille change (plus besoin de « Analyser »).
+  // À l'ouverture d'une piste jamais éditée, on demande au backend les notes
+  // que jouerait le mode classique pour la grille COURANTE. Re-déclenché
+  // quand la grille change. Les notes marquées `edited` (modifiées par
+  // l'utilisateur) ne sont JAMAIS écrasées.
   useEffect(() => {
     if (openPianoRoll === null) return;
     const current = pianoNotes[openPianoRoll];
-    const isSeeded = current !== undefined && current.length > 0 &&
-      current.every(n => n.id.startsWith('seed-'));
-    // Déjà édité manuellement (ou vidé volontairement) → ne pas écraser
-    if (current !== undefined && !isSeeded) return;
+    // Déjà édité manuellement (notes modifiées, créées, ou canal vidé) → ne pas toucher
+    if (current !== undefined && (current.length === 0 || current.some(n => n.edited || !n.id.startsWith('seed-')))) return;
     if (chords.length === 0) return;
     let cancelled = false;
     (async () => {

@@ -14,6 +14,8 @@ export interface PianoNote {
   pitch: number;      // Note MIDI (0-127, 60 = C4)
   duration: number;   // Durée en beats
   velocity: number;   // Vélocité (0-127)
+  /** true si la note a été modifiée par l'utilisateur (protège du re-seed). */
+  edited?: boolean;
 }
 
 // ─── Constantes de rendu ───────────────────────────────────────────────
