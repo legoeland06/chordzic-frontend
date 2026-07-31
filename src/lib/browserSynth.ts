@@ -42,6 +42,7 @@ export class BrowserSynth {
   private source: AudioBufferSourceNode | null = null;
   private _playing = false;
   private _buffer: AudioBuffer | null = null;
+  private ctxTimeAtStart = 0;
 
   get isPlaying() { return this._playing; }
 
@@ -135,6 +136,18 @@ export class BrowserSynth {
     return data.notes ?? [];
   }
 
+  /** Position de lecture courante dans le buffer (0..duration), boucle comprise. */
+  getPosition(): number {
+    if (!this.source || !this.audioCtx || !this._buffer) return 0;
+    const elapsed = this.audioCtx.currentTime - this.ctxTimeAtStart;
+    return ((elapsed % this._buffer.duration) + this._buffer.duration) % this._buffer.duration;
+  }
+
+  /** Durée du buffer audio courant (secondes). */
+  getDuration(): number {
+    return this._buffer?.duration ?? 0;
+  }
+
   /** Lance la lecture d'un AudioBuffer via AudioBufferSourceNode. */
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     try {
@@ -147,6 +160,7 @@ export class BrowserSynth {
       source.buffer = buffer;
       source.loop = loop;
       source.connect(gainNode);
+      this.ctxTimeAtStart = ctx.currentTime;
       source.start();
       this.source = source;
       this._playing = true;

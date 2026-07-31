@@ -247,17 +247,43 @@ export class AudioEngine {
 
     const startTime = performance.now();
     let cumulativeExpected = 0;
-    while (this.playing) {
-      for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
-        if (this.onChordHighlight) this.onChordHighlight(idx);
-        const c = grille.chords[idx];
-        const beats = 4.0 / c.time;
-        cumulativeExpected += (60000.0 / this.tempo) * beats;
-        const elapsed = performance.now() - startTime;
-        const waitMs = Math.max(0, cumulativeExpected - elapsed);
-        if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
+    if (this._browserAudio) {
+      // ── Mode Navig : highlight synchronisé sur la position audio ──
+      // On lit la position réelle dans le buffer (boucle comprise) au lieu
+      // d'un timer JS : plus aucune désynchronisation son/highlight.
+      const dur = this.browserSynth.getDuration();
+      const totalBeats = grille.chords.reduce((acc, c) => acc + 4.0 / c.time, 0);
+      const beatsAcc: number[] = [];
+      let acc = 0;
+      for (const c of grille.chords) { acc += 4.0 / c.time; beatsAcc.push(acc); }
+      let lastIdx = -1;
+      while (this.playing) {
+        const pos = dur > 0 ? this.browserSynth.getPosition() : 0;
+        const beatPos = dur > 0 ? (pos / dur) * totalBeats : 0;
+        let idx = 0;
+        for (let i = 0; i < beatsAcc.length; i++) {
+          if (beatPos < beatsAcc[i]) { idx = i; break; }
+          idx = i;
+        }
+        if (idx !== lastIdx) {
+          lastIdx = idx;
+          if (this.onChordHighlight) this.onChordHighlight(idx);
+        }
+        await new Promise(r => setTimeout(r, 30));
       }
-      if (!loop) break;
+    } else {
+      while (this.playing) {
+        for (let idx = 0; idx < grille.chords.length && this.playing; idx++) {
+          if (this.onChordHighlight) this.onChordHighlight(idx);
+          const c = grille.chords[idx];
+          const beats = 4.0 / c.time;
+          cumulativeExpected += (60000.0 / this.tempo) * beats;
+          const elapsed = performance.now() - startTime;
+          const waitMs = Math.max(0, cumulativeExpected - elapsed);
+          if (waitMs > 1) await new Promise(r => setTimeout(r, waitMs));
+        }
+        if (!loop) break;
+      }
     }
     if (this.playGen === gen) {
       if (this.onChordHighlight) this.onChordHighlight(-1);
