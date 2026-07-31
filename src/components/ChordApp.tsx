@@ -134,7 +134,7 @@ export default function ChordApp() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [savedGrilles, setSavedGrilles] = useState<
-    Array<{name:string; input:string; tempo:number; sig:string; date:string}>
+    Array<{name:string; input:string; tempo:number; sig:string; date:string; pianoNotes?: Record<number, PianoNote[]>}>
   >(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
     catch { return []; }
@@ -300,21 +300,28 @@ export default function ChordApp() {
 
   // ─── Sauvegarder / Charger ─────────────────────────────────────
 
-  const persistGrilles = (grilles: Array<{name:string; input:string; tempo:number; sig:string; date:string}>) => {
+  const persistGrilles = (grilles: Array<{name:string; input:string; tempo:number; sig:string; date:string; pianoNotes?: Record<number, PianoNote[]>}>) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(grilles));
     setSavedGrilles(grilles);
   };
 
   const handleSave = (saveName: string) => {
     if (!saveName.trim() || !input.trim()) return;
-    const entry = { name: saveName.trim(), input, tempo, sig, date: new Date().toLocaleString('fr-FR') };
+    const entry = {
+      name: saveName.trim(), input, tempo, sig,
+      date: new Date().toLocaleString('fr-FR'),
+      // PianoRoll : on sauvegarde les notes de TOUS les canaux (même vides)
+      pianoNotes,
+    };
     persistGrilles([...savedGrilles.filter(g => g.name !== entry.name), entry]);
     setShowSaveModal(false);
     setStatus(`💾 Grille « ${entry.name} » sauvegardée`); setStatusColor('text-green-400');
   };
 
-  const handleLoad = (entry: {name:string; input:string; tempo:number; sig:string}) => {
+  const handleLoad = (entry: {name:string; input:string; tempo:number; sig:string; pianoNotes?: Record<number, PianoNote[]>}) => {
     setInput(entry.input); setTempo(entry.tempo); setSig(entry.sig);
+    // Restaurer les notes du PianoRoll (ancien format sans le champ → aucune)
+    setPianoNotes(entry.pianoNotes ?? {});
     setShowLoadModal(false);
     setStatus(`📂 Grille « ${entry.name} » chargée`); setStatusColor('text-blue-400');
     setTimeout(() => {
