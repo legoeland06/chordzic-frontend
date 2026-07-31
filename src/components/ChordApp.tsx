@@ -11,6 +11,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Sparkles, Music } from 'lucide-react';
 
 import { parseGrille, ChordData } from '../types/chord';
+import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
@@ -19,6 +20,7 @@ import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal } from './SaveLoadModal';
+import PianoRoll from './PianoRoll';
 
 // Clé localStorage pour les grilles sauvegardées
 const STORAGE_KEY = 'chordjava_saved_grilles';
@@ -62,6 +64,14 @@ export default function ChordApp() {
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
+
+  // ── État : piano roll (notes personnalisées par piste) ───────────
+  const [pianoNotes, setPianoNotes] = useState<Record<number, PianoNote[]>>({});
+  const [openPianoRoll, setOpenPianoRoll] = useState<number | null>(null);
+
+  const handlePianoRollChange = useCallback((channel: number, notes: PianoNote[]) => {
+    setPianoNotes(prev => ({ ...prev, [channel]: notes }));
+  }, []);
 
   // ── Dernier chiffrage tapé (pour l'autocomplétion de ChordInput) ──
   const [lastChiffrage, setLastChiffrage] = useState('');
@@ -174,8 +184,19 @@ export default function ChordApp() {
     setPlaying(true);
     setStatus('▶ Lecture...'); setStatusColor('text-green-400');
 
+    // Convertir les pianoNotes en customNotes pour le backend
+    const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
+      (notes as PianoNote[]).map(n => ({
+        channel: parseInt(ch),
+        start_time: n.startTime,
+        pitch: n.pitch,
+        duration: n.duration,
+        velocity: n.velocity,
+      }))
+    );
+
     const grille = { titre: 'Session', tempo, chords: chordsToPlay };
-    engine.playGrille(grille, loopOn).then(() => {
+    engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
     }).catch((e) => {
@@ -239,11 +260,17 @@ export default function ChordApp() {
   const handleDeleteSave = (name: string) => persistGrilles(savedGrilles.filter(g => g.name !== name));
 
   const handleExport = () => {
-    const data = {
-      type: 'chordJAVA-grille', version: 2, input, tempo, sig,
+    const hasPianoNotes = Object.keys(pianoNotes).length > 0 &&
+      Object.values(pianoNotes).some(notes => notes.length > 0);
+    const data: Record<string, unknown> = {
+      type: 'chordJAVA-grille', version: 3, input, tempo, sig,
       tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
-      pattern: drumPattern, use432Hz: use432, exportedAt: new Date().toISOString(),
+      pattern: drumPattern, use432Hz: use432,
+      exportedAt: new Date().toISOString(),
     };
+    if (hasPianoNotes) {
+      data.pianoNotes = pianoNotes;
+    }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -273,6 +300,11 @@ export default function ChordApp() {
           }
           if (data.pattern) setDrumPattern(data.pattern);
           if (data.use432Hz !== undefined) setUse432(data.use432Hz);
+          if (data.version >= 3 && data.pianoNotes) {
+            setPianoNotes(data.pianoNotes);
+          } else {
+            setPianoNotes({});
+          }
           setStatus(`📥 Grille importée depuis ${file.name}`); setStatusColor('text-green-400');
           setTimeout(() => { try { const grille = parseGrille(data.input, data.tempo || 120); setChords(grille.chords); } catch {} }, 50);
         } else { setStatus('❌ Format de fichier invalide'); setStatusColor('text-red-400'); }
@@ -403,6 +435,7 @@ export default function ChordApp() {
             onSetLoopOffset={(v) => { setLoopOffset(v); engineRef.current?.setLoopOffset(v); }}
             onSetLoopName={(v) => { setLoopName(v); }}
             onSetLoopVolume={(v) => { setLoopVolume(v); engineRef.current?.setLoopVolume(v); }}
+            onOpenPianoRoll={setOpenPianoRoll}
           />
         </div>
 
@@ -455,6 +488,21 @@ export default function ChordApp() {
           }}
           onUpdateChord={handleUpdateChord}
         />
+
+        {/* Piano Roll Modal */}
+        {openPianoRoll !== null && (() => {
+          const track = tracks.find(t => t.channel === openPianoRoll);
+          const channelNotes = pianoNotes[openPianoRoll] || [];
+          return (
+            <PianoRoll
+              notes={channelNotes}
+              onNotesChange={(notes) => handlePianoRollChange(openPianoRoll, notes)}
+              trackLabel={track?.label ?? `Canal ${openPianoRoll}`}
+              channel={openPianoRoll}
+              onClose={() => setOpenPianoRoll(null)}
+            />
+          );
+        })()}
 
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland · Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}

@@ -49,6 +49,8 @@ interface TrackPanelProps {
   onSetLoopName: (v: string) => void;
   onSetLoopVolume: (v: number) => void;
   loopVolume: number;
+  /** Callback pour ouvrir le PianoRoll d'une piste (channel). */
+  onOpenPianoRoll?: (channel: number) => void;
 }
 
 export default function TrackPanel({
@@ -59,6 +61,7 @@ export default function TrackPanel({
   loopVolume,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
   onSetUseLoops, onSetLoopOffset, onSetLoopName, onSetLoopVolume,
+  onOpenPianoRoll,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
   // Échantillons disponibles pour le tempo courant
@@ -168,7 +171,7 @@ export default function TrackPanel({
                 : 'border-gray-700 bg-gray-800/50'
             }`}
           >
-            {/* En-tête : icône + label + bouton mute */}
+            {/* En-tête : icône + label + bouton piano roll + mute */}
             <div className="flex items-center justify-between mb-1.5">
               <span
                 className="text-xs font-bold"
@@ -185,16 +188,26 @@ export default function TrackPanel({
                  : t.channel === 3 ? '\ud83c\udfbb'
                  : '\ud83e\udd41'} {t.label}
               </span>
-              <button
-                onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
-                className={`text-xs px-2 py-0.5 rounded font-bold ${
-                  t.mute
-                    ? 'bg-red-900/40 text-red-400'
-                    : 'bg-gray-700 text-gray-400'
-                }`}
-              >
-                {t.mute ? 'MUTE' : 'On'}
-              </button>
+              <div className="flex items-center gap-1">
+                {/* Bouton Piano Roll */}
+                <button
+                  onClick={() => onOpenPianoRoll?.(t.channel)}
+                  className="px-1.5 py-0.5 text-xs rounded font-bold bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-yellow-400 transition-colors"
+                  title="Ouvrir le Piano Roll"
+                >
+                  {'\ud83c\udfb9'}
+                </button>
+                <button
+                  onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
+                  className={`text-xs px-2 py-0.5 rounded font-bold ${
+                    t.mute
+                      ? 'bg-red-900/40 text-red-400'
+                      : 'bg-gray-700 text-gray-400'
+                  }`}
+                >
+                  {t.mute ? 'MUTE' : 'On'}
+                </button>
+              </div>
             </div>
 
             {/* Sélecteur d'instrument (sauf pour drums — kit fixe) */}

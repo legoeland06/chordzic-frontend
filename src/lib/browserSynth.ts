@@ -24,6 +24,13 @@ export interface RenderOptions {
   sig?: string;
   tracks?: TrackCfg[];
   master_vol?: number;
+  customNotes?: Array<{
+    channel: number;
+    start_time: number;
+    pitch: number;
+    duration: number;
+    velocity: number;
+  }>;
 }
 
 /**
@@ -80,6 +87,9 @@ export class BrowserSynth {
         if (opts.sig) body.sig = opts.sig;
         if (opts.tracks) body.tracks = opts.tracks;
         if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
+        if (opts.customNotes && opts.customNotes.length > 0) {
+          body.custom_notes = opts.customNotes;
+        }
       }
 
       const resp = await fetch(`${backendUrl()}/render-wav`, {

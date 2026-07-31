@@ -12,7 +12,7 @@
  * lib/chordUtils.ts (évite la duplication avec browserSynth.ts).
  */
 import { ChordData, GrilleData } from '../types/chord';
-import { BrowserSynth } from './browserSynth';
+import { BrowserSynth, RenderOptions } from './browserSynth';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 
 /** États possibles du moteur audio. */
@@ -205,7 +205,7 @@ export class AudioEngine {
   /**
    * Joue une grille complète d'accords, avec ou sans boucle.
    */
-  async playGrille(grille: GrilleData, loop?: boolean): Promise<void> {
+  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes']): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
@@ -217,6 +217,7 @@ export class AudioEngine {
         tracks: this.tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         })),
+        customNotes,
       });
     } else {
       const sequence = grille.chords.map(c => ({
@@ -232,6 +233,7 @@ export class AudioEngine {
             tracks: this.tracks.map(t => ({
               channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
             })),
+            custom_notes: customNotes || [],
           }),
         });
         if (!resp.ok) { this.playing = false; return; }

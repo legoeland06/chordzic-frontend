@@ -10,6 +10,8 @@
  * Le format d'entrée : `<durée en temps>:<Fondamentale><Qualité>[/<Basse alternative>]`
  */
 
+import type { PianoNote } from '../lib/pianoRollTypes';
+
 // ─── Types ──────────────────────────────────────────────────────────────
 
 /** Données structurées d'un accord après parsing. */
@@ -28,6 +30,8 @@ export interface GrilleData {
   titre: string;
   tempo: number;
   chords: ChordData[];
+  /** Notes de piano personnalisées par canal MIDI (clé = numéro de canal). */
+  pianoNotes?: Record<number, PianoNote[]>;
 }
 
 // ─── Mapping notes → MIDI ──────────────────────────────────────────────
