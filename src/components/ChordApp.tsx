@@ -73,6 +73,42 @@ export default function ChordApp() {
     setPianoNotes(prev => ({ ...prev, [channel]: notes }));
   }, []);
 
+  // ── Pré-remplissage du PianoRoll avec les notes du mode classique ──
+  // À la première ouverture d'une piste (jamais éditée), on demande au
+  // backend les notes que jouerait le mode classique (même séquence,
+  // même config) pour partir d'une base existante.
+  useEffect(() => {
+    if (openPianoRoll === null) return;
+    // Déjà chargé ou déjà édité par l'utilisateur → ne pas écraser
+    if (pianoNotes[openPianoRoll] !== undefined) return;
+    if (chords.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const engine = await getEngine();
+        const fetched = await engine.getPianoNotes({ titre: 'Session', tempo, chords });
+        if (cancelled) return;
+        const notes = fetched ?? [];
+        const chNotes: PianoNote[] = notes
+          .filter(n => n.channel === openPianoRoll)
+          .map((n, i) => ({
+            id: `seed-${openPianoRoll}-${i}`,
+            startTime: n.start_time,
+            pitch: n.pitch,
+            duration: n.duration,
+            velocity: n.velocity,
+          }));
+        setPianoNotes(prev => ({ ...prev, [openPianoRoll]: chNotes }));
+        setStatus(`🎹 PianoRoll pré-rempli : ${chNotes.length} notes (mode classique)`);
+        setStatusColor('text-green-400');
+      } catch (e) {
+        console.warn('⚠️ Pré-remplissage PianoRoll impossible:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPianoRoll]);
+
   // ── Dernier chiffrage tapé (pour l'autocomplétion de ChordInput) ──
   const [lastChiffrage, setLastChiffrage] = useState('');
 
@@ -500,6 +536,7 @@ export default function ChordApp() {
               trackLabel={track?.label ?? `Canal ${openPianoRoll}`}
               channel={openPianoRoll}
               onClose={() => setOpenPianoRoll(null)}
+              onPreviewNote={(pitch) => { engineRef.current?.playPreviewNote(openPianoRoll, pitch); }}
             />
           );
         })()}

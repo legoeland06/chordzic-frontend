@@ -262,6 +262,31 @@ export class AudioEngine {
     }
   }
 
+  /** Récupère les notes du mode classique (pré-remplissage PianoRoll). */
+  async getPianoNotes(grille: GrilleData): Promise<RenderOptions['customNotes']> {
+    const sequence = grille.chords.map(c => ({
+      notes: chordToNoteNames(c), beats: 4.0 / c.time,
+    }));
+    return this.browserSynth.getPianoNotes(sequence, this.tempo, {
+      tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
+      tracks: this.tracks.map(t => ({
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+      })),
+    });
+  }
+
+  /** Joue une note en direct (preview PianoRoll) via le backend.
+   * Fire-and-forget : ne bloque jamais l'édition. */
+  async playPreviewNote(channel: number, pitch: number): Promise<void> {
+    try {
+      await fetch(`${backendUrl()}/note`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, pitch }),
+      });
+    } catch { /* silencieux */ }
+  }
+
   async stop() {
     this.playing = false;
     this.playGen++;

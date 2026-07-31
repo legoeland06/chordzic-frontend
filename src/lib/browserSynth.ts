@@ -110,6 +110,31 @@ export class BrowserSynth {
     }
   }
 
+  /** Récupère les notes générées par le mode classique (base PianoRoll).
+   * Appelle /render-notes avec la séquence et la configuration courantes.
+   */
+  async getPianoNotes(
+    sequence: { notes: string[]; beats: number }[],
+    tempo: number,
+    opts?: RenderOptions,
+  ): Promise<RenderOptions['customNotes']> {
+    const body: Record<string, unknown> = { sequence, tempo };
+    if (opts) {
+      if (opts.pattern) body.pattern = opts.pattern;
+      if (opts.walking !== undefined) body.walking = opts.walking;
+      if (opts.sig) body.sig = opts.sig;
+      if (opts.tracks) body.tracks = opts.tracks;
+    }
+    const resp = await fetch(`${backendUrl()}/render-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`render-notes failed: ${resp.status}`);
+    const data = await resp.json();
+    return data.notes ?? [];
+  }
+
   /** Lance la lecture d'un AudioBuffer via AudioBufferSourceNode. */
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     try {

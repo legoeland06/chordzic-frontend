@@ -64,6 +64,8 @@ interface PianoRollProps {
   height?: number;
   /** Appelé quand la modal se ferme. */
   onClose: () => void;
+  /** Audition en direct : joue la note édité (création, déplacement, resize). */
+  onPreviewNote?: (pitch: number) => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export default function PianoRoll({
   pixelsPerBeat = DEFAULT_PIXELS_PER_BEAT,
   height = 400,
   onClose,
+  onPreviewNote,
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -292,6 +295,8 @@ export default function PianoRoll({
 
     if (createdNote) {
       setCreatingNote(createdNote);
+      // Audition immédiate de la note en cours de création
+      onPreviewNote?.(createdNote.pitch);
     }
   };
 
@@ -364,6 +369,9 @@ export default function PianoRoll({
         );
         localNotesRef.current = updated;
         onNotesChange(updated);
+        // Audition de la note après déplacement/redimensionnement
+        const p = result.note?.pitch;
+        if (p !== undefined) onPreviewNote?.(p);
       }
       draw();
     }
