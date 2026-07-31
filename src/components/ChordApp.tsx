@@ -220,8 +220,15 @@ export default function ChordApp() {
     if (!engine) return;
 
     let chordsToPlay = chords;
-    if (chords.length === 0 && input.trim()) {
-      try { const grille = parseGrille(input, tempo); chordsToPlay = grille.chords; } catch {}
+    // Re-parser systématiquement si l'input a changé depuis le dernier
+    // parse (debounce ou clic Play avant la fin du délai)
+    if (input !== lastParsedInput.current) {
+      lastParsedInput.current = input;
+      try {
+        const grille = parseGrille(input, tempo);
+        chordsToPlay = grille.chords;
+        setChords(grille.chords);
+      } catch {}
     }
     if (chordsToPlay.length === 0) return;
 
