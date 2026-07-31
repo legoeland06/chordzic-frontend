@@ -39,11 +39,11 @@ export default function ChordApp() {
   const [use432, setUse432] = useState(true);
   const [browserAudio, setBrowserAudio] = useState(false);
   const [tracks, setLocalTracks] = useState<TrackConfig[]>([
-    { channel: 0, label: 'Lead',    program: 51, volume: 15, mute: false },
-    { channel: 2, label: 'Bass',    program: 33, volume: 40, mute: false },
-    { channel: 3, label: 'Nappes',  program: 48, volume: 30, mute: false },
-    { channel: 9, label: 'Drums',   program: 1,  volume: 80, mute: false },
-    { channel: 4, label: 'Accent',  program: 2,  volume: 20, mute: false },
+    { channel: 0, label: 'Lead',    program: 51, volume: 60, mute: false },
+    { channel: 2, label: 'Bass',    program: 33, volume: 70, mute: false },
+    { channel: 3, label: 'Nappes',  program: 48, volume: 60, mute: false },
+    { channel: 9, label: 'Drums',   program: 1,  volume: 90, mute: false },
+    { channel: 4, label: 'Accent',  program: 2,  volume: 50, mute: false },
   ]);
 
   const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
@@ -172,6 +172,21 @@ export default function ChordApp() {
       setStatusColor('text-red-400');
     }
   };
+
+  // ── Analyse automatique de l'input (debounce) ────────────────────
+  // Plus besoin de cliquer « Analyser » : la grille est re-parsée
+  // automatiquement 600 ms après la dernière modification de l'input
+  // (et une fois au montage pour la grille par défaut).
+  const lastParsedInput = useRef('');
+  useEffect(() => {
+    if (input === lastParsedInput.current) return;
+    const t = setTimeout(() => {
+      lastParsedInput.current = input;
+      parseInput();
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   // ─── Play / Stop / Clear ────────────────────────────────────────
 
