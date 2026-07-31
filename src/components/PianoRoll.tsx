@@ -97,6 +97,15 @@ export default function PianoRoll({
   const [zoom, setZoom] = useState(1);
   const effectivePixelsPerBeat = pixelsPerBeat * zoom;
 
+  // ── Sélection / presse-papiers / vélocité ────────────────────────
+  const [tool, setTool] = useState<'edit' | 'select'>('edit');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [marquee, setMarquee] = useState<{x0:number;y0:number;x1:number;y1:number}|null>(null);
+  const marqueeRef = useRef<{x0:number;y0:number;x1:number;y1:number}|null>(null);
+  const dragSelRef = useRef<{startPx:number; startPy:number; orig:PianoNote[]} | null>(null);
+  const clipboardRef = useRef<PianoNote[] | null>(null);
+  const [velValue, setVelValue] = useState(100);
+
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
@@ -217,6 +226,7 @@ export default function PianoRoll({
       const y = (userMaxPitch - note.pitch) * WHITE_KEY_HEIGHT;
       const noteW = Math.max(3, note.duration * ppb);
       const noteH = WHITE_KEY_HEIGHT - 1;
+      const isSel = selectedIds.has(note.id);
 
       // Ombre
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -226,9 +236,9 @@ export default function PianoRoll({
       ctx.fillStyle = isCreating ? velocityColor(note.velocity) : velocityColor(note.velocity);
       ctx.fillRect(x, y, noteW, noteH);
 
-      // Bordure (plus brillante si forte vélocité)
-      ctx.strokeStyle = note.velocity > 100 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 1;
+      // Bordure (plus brillante si forte vélocité, jaune si sélectionnée)
+      ctx.strokeStyle = isSel ? '#fbbf24' : (note.velocity > 100 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)');
+      ctx.lineWidth = isSel ? 2 : 1;
       ctx.strokeRect(x, y, noteW, noteH);
 
       // Hauteur de note si assez large
@@ -246,7 +256,20 @@ export default function PianoRoll({
       drawNote(creating, true);
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height]);
+    // ── Rectangle de sélection (marquee) ──
+    if (marquee) {
+      const mx = Math.min(marquee.x0, marquee.x1);
+      const my = Math.min(marquee.y0, marquee.y1);
+      const mw = Math.abs(marquee.x1 - marquee.x0);
+      const mh = Math.abs(marquee.y1 - marquee.y0);
+      ctx.fillStyle = 'rgba(251,191,36,0.10)';
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx, my, mw, mh);
+    }
+
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -283,6 +306,35 @@ export default function PianoRoll({
       py: coord.py,
     };
 
+    // ── Mode sélection ──
+    if (tool === 'select') {
+      const hit = hitTest(localNotesRef.current, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
+      if (hit) {
+        const id = hit.note.id;
+        let next = selectedIds;
+        if (e.shiftKey) {
+          next = new Set(selectedIds);
+          if (next.has(id)) next.delete(id); else next.add(id);
+        } else if (!selectedIds.has(id)) {
+          next = new Set([id]);
+        }
+        setSelectedIds(next);
+        // Préparer le déplacement de la sélection entière
+        dragSelRef.current = {
+          startPx: adjustedCoord.px,
+          startPy: adjustedCoord.py,
+          orig: localNotesRef.current.filter(n => next.has(n.id)),
+        };
+      } else {
+        if (!e.shiftKey) setSelectedIds(new Set());
+        // Début d'un rectangle de sélection (marquee)
+        const rect = { x0: coord.px, y0: coord.py, x1: coord.px, y1: coord.py };
+        marqueeRef.current = rect;
+        setMarquee(rect);
+      }
+      return;
+    }
+
     const { ctx, createdNote } = startInteraction(
       ctxRef.current,
       localNotesRef.current,
@@ -301,9 +353,38 @@ export default function PianoRoll({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coord = getCoord(e);
+
+    // ── Mode sélection : marquee / déplacement de sélection ──
+    if (tool === 'select') {
+      if (marqueeRef.current) {
+        const rect = { ...marqueeRef.current, x1: coord.px, y1: coord.py };
+        marqueeRef.current = rect;
+        setMarquee(rect);
+        const sel = notesInRect(localNotesRef.current, rect);
+        setSelectedIds(new Set(sel.map(n => n.id)));
+        return;
+      }
+      if (dragSelRef.current) {
+        const { startPx, startPy, orig } = dragSelRef.current;
+        const dBeat = (coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH - startPx) / effectivePixelsPerBeat;
+        const dPitch = Math.round((coord.py - startPy) / WHITE_KEY_HEIGHT);
+        if (dBeat !== 0 || dPitch !== 0) {
+          const ids = new Set(orig.map(n => n.id));
+          localNotesRef.current = localNotesRef.current.map(n => ids.has(n.id) ? {
+            ...n,
+            startTime: Math.max(0, Math.round((n.startTime + dBeat) / SNAP_UNIT) * SNAP_UNIT),
+            pitch: Math.min(userMaxPitch, Math.max(userMinPitch, n.pitch + dPitch)),
+          } : n);
+          draw();
+        }
+        return;
+      }
+      return;
+    }
+
     if (ctxRef.current.state === 'IDLE') return;
 
-    const coord = getCoord(e);
     const adjustedCoord: MouseCoord = {
       px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
       py: coord.py,
@@ -338,10 +419,35 @@ export default function PianoRoll({
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const coord = getCoord(e);
+
+    // ── Mode sélection : finaliser marquee / déplacement ──
+    if (tool === 'select') {
+      if (marqueeRef.current) {
+        const rect = marqueeRef.current;
+        const sel = notesInRect(localNotesRef.current, rect);
+        if (e.shiftKey) {
+          setSelectedIds(prev => {
+            const next = new Set(prev);
+            for (const n of sel) next.add(n.id);
+            return next;
+          });
+        } else {
+          setSelectedIds(new Set(sel.map(n => n.id)));
+        }
+        marqueeRef.current = null;
+        setMarquee(null);
+      }
+      if (dragSelRef.current) {
+        dragSelRef.current = null;
+        onNotesChange(localNotesRef.current);
+      }
+      return;
+    }
+
     const ctx = ctxRef.current;
     if (ctx.state === 'IDLE') return;
 
-    const coord = getCoord(e);
     const adjustedCoord: MouseCoord = {
       px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
       py: coord.py,
@@ -380,6 +486,8 @@ export default function PianoRoll({
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // En mode sélection, la suppression passe par Suppr/Couper
+    if (tool === 'select') return;
     const coord = getCoord(e);
     if (coord.px < PIANO_KEYBOARD_WIDTH) return;
 
@@ -403,6 +511,86 @@ export default function PianoRoll({
     }
   };
 
+  // ── Sélection : ref synchronisée (pour les raccourcis clavier) ──
+  const selectedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
+
+  // ── Slider vélocité : reflète la 1re note sélectionnée ──
+  useEffect(() => {
+    const first = notes.find(n => selectedIds.has(n.id));
+    if (first) setVelValue(first.velocity);
+  }, [selectedIds, notes]);
+
+  // ── Helpers : sélection, presse-papiers, vélocité ────────────────
+  const notesInRect = (list: PianoNote[], rect: {x0:number;y0:number;x1:number;y1:number}) => {
+    const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
+    const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
+    const ppb = effectivePixelsPerBeat;
+    return list.filter(n => {
+      const nx = n.startTime * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+      const nw = Math.max(3, n.duration * ppb);
+      const ny = (userMaxPitch - n.pitch) * WHITE_KEY_HEIGHT;
+      const nh = WHITE_KEY_HEIGHT - 1;
+      return nx < right && nx + nw > left && ny < bottom && ny + nh > top;
+    });
+  };
+
+  const copySelection = () => {
+    const sel = localNotesRef.current.filter(n => selectedIdsRef.current.has(n.id));
+    if (sel.length === 0) return;
+    const minStart = Math.min(...sel.map(n => n.startTime));
+    // Copie avec positions relatives au début de la sélection
+    clipboardRef.current = sel.map(n => ({ ...n, startTime: Math.round((n.startTime - minStart) * 1000) / 1000 }));
+  };
+
+  const deleteSelection = () => {
+    const ids = selectedIdsRef.current;
+    if (ids.size === 0) {
+      // Mode édition : effacer la note ciblée par le contexte
+      if (ctxRef.current.targetId) {
+        const newNotes = deleteNote(localNotesRef.current, ctxRef.current.targetId);
+        localNotesRef.current = newNotes;
+        onNotesChange(newNotes);
+        ctxRef.current = createEmptyContext();
+        draw();
+      }
+      return;
+    }
+    const newNotes = localNotesRef.current.filter(n => !ids.has(n.id));
+    localNotesRef.current = newNotes;
+    setSelectedIds(new Set());
+    onNotesChange(newNotes);
+    draw();
+  };
+
+  const pasteClipboard = () => {
+    const clip = clipboardRef.current;
+    if (!clip || clip.length === 0) return;
+    // Coller au début de la zone visible (snap 1/16)
+    const base = Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / SNAP_UNIT) * SNAP_UNIT);
+    const stamp = Date.now();
+    const newNotes = clip.map((n, i) => ({
+      ...n,
+      id: `pasted-${stamp}-${i}`,
+      startTime: base + n.startTime,
+    }));
+    const merged = [...localNotesRef.current, ...newNotes];
+    localNotesRef.current = merged;
+    setSelectedIds(new Set(newNotes.map(n => n.id)));
+    onNotesChange(merged);
+    draw();
+  };
+
+  const applyVelocity = (v: number) => {
+    const ids = selectedIdsRef.current;
+    if (ids.size === 0) return;
+    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v } : n);
+    localNotesRef.current = updated;
+    setVelValue(v);
+    onNotesChange(updated);
+    draw();
+  };
+
   // ── Gestion du scroll horizontal ──
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (e.shiftKey) {
@@ -420,26 +608,25 @@ export default function PianoRoll({
     setScrollLeft((e.target as HTMLDivElement).scrollLeft);
   };
 
-  // ── Touche Suppr pour effacer ──
+  // ── Raccourcis clavier : sélection, copier/couper/coller, effacer ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Chercher une note sélectionnée (targetId dans le contexte)
-        if (ctxRef.current.targetId) {
-          const newNotes = deleteNote(localNotesRef.current, ctxRef.current.targetId);
-          localNotesRef.current = newNotes;
-          onNotesChange(newNotes);
-          draw();
-          ctxRef.current = createEmptyContext();
-        }
+      const mod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === 'c') { copySelection(); }
+      else if (mod && k === 'x') { copySelection(); deleteSelection(); }
+      else if (mod && k === 'v') { pasteClipboard(); }
+      else if (mod && k === 'a') {
+        e.preventDefault();
+        setSelectedIds(new Set(localNotesRef.current.map(n => n.id)));
       }
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelection(); }
+      else if (e.key === 'Escape') { onClose(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onNotesChange, draw, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat]);
 
   // ── Barre d'outils ──
   const totalBeats = Math.max(
@@ -492,14 +679,74 @@ export default function PianoRoll({
           </div>
         </div>
 
-        {/* Légende des contrôles */}
-        <div className="px-4 py-1 bg-gray-850 border-b border-gray-800 flex gap-4 text-[10px] text-gray-600 shrink-0">
-          <span>🖱 Clic vide → créer note</span>
-          <span>↕ Drag centre → déplacer</span>
-          <span>↔ Drag bord droit → redimensionner</span>
-          <span>🔄 Double-clic → supprimer</span>
-          <span>⌨ Suppr → effacer</span>
-          <span>🔍 Ctrl+molette → zoom</span>
+        {/* Barre d'outils : outils, vélocité, presse-papiers, raccourcis */}
+        <div className="px-4 py-1.5 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-3 text-[10px] text-gray-500 shrink-0">
+          {/* Outils */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setTool('edit')}
+              className={`px-2 py-1 rounded border transition-colors ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+              title="Mode édition : créer / déplacer / redimensionner"
+            >
+              {'\u270f'} Édition
+            </button>
+            <button
+              onClick={() => setTool('select')}
+              className={`px-2 py-1 rounded border transition-colors ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+              title="Mode sélection : clic = sélection, drag vide = plage, drag note = déplacer la sélection"
+            >
+              {'\ud83d\uddb1'} Sélection
+            </button>
+          </div>
+
+          {/* Vélocité de la sélection */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-400">Vel:</span>
+              <input
+                type="range" min={1} max={127} value={velValue}
+                onChange={(e) => applyVelocity(parseInt(e.target.value))}
+                className="w-24 accent-amber-400"
+                title="Vélocité des notes sélectionnées"
+              />
+              <span className="text-gray-300 w-6">{velValue}</span>
+              <span className="text-gray-600">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
+            </div>
+          )}
+
+          {/* Presse-papiers */}
+          <div className="flex items-center gap-1">
+            <button onClick={copySelection} disabled={selectedIds.size === 0}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Copier (Ctrl+C)">{'\ud83d\udccb'} Copier</button>
+            <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Couper (Ctrl+X)">{'\u2702'} Couper</button>
+            <button onClick={pasteClipboard} disabled={!clipboardRef.current}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Coller (Ctrl+V)">{'\ud83d\udccc'} Coller</button>
+          </div>
+
+          {/* Raccourcis contextuels */}
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
+            {tool === 'edit' ? (
+              <>
+                <span>{'\ud83d\uddb1'} Clic vide → créer</span>
+                <span>↕ Drag → déplacer</span>
+                <span>↔ Bord droit → taille</span>
+                <span>{'\ud83d\udd04'} Double-clic → suppr.</span>
+              </>
+            ) : (
+              <>
+                <span>{'\ud83d\uddb1'} Clic → sélectionner</span>
+                <span>⬒ Drag vide → plage</span>
+                <span>↕ Drag note → déplacer la sélection</span>
+                <span>⇧ Clic → ajouter/retirer</span>
+              </>
+            )}
+            <span>⌨ Ctrl+C/X/V, Ctrl+A, Suppr</span>
+            <span>{'\ud83d\udd0d'} Ctrl+molette → zoom</span>
+          </div>
         </div>
 
         {/* Canvas container (scrollable) */}
