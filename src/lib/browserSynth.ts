@@ -31,6 +31,8 @@ export interface RenderOptions {
     duration: number;
     velocity: number;
   }>;
+  /** Canaux en mode PianoRoll (même vides) — les autres jouent le mode classique. */
+  customChannels?: number[];
 }
 
 /**
@@ -43,6 +45,7 @@ export class BrowserSynth {
   private _playing = false;
   private _buffer: AudioBuffer | null = null;
   private ctxTimeAtStart = 0;
+  private _loopTimer: ReturnType<typeof setTimeout> | null = null;
 
   get isPlaying() { return this._playing; }
 
@@ -90,6 +93,9 @@ export class BrowserSynth {
         if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
         if (opts.customNotes && opts.customNotes.length > 0) {
           body.custom_notes = opts.customNotes;
+        }
+        if (opts.customChannels && opts.customChannels.length > 0) {
+          body.custom_channels = opts.customChannels;
         }
       }
 
@@ -148,30 +154,88 @@ export class BrowserSynth {
     return this._buffer?.duration ?? 0;
   }
 
-  /** Lance la lecture d'un AudioBuffer via AudioBufferSourceNode. */
+  /** Lance la lecture d'un AudioBuffer. En boucle : crossfade seamless
+   * fin→début (2 sources en fondu enchaîné) au lieu de `source.loop` brut,
+   * pour éliminer la troncature/clic à la répétition. */
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     try {
       this.stop();
       const ctx = this.audioCtx!;
-      const gainNode = ctx.createGain();
-      gainNode.gain.value = 1.0;
-      gainNode.connect(ctx.destination);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = loop;
-      source.connect(gainNode);
-      this.ctxTimeAtStart = ctx.currentTime;
-      source.start();
-      this.source = source;
+      const out = ctx.createGain();
+      out.gain.value = 1.0;
+      out.connect(ctx.destination);
+
+      if (!loop) {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(out);
+        this.ctxTimeAtStart = ctx.currentTime;
+        source.start();
+        this.source = source;
+        this._playing = true;
+        source.onended = () => {
+          if (this.source === source) { this._playing = false; this.source = null; }
+        };
+        return;
+      }
+
+      // ── Boucle seamless : fondu enchaîné fin ↔ début ──
+      const dur = buffer.duration;
+      const xf = Math.min(0.08, dur / 3); // 80 ms de crossfade
+      let cycleStart = ctx.currentTime + 0.05;
+      let first = true;
+
+      // Source factice : la « leader » (pour stop/getPosition)
+      const leader = ctx.createBufferSource();
+      leader.buffer = buffer;
+      this.source = leader;
+      this.ctxTimeAtStart = cycleStart;
       this._playing = true;
-      source.onended = () => {
-        if (this.source === source) { this._playing = false; this.source = null; }
+
+      const scheduleCycle = () => {
+        const s = ctx.createBufferSource();
+        s.buffer = buffer;
+        const g = ctx.createGain();
+        s.connect(g);
+        g.connect(out);
+
+        const start = cycleStart;
+        if (first) {
+          g.gain.value = 1;
+          first = false;
+        } else {
+          // Fondu entrant sur la durée du crossfade
+          g.gain.setValueAtTime(0, start);
+          g.gain.linearRampToValueAtTime(1, start + xf);
+        }
+        // Fondu sortant avant la fin du cycle
+        g.gain.setValueAtTime(1, start + dur - xf);
+        g.gain.linearRampToValueAtTime(0, start + dur);
+
+        s.start(start, 0);
+        s.stop(start + dur);
+        cycleStart += dur;
+        // Programmer le cycle suivant
+        scheduleNext();
       };
+
+      // On programme un cycle à la fois, un peu à l'avance (timing audio)
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleNext = () => {
+        const lead = cycleStart - ctx.currentTime - 0.1;
+        timer = setTimeout(() => {
+          if (this._playing) scheduleCycle();
+        }, Math.max(0, lead * 1000));
+      };
+      scheduleCycle();
+      // Nettoyage du timer quand on arrête
+      this._loopTimer = timer;
     } catch (e) { console.error('❌ _playBuffer error:', e); }
   }
 
   stop() {
     this._playing = false;
+    if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
     if (this.source) {
       try { this.source.stop(); } catch {}
       this.source.disconnect();

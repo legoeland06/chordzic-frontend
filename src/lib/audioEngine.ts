@@ -207,7 +207,7 @@ export class AudioEngine {
   /**
    * Joue une grille complète d'accords, avec ou sans boucle.
    */
-  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes']): Promise<void> {
+  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[]): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
@@ -221,6 +221,7 @@ export class AudioEngine {
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         })),
         customNotes,
+        customChannels,
       });
     } else {
       const sequence = grille.chords.map(c => ({

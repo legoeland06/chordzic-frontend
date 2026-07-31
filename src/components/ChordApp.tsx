@@ -74,13 +74,17 @@ export default function ChordApp() {
   }, []);
 
   // ── Pré-remplissage du PianoRoll avec les notes du mode classique ──
-  // À la première ouverture d'une piste (jamais éditée), on demande au
-  // backend les notes que jouerait le mode classique (même séquence,
-  // même config) pour partir d'une base existante.
+  // À l'ouverture d'une piste jamais éditée (ou encore en état « seed » =
+  // notes pré-remplies non modifiées), on demande au backend les notes que
+  // jouerait le mode classique pour la grille COURANTE. Re-déclenché
+  // automatiquement quand la grille change (plus besoin de « Analyser »).
   useEffect(() => {
     if (openPianoRoll === null) return;
-    // Déjà chargé ou déjà édité par l'utilisateur → ne pas écraser
-    if (pianoNotes[openPianoRoll] !== undefined) return;
+    const current = pianoNotes[openPianoRoll];
+    const isSeeded = current !== undefined && current.length > 0 &&
+      current.every(n => n.id.startsWith('seed-'));
+    // Déjà édité manuellement (ou vidé volontairement) → ne pas écraser
+    if (current !== undefined && !isSeeded) return;
     if (chords.length === 0) return;
     let cancelled = false;
     (async () => {
@@ -107,7 +111,7 @@ export default function ChordApp() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openPianoRoll]);
+  }, [openPianoRoll, chords]);
 
   // ── Dernier chiffrage tapé (pour l'autocomplétion de ChordInput) ──
   const [lastChiffrage, setLastChiffrage] = useState('');
@@ -252,9 +256,12 @@ export default function ChordApp() {
         velocity: n.velocity,
       }))
     );
+    // Canaux en mode PianoRoll (ouverts/édités) — les autres canaux
+    // continuent de jouer en mode classique
+    const customChannels = Object.keys(pianoNotes).map(Number);
 
     const grille = { titre: 'Session', tempo, chords: chordsToPlay };
-    engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined).then(() => {
+    engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
     }).catch((e) => {
