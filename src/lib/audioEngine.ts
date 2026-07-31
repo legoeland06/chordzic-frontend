@@ -37,6 +37,7 @@ export class AudioEngine {
   private sig = "4/4";
   private browserSynth = new BrowserSynth();
   private _browserAudio = false;
+  private masterVol = 127;
 
   get browserAudio() { return this._browserAudio; }
   set browserAudio(v: boolean) { this._browserAudio = v; }
@@ -134,7 +135,7 @@ export class AudioEngine {
 
   setProgram(index: number)     { this.setTrack(0, { program: index }); }
   set432Hz(enabled: boolean)    { this.sendConfig({ use432: enabled }); }
-  setVolume(vol: number)        { this.sendConfig({ master_vol: vol }); }
+  setVolume(vol: number)        { this.masterVol = vol; this.sendConfig({ master_vol: vol }); }
   setUseLoops(v: boolean)       { this.sendConfig({ use_loops: v }); }
   setLoopOffset(ms: number)     { this.sendConfig({ loop_offset: ms }); }
   setLoopVolume(v: number)      { this.sendConfig({ loop_volume: v }); }
@@ -161,6 +162,7 @@ export class AudioEngine {
         tempo: this.tempo,
         pattern: this.drumPattern, walking: this.walking,
         sig: this.sig,
+        master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         })),
@@ -214,6 +216,7 @@ export class AudioEngine {
     if (this._browserAudio) {
       await this.browserSynth.playGrille(grille, this.tempo, loop, {
         tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
+        master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         })),
