@@ -12,6 +12,7 @@
  * - Drag bord droit → redimensionner une note
  * - Double-clic → supprimer une note
  * - Clic sur note (mode édition) → joue + sélectionne, nom au curseur et en haut
+ * - Undo/redo : Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (snapshots, 100 entrées max)
  *
  * Architecture data-driven : pas d'éléments DOM pour chaque note,
  * tout est dessiné sur un canvas avec rendu optimisé.
@@ -41,6 +42,11 @@ import {
   hitTest,
   MouseCoord,
 } from '../lib/pianoRollEngine';
+
+// ─── Constantes ─────────────────────────────────────────────────────────
+
+/** Nombre maximal d'entrées de l'historique undo/redo. */
+const MAX_HISTORY = 100;
 
 // ─── Props ──────────────────────────────────────────────────────────────
 
@@ -113,6 +119,16 @@ export default function PianoRoll({
   const [velValue, setVelValue] = useState(100);
   /** Note survolée (tooltip) : pitch + position écran du curseur. */
   const [hoverInfo, setHoverInfo] = useState<{ pitch: number; x: number; y: number } | null>(null);
+
+  // ── Historique undo/redo (snapshots des notes) ────────────────────
+  const historyRef = useRef<{ undo: PianoNote[][]; redo: PianoNote[][] }>({ undo: [], redo: [] });
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  /** État des notes au début du geste souris en cours (null si aucun geste). */
+  const gestureBeforeRef = useRef<PianoNote[] | null>(null);
+  /** Geste slider vélocité : état avant le geste + flag d'activité. */
+  const velGestureRef = useRef<PianoNote[] | null>(null);
+  const velGestureActiveRef = useRef(false);
 
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
@@ -339,6 +355,9 @@ export default function PianoRoll({
       ? hit.note.startTime
       : Math.max(0, snapToGrid(adjustedCoord.px / effectivePixelsPerBeat));
 
+    // Capture de l'état avant le geste (pour l'undo, si le geste mute)
+    gestureBeforeRef.current = snapshotNotes(localNotesRef.current);
+
     // ── Mode sélection ──
     if (tool === 'select') {
       if (hit) {
@@ -496,6 +515,7 @@ export default function PianoRoll({
       }
       if (dragSelRef.current) {
         dragSelRef.current = null;
+        commitGesture();
         onNotesChange(localNotesRef.current);
       }
       return;
@@ -518,6 +538,7 @@ export default function PianoRoll({
         const finalNote = { ...creatingNote, duration, edited: true };
         const newNotes = [...localNotesRef.current, finalNote];
         localNotesRef.current = newNotes;
+        commitGesture();
         onNotesChange(newNotes);
         setCreatingNote(null);
       }
@@ -530,6 +551,7 @@ export default function PianoRoll({
           n.id === ctx.targetId ? { ...n, ...result.note, edited: true } : n
         );
         localNotesRef.current = updated;
+        commitGesture();
         onNotesChange(updated);
         // Audition de la note après déplacement/redimensionnement
         const p = result.note?.pitch;
@@ -560,6 +582,7 @@ export default function PianoRoll({
     );
 
     if (hit) {
+      pushHistory(localNotesRef.current);
       const newNotes = deleteNote(localNotesRef.current, hit.note.id);
       localNotesRef.current = newNotes;
       setSelectedIds(prev => {
@@ -582,6 +605,76 @@ export default function PianoRoll({
     const first = notes.find(n => selectedIds.has(n.id));
     if (first) setVelValue(first.velocity);
   }, [selectedIds, notes]);
+
+  // Clôture du geste slider vélocité (pointer relâché n'importe où)
+  useEffect(() => {
+    const end = () => { velGestureActiveRef.current = false; velGestureRef.current = null; };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+  }, []);
+
+  // ── Historique undo/redo ──────────────────────────────────────────
+  const snapshotNotes = useCallback((list: PianoNote[]): PianoNote[] => list.map(n => ({ ...n })), []);
+  const notesEqual = useCallback(
+    (a: PianoNote[], b: PianoNote[]) => JSON.stringify(a) === JSON.stringify(b),
+    [],
+  );
+
+  /** Pousse l'état `before` (copié) dans la pile undo ; invalide le redo. */
+  const pushHistory = useCallback((before: PianoNote[]) => {
+    const h = historyRef.current;
+    h.undo.push(snapshotNotes(before));
+    if (h.undo.length > MAX_HISTORY) h.undo.shift();
+    h.redo = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, [snapshotNotes]);
+
+  /** Restaure un état de notes (utilisé par undo/redo). */
+  const restoreHistory = useCallback((target: PianoNote[]) => {
+    localNotesRef.current = target;
+    setSelectedIds(new Set());
+    setCreatingNote(null);
+    ctxRef.current = createEmptyContext();
+    onNotesChange(target);
+    draw();
+  }, [onNotesChange, draw]);
+
+  const undo = useCallback(() => {
+    // Pas d'undo pendant un geste en cours (drag, marquee, slider)
+    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current) return;
+    const h = historyRef.current;
+    const prev = h.undo.pop();
+    if (!prev) return;
+    h.redo.push(snapshotNotes(localNotesRef.current));
+    setCanUndo(h.undo.length > 0);
+    setCanRedo(true);
+    restoreHistory(prev);
+  }, [snapshotNotes, restoreHistory]);
+
+  const redo = useCallback(() => {
+    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current) return;
+    const h = historyRef.current;
+    const next = h.redo.pop();
+    if (!next) return;
+    h.undo.push(snapshotNotes(localNotesRef.current));
+    setCanRedo(h.redo.length > 0);
+    setCanUndo(true);
+    restoreHistory(next);
+  }, [snapshotNotes, restoreHistory]);
+
+  /** Valide le geste souris en cours : push uniquement si l'état a changé. */
+  const commitGesture = useCallback(() => {
+    const before = gestureBeforeRef.current;
+    gestureBeforeRef.current = null;
+    if (before && !notesEqual(before, localNotesRef.current)) {
+      pushHistory(before);
+    }
+  }, [notesEqual, pushHistory]);
 
   // ── Helpers : sélection, presse-papiers, vélocité ────────────────
   const notesInRect = (list: PianoNote[], rect: {x0:number;y0:number;x1:number;y1:number}) => {
@@ -610,6 +703,7 @@ export default function PianoRoll({
     if (ids.size === 0) {
       // Mode édition : effacer la note ciblée par le contexte
       if (ctxRef.current.targetId) {
+        pushHistory(localNotesRef.current);
         const newNotes = deleteNote(localNotesRef.current, ctxRef.current.targetId);
         localNotesRef.current = newNotes;
         onNotesChange(newNotes);
@@ -618,6 +712,7 @@ export default function PianoRoll({
       }
       return;
     }
+    pushHistory(localNotesRef.current);
     const newNotes = localNotesRef.current.filter(n => !ids.has(n.id));
     localNotesRef.current = newNotes;
     setSelectedIds(new Set());
@@ -638,6 +733,7 @@ export default function PianoRoll({
       id: `pasted-${stamp}-${i}`,
       startTime: base + n.startTime,
     }));
+    pushHistory(localNotesRef.current);
     const merged = [...localNotesRef.current, ...newNotes];
     localNotesRef.current = merged;
     setSelectedIds(new Set(newNotes.map(n => n.id)));
@@ -648,6 +744,14 @@ export default function PianoRoll({
   const applyVelocity = (v: number) => {
     const ids = selectedIdsRef.current;
     if (ids.size === 0) return;
+    // Undo : une seule entrée par geste du slider (sinon une par tick)
+    if (velGestureRef.current) {
+      pushHistory(velGestureRef.current);
+      velGestureRef.current = null;
+    } else if (!velGestureActiveRef.current) {
+      // Flèches clavier sur le slider : chaque pression = une entrée
+      pushHistory(localNotesRef.current);
+    }
     const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v, edited: true } : n);
     localNotesRef.current = updated;
     setVelValue(v);
@@ -677,7 +781,10 @@ export default function PianoRoll({
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
-      if (mod && k === 'c') { copySelection(); }
+      if (mod && k === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
+      else if (mod && k === 'y') { e.preventDefault(); redo(); }
+      else if (mod && k === 'z') { e.preventDefault(); undo(); }
+      else if (mod && k === 'c') { copySelection(); }
       else if (mod && k === 'x') { copySelection(); deleteSelection(); }
       else if (mod && k === 'v') { pasteClipboard(); }
       else if (mod && k === 'a') {
@@ -690,7 +797,7 @@ export default function PianoRoll({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat]);
+  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo]);
 
   // Nom de la première note sélectionnée (affiché dans la barre d'outils)
   const firstSelected = notes.find(n => selectedIds.has(n.id));
@@ -773,6 +880,10 @@ export default function PianoRoll({
               <input
                 type="range" min={1} max={127} value={velValue}
                 onChange={(e) => applyVelocity(parseInt(e.target.value))}
+                onPointerDown={() => {
+                  velGestureActiveRef.current = true;
+                  velGestureRef.current = snapshotNotes(localNotesRef.current);
+                }}
                 className="w-24 accent-amber-400"
                 title="Vélocité des notes sélectionnées"
               />
@@ -799,6 +910,16 @@ export default function PianoRoll({
               title="Coller (Ctrl+V)">{'\ud83d\udccc'} Coller</button>
           </div>
 
+          {/* Historique */}
+          <div className="flex items-center gap-1">
+            <button onClick={undo} disabled={!canUndo}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Annuler (Ctrl+Z)">{'\u21a9'} Annuler</button>
+            <button onClick={redo} disabled={!canRedo}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
+          </div>
+
           {/* Raccourcis contextuels */}
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
             {tool === 'edit' ? (
@@ -816,7 +937,7 @@ export default function PianoRoll({
                 <span>⇧ Clic → ajouter/retirer</span>
               </>
             )}
-            <span>⌨ Ctrl+C/X/V, Ctrl+A, Suppr</span>
+            <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
             <span>{'\ud83d\udd0d'} Ctrl+molette → zoom</span>
           </div>
         </div>
