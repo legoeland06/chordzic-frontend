@@ -11,12 +11,13 @@
  * - Drag centre → déplacer une note
  * - Drag bord droit → redimensionner une note
  * - Double-clic → supprimer une note
+ * - Clic sur note (mode édition) → joue + sélectionne, nom au curseur et en haut
  *
  * Architecture data-driven : pas d'éléments DOM pour chaque note,
  * tout est dessiné sur un canvas avec rendu optimisé.
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import {
   PianoNote,
   DEFAULT_PIXELS_PER_BEAT,
@@ -96,6 +97,9 @@ export default function PianoRoll({
   const [scrollLeft, setScrollLeft] = useState(0);
   const [zoom, setZoom] = useState(1);
   const effectivePixelsPerBeat = pixelsPerBeat * zoom;
+  // Largeur visible du conteneur : le canvas reste fixé à cette largeur,
+  // c'est un spacer interne qui porte la largeur réelle du contenu.
+  const [viewportW, setViewportW] = useState(800);
 
   // ── Sélection / presse-papiers / vélocité ────────────────────────
   const [tool, setTool] = useState<'edit' | 'select'>('edit');
@@ -104,15 +108,21 @@ export default function PianoRoll({
   const marqueeRef = useRef<{x0:number;y0:number;x1:number;y1:number}|null>(null);
   const dragSelRef = useRef<{startPx:number; startPy:number; orig:PianoNote[]} | null>(null);
   const clipboardRef = useRef<PianoNote[] | null>(null);
+  /** Position (en beats) où coller : dernier endroit cliqué dans le piano roll. */
+  const pasteAnchorRef = useRef<number | null>(null);
   const [velValue, setVelValue] = useState(100);
+  /** Note survolée (tooltip) : pitch + position écran du curseur. */
+  const [hoverInfo, setHoverInfo] = useState<{ pitch: number; x: number; y: number } | null>(null);
 
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
   const canvasHeight = Math.max(height, totalHeight + 40);
 
-  // Durée totale visible (en beats) pour les lignes de la grille
-  const visibleBeats = (canvasRef.current?.width ?? 800 - PIANO_KEYBOARD_WIDTH) / effectivePixelsPerBeat;
+  // NOTE : le canvas fait la largeur du viewport (pas celle du contenu) pour
+  // ne jamais dépasser la limite de taille des canvas navigateurs (~32767 px)
+  // qui rendait l'affichage vide à fort zoom. Le spacer scrollable peut lui
+  // être très large sans limite de layout.
 
   // Palette de couleurs selon le canal
   const channelColor = accentColor ?? (
@@ -283,6 +293,22 @@ export default function PianoRoll({
     return () => window.removeEventListener('resize', handleResize);
   }, [draw]);
 
+  // ── Largeur du viewport (canvas fixe + spacer scrollable) ──
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setViewportW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Redessiner quand la largeur visible change (taille du canvas)
+  useEffect(() => {
+    draw();
+  }, [draw, viewportW]);
+
   // ── Gestion des événements souris ──
 
   /** Convertit un événement souris en coordonnées canvas. */
@@ -306,9 +332,15 @@ export default function PianoRoll({
       py: coord.py,
     };
 
+    // Ancre de collage : mémorise l'endroit cliqué (début de la note si clic
+    // sur une note, sinon position snappée) → Ctrl+V colle à cet endroit.
+    const hit = hitTest(localNotesRef.current, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
+    pasteAnchorRef.current = hit
+      ? hit.note.startTime
+      : Math.max(0, snapToGrid(adjustedCoord.px / effectivePixelsPerBeat));
+
     // ── Mode sélection ──
     if (tool === 'select') {
-      const hit = hitTest(localNotesRef.current, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
       if (hit) {
         const id = hit.note.id;
         let next = selectedIds;
@@ -335,6 +367,13 @@ export default function PianoRoll({
       return;
     }
 
+    // ── Mode édition : un clic sur une note existante la sélectionne ──
+    if (hit) {
+      setSelectedIds(new Set([hit.note.id]));
+    } else {
+      setSelectedIds(new Set());
+    }
+
     const { ctx, createdNote } = startInteraction(
       ctxRef.current,
       localNotesRef.current,
@@ -354,6 +393,18 @@ export default function PianoRoll({
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const coord = getCoord(e);
+
+    // ── Tooltip : nom de la note sous le curseur (à côté du pointeur) ──
+    if (coord.px >= PIANO_KEYBOARD_WIDTH) {
+      const hAdj: MouseCoord = {
+        px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+        py: coord.py,
+      };
+      const h = hitTest(localNotesRef.current, hAdj, effectivePixelsPerBeat, userMaxPitch);
+      setHoverInfo(h ? { pitch: h.note.pitch, x: e.clientX, y: e.clientY } : null);
+    } else {
+      setHoverInfo(null);
+    }
 
     // ── Mode sélection : marquee / déplacement de sélection ──
     if (tool === 'select') {
@@ -511,6 +562,12 @@ export default function PianoRoll({
     if (hit) {
       const newNotes = deleteNote(localNotesRef.current, hit.note.id);
       localNotesRef.current = newNotes;
+      setSelectedIds(prev => {
+        if (!prev.has(hit.note.id)) return prev;
+        const next = new Set(prev);
+        next.delete(hit.note.id);
+        return next;
+      });
       onNotesChange(newNotes);
       draw();
     }
@@ -571,8 +628,10 @@ export default function PianoRoll({
   const pasteClipboard = () => {
     const clip = clipboardRef.current;
     if (!clip || clip.length === 0) return;
-    // Coller au début de la zone visible (snap 1/16)
-    const base = Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / SNAP_UNIT) * SNAP_UNIT);
+    // Coller à l'endroit cliqué (ancre mémorisée), sinon début de la zone visible
+    const base = pasteAnchorRef.current !== null
+      ? pasteAnchorRef.current
+      : Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / SNAP_UNIT) * SNAP_UNIT);
     const stamp = Date.now();
     const newNotes = clip.map((n, i) => ({
       ...n,
@@ -632,6 +691,9 @@ export default function PianoRoll({
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat]);
+
+  // Nom de la première note sélectionnée (affiché dans la barre d'outils)
+  const firstSelected = notes.find(n => selectedIds.has(n.id));
 
   // ── Barre d'outils ──
   const totalBeats = Math.max(
@@ -721,6 +783,11 @@ export default function PianoRoll({
 
           {/* Presse-papiers */}
           <div className="flex items-center gap-1">
+            {firstSelected && (
+              <span className="text-yellow-300 font-mono" title={`Note sélectionnée : ${pitchLabel(firstSelected.pitch)}`}>
+                🎵 {pitchLabel(firstSelected.pitch)}
+              </span>
+            )}
             <button onClick={copySelection} disabled={selectedIds.size === 0}
               className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
               title="Copier (Ctrl+C)">{'\ud83d\udccb'} Copier</button>
@@ -754,7 +821,9 @@ export default function PianoRoll({
           </div>
         </div>
 
-        {/* Canvas container (scrollable) */}
+        {/* Canvas container (scrollable) : le canvas reste fixé à la largeur
+            visible (évite la limite de taille des canvas navigateurs à fort
+            zoom) ; un spacer interne porte la largeur réelle du contenu. */}
         <div
           ref={containerRef}
           className="overflow-auto flex-1"
@@ -762,20 +831,38 @@ export default function PianoRoll({
           onWheel={handleWheel}
           onScroll={handleScroll}
         >
-          <canvas
-            ref={canvasRef}
-            className="block cursor-crosshair"
+          <div
+            className="relative"
             style={{
-              width: Math.max(800, contentWidth + PIANO_KEYBOARD_WIDTH),
+              width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW),
               height: canvasHeight,
             }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onDoubleClick={handleDoubleClick}
-          />
+          >
+            <canvas
+              ref={canvasRef}
+              className="block cursor-crosshair sticky left-0 top-0"
+              style={{
+                width: viewportW,
+                height: canvasHeight,
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={(e) => { handleMouseUp(e); setHoverInfo(null); }}
+              onDoubleClick={handleDoubleClick}
+            />
+          </div>
         </div>
+
+        {/* Tooltip : nom de la note survolée, à côté du curseur */}
+        {hoverInfo && (
+          <div
+            className="fixed z-[60] pointer-events-none bg-gray-800 border border-gray-600 text-yellow-300 text-[11px] font-mono px-2 py-1 rounded shadow-lg"
+            style={{ left: hoverInfo.x + 14, top: hoverInfo.y + 16 }}
+          >
+            🎵 {pitchLabel(hoverInfo.pitch)}
+          </div>
+        )}
       </div>
     </div>
   );
