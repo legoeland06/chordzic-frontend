@@ -48,6 +48,9 @@ import {
 /** Nombre maximal d'entrées de l'historique undo/redo. */
 const MAX_HISTORY = 100;
 
+/** Deadzone (px) : mouvement de souris sous ce seuil = clic simple, pas de drag. */
+const CLICK_DEADZONE_PX = 5;
+
 // ─── Props ──────────────────────────────────────────────────────────────
 
 interface PianoRollProps {
@@ -129,6 +132,10 @@ export default function PianoRoll({
   /** Geste slider vélocité : état avant le geste + flag d'activité. */
   const velGestureRef = useRef<PianoNote[] | null>(null);
   const velGestureActiveRef = useRef(false);
+  /** Position écran du mousedown (pour distinguer clic simple vs drag). */
+  const downScreenRef = useRef<{ x: number; y: number } | null>(null);
+  /** Vrai dès que le mouvement dépasse la deadzone (drag engagé). */
+  const dragEngagedRef = useRef(false);
 
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
@@ -358,6 +365,10 @@ export default function PianoRoll({
     // Capture de l'état avant le geste (pour l'undo, si le geste mute)
     gestureBeforeRef.current = snapshotNotes(localNotesRef.current);
 
+    // Position écran du clic : permet de distinguer clic simple vs drag
+    downScreenRef.current = { x: e.clientX, y: e.clientY };
+    dragEngagedRef.current = false;
+
     // ── Mode sélection ──
     if (tool === 'select') {
       if (hit) {
@@ -436,6 +447,12 @@ export default function PianoRoll({
         return;
       }
       if (dragSelRef.current) {
+        // Deadzone : pas de déplacement tant que le curseur n'a pas bougé
+        const down = downScreenRef.current;
+        if (down && !dragEngagedRef.current) {
+          if (Math.hypot(e.clientX - down.x, e.clientY - down.y) >= CLICK_DEADZONE_PX) dragEngagedRef.current = true;
+          else return;
+        }
         const { startPx, startPy, orig } = dragSelRef.current;
         const dBeat = (coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH - startPx) / effectivePixelsPerBeat;
         // Canvas : y décroît quand le pitch monte → delta inversé
@@ -483,6 +500,14 @@ export default function PianoRoll({
       return;
     }
 
+    // Deadzone : un clic (même avec un léger tremblement) ne doit pas
+    // déclencher de déplacement/redimensionnement involontaire
+    const down = downScreenRef.current;
+    if (down && !dragEngagedRef.current) {
+      if (Math.hypot(e.clientX - down.x, e.clientY - down.y) >= CLICK_DEADZONE_PX) dragEngagedRef.current = true;
+      else return;
+    }
+
     const result = updateInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
     if (result.note && ctx.targetId) {
       const updated = localNotesRef.current.map(n =>
@@ -495,6 +520,11 @@ export default function PianoRoll({
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const coord = getCoord(e);
+    // Le drag était-il engagé ? (clic simple sinon). Refs nettoyées ici pour
+    // couvrir tous les chemins de sortie.
+    const dragEngaged = dragEngagedRef.current;
+    dragEngagedRef.current = false;
+    downScreenRef.current = null;
 
     // ── Mode sélection : finaliser marquee / déplacement ──
     if (tool === 'select') {
@@ -515,8 +545,13 @@ export default function PianoRoll({
       }
       if (dragSelRef.current) {
         dragSelRef.current = null;
-        commitGesture();
-        onNotesChange(localNotesRef.current);
+        if (dragEngaged) {
+          commitGesture();
+          onNotesChange(localNotesRef.current);
+        } else {
+          // Clic simple : rien n'a bougé, rien à historiser
+          gestureBeforeRef.current = null;
+        }
       }
       return;
     }
@@ -546,7 +581,16 @@ export default function PianoRoll({
       const result = endInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
       ctxRef.current = result.ctx;
 
-      if (result.note && ctx.targetId) {
+      if (!dragEngaged) {
+        // Clic simple : pas de drag → on ne mute PAS la note (évite le
+        // décalage de pitch dû au re-render et les entrées undo parasites).
+        // La note joue quand même.
+        gestureBeforeRef.current = null;
+        const target = ctx.targetId
+          ? localNotesRef.current.find(n => n.id === ctx.targetId)
+          : undefined;
+        if (target) onPreviewNote?.(target.pitch);
+      } else if (result.note && ctx.targetId) {
         const updated = localNotesRef.current.map(n =>
           n.id === ctx.targetId ? { ...n, ...result.note, edited: true } : n
         );
@@ -873,32 +917,33 @@ export default function PianoRoll({
             </button>
           </div>
 
-          {/* Vélocité de la sélection */}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-400">Vel:</span>
-              <input
-                type="range" min={1} max={127} value={velValue}
-                onChange={(e) => applyVelocity(parseInt(e.target.value))}
-                onPointerDown={() => {
-                  velGestureActiveRef.current = true;
-                  velGestureRef.current = snapshotNotes(localNotesRef.current);
-                }}
-                className="w-24 accent-amber-400"
-                title="Vélocité des notes sélectionnées"
-              />
-              <span className="text-gray-300 w-6">{velValue}</span>
-              <span className="text-gray-600">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
-            </div>
-          )}
+          {/* Vélocité de la sélection (toujours visible → layout stable :
+              le canvas ne bouge pas quand une sélection apparaît) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-400">Vel:</span>
+            <input
+              type="range" min={1} max={127} value={velValue}
+              onChange={(e) => applyVelocity(parseInt(e.target.value))}
+              onPointerDown={() => {
+                velGestureActiveRef.current = true;
+                velGestureRef.current = snapshotNotes(localNotesRef.current);
+              }}
+              disabled={selectedIds.size === 0}
+              className="w-24 accent-amber-400 disabled:opacity-30"
+              title="Vélocité des notes sélectionnées"
+            />
+            <span className="text-gray-300 w-6">{velValue}</span>
+            <span className="text-gray-600">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
+          </div>
 
           {/* Presse-papiers */}
           <div className="flex items-center gap-1">
-            {firstSelected && (
-              <span className="text-yellow-300 font-mono" title={`Note sélectionnée : ${pitchLabel(firstSelected.pitch)}`}>
-                🎵 {pitchLabel(firstSelected.pitch)}
-              </span>
-            )}
+            <span
+              className="text-yellow-300 font-mono min-w-[4.5rem] text-center"
+              title={firstSelected ? `Note sélectionnée : ${pitchLabel(firstSelected.pitch)}` : undefined}
+            >
+              {firstSelected ? `🎵 ${pitchLabel(firstSelected.pitch)}` : ''}
+            </span>
             <button onClick={copySelection} disabled={selectedIds.size === 0}
               className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
               title="Copier (Ctrl+C)">{'\ud83d\udccb'} Copier</button>
