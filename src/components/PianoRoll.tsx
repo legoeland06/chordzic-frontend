@@ -872,6 +872,31 @@ export default function PianoRoll({
     draw();
   };
 
+  /** Quantisation : aligne les notes (début ET fin) sur la grille du snap
+   * courant. Portée : sélection si présente, sinon toutes les notes. */
+  const quantizeNotes = () => {
+    const ids = selectedIdsRef.current;
+    const scope = ids.size > 0
+      ? new Set(ids)
+      : new Set(localNotesRef.current.map(n => n.id));
+    if (scope.size === 0) return;
+    let changed = false;
+    const updated = localNotesRef.current.map(n => {
+      if (!scope.has(n.id)) return n;
+      const start = snapToGrid(n.startTime, snapUnit);
+      const end = snapToGrid(n.startTime + n.duration, snapUnit);
+      const duration = Math.max(snapUnit, end - start);
+      if (start === n.startTime && duration === n.duration) return n;
+      changed = true;
+      return { ...n, startTime: start, duration, edited: true };
+    });
+    if (!changed) return;
+    pushHistory(localNotesRef.current);
+    localNotesRef.current = updated;
+    commitNotes(updated);
+    draw();
+  };
+
   // ── Gestion du scroll horizontal ──
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (e.shiftKey) {
@@ -1128,6 +1153,14 @@ export default function PianoRoll({
                 <option key={u} value={u}>1/{Math.round(1 / u)}</option>
               ))}
             </select>
+            <button
+              onClick={quantizeNotes}
+              disabled={notes.length === 0}
+              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title="Quantiser : aligne les notes sélectionnées (ou toutes) sur la grille du snap courant"
+            >
+              🎯 Quantiser
+            </button>
           </div>
 
           {/* Historique */}
