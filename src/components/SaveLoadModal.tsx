@@ -116,8 +116,8 @@ export function LoadModal({ show, onClose, grilles, onLoad, onDelete }: LoadModa
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); onDelete(g.file ?? g.name); }}
-                  className="text-gray-600 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-all"
-                  title="Supprimer"
+                  className="text-gray-400 hover:text-red-400 text-sm transition-colors"
+                  title="Supprimer cette grille"
                 >
                   ✕
                 </button>
