@@ -25,8 +25,25 @@ import PianoRoll from './PianoRoll';
 /** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
 const EMPTY_NOTES: PianoNote[] = [];
 
-// Clé localStorage pour les grilles sauvegardées
+// Clé localStorage des ANCIENNES grilles (migration unique vers le serveur)
 const STORAGE_KEY = 'chordjava_saved_grilles';
+
+/** URL du backend (serveur Rust) — même origine en standalone, localhost:4000 en dev. */
+const API_BASE = 'http://localhost:4000';
+
+/** Une grille sauvegardée (serveur) ou locale (fallback). */
+interface GrilleEntry {
+  file?: string;              // nom du fichier côté serveur
+  name: string;
+  input: string;
+  tempo: number;
+  sig: string;
+  date?: number | string;     // timestamp UNIX (serveur) ou date locale (ancien format)
+  pianoNotes?: Record<number, PianoNote[]>;
+  tracks?: Array<{ channel: number; program: number; volume: number; mute: boolean }>;
+  pattern?: string;
+  use432Hz?: boolean;
+}
 
 export default function ChordApp() {
   // ── État : grille d'accords ──────────────────────────────────────
@@ -135,12 +152,7 @@ export default function ChordApp() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [savedGrilles, setSavedGrilles] = useState<
-    Array<{name:string; input:string; tempo:number; sig:string; date:string; pianoNotes?: Record<number, PianoNote[]>}>
-  >(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-    catch { return []; }
-  });
+  const [savedGrilles, setSavedGrilles] = useState<GrilleEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── AudioEngine (instance unique) ─────────────────────────────────
@@ -161,6 +173,53 @@ export default function ChordApp() {
     engineRef.current?.set432Hz(use432);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Sauvegarde serveur : chargement + migration localStorage ─────
+  const refreshGrilles = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/grilles`);
+      if (res.ok) setSavedGrilles(await res.json());
+    } catch { /* serveur injoignable : on garde l'état courant */ }
+  }, []);
+
+  useEffect(() => {
+    // Migration unique : les anciennes grilles localStorage sont poussées
+    // vers le serveur (format v3) puis retirées du localStorage.
+    const migrateLocalStorage = async () => {
+      let local: GrilleEntry[] = [];
+      try { local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { local = []; }
+
+      try {
+        const res = await fetch(`${API_BASE}/grilles`);
+        if (!res.ok) throw new Error('serveur indisponible');
+        const remote: GrilleEntry[] = await res.json();
+        setSavedGrilles(remote);
+
+        const remoteNames = new Set(remote.map(g => g.name));
+        const toMigrate = local.filter(g => g.name && !remoteNames.has(g.name));
+        for (const g of toMigrate) {
+          const hasPN = g.pianoNotes && Object.values(g.pianoNotes).some(n => n.length > 0);
+          await fetch(`${API_BASE}/save`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'chordJAVA-grille', version: 3,
+              name: g.name, input: g.input, tempo: g.tempo, sig: g.sig,
+              savedAt: new Date().toISOString(),
+              ...(hasPN ? { pianoNotes: g.pianoNotes } : {}),
+            }),
+          });
+        }
+        if (toMigrate.length > 0) {
+          localStorage.removeItem(STORAGE_KEY);
+          await refreshGrilles();
+        }
+      } catch {
+        // Serveur injoignable : repli sur les grilles locales (lecture seule)
+        if (local.length) setSavedGrilles(local);
+      }
+    };
+    migrateLocalStorage();
+  }, [refreshGrilles]);
 
   // ── Analyse de l'input ────────────────────────────────────────────
   const parseInput = () => {
@@ -302,28 +361,44 @@ export default function ChordApp() {
 
   // ─── Sauvegarder / Charger ─────────────────────────────────────
 
-  const persistGrilles = (grilles: Array<{name:string; input:string; tempo:number; sig:string; date:string; pianoNotes?: Record<number, PianoNote[]>}>) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(grilles));
-    setSavedGrilles(grilles);
-  };
-
-  const handleSave = (saveName: string) => {
-    if (!saveName.trim() || !input.trim()) return;
-    const entry = {
-      name: saveName.trim(), input, tempo, sig,
-      date: new Date().toLocaleString('fr-FR'),
-      // PianoRoll : on sauvegarde les notes de TOUS les canaux (même vides)
-      pianoNotes,
+  /** Construit l'objet grille complet (format v3) — partagé save/export. */
+  const buildGrilleObject = (extra: Record<string, unknown>) => {
+    const hasPianoNotes = Object.keys(pianoNotes).length > 0 &&
+      Object.values(pianoNotes).some(notes => notes.length > 0);
+    return {
+      type: 'chordJAVA-grille', version: 3, input, tempo, sig,
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+      pattern: drumPattern, use432Hz: use432,
+      ...(hasPianoNotes ? { pianoNotes } : {}),
+      ...extra,
     };
-    persistGrilles([...savedGrilles.filter(g => g.name !== entry.name), entry]);
-    setShowSaveModal(false);
-    setStatus(`💾 Grille « ${entry.name} » sauvegardée`); setStatusColor('text-green-400');
   };
 
-  const handleLoad = (entry: {name:string; input:string; tempo:number; sig:string; pianoNotes?: Record<number, PianoNote[]>}) => {
+  const handleSave = async (saveName: string) => {
+    if (!saveName.trim() || !input.trim()) return;
+    const name = saveName.trim();
+    try {
+      const res = await fetch(`${API_BASE}/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildGrilleObject({ name, savedAt: new Date().toISOString() })),
+      });
+      if (!res.ok) throw new Error('échec serveur');
+      await refreshGrilles();
+      setShowSaveModal(false);
+      setStatus(`💾 Grille « ${name} » sauvegardée (fichier JSON)`); setStatusColor('text-green-400');
+    } catch {
+      setStatus('❌ Sauvegarde impossible (serveur injoignable)'); setStatusColor('text-red-400');
+    }
+  };
+
+  const handleLoad = (entry: GrilleEntry) => {
     setInput(entry.input); setTempo(entry.tempo); setSig(entry.sig);
     // Restaurer les notes du PianoRoll (ancien format sans le champ → aucune)
     setPianoNotes(entry.pianoNotes ?? {});
+    // v3 : restaurer aussi les réglages (tracks, pattern, 432Hz)
+    if (entry.tracks) entry.tracks.forEach(tc => updateTrack(tc.channel, tc));
+    if (entry.pattern) setDrumPattern(entry.pattern);
+    if (entry.use432Hz !== undefined) setUse432(entry.use432Hz);
     setShowLoadModal(false);
     setStatus(`📂 Grille « ${entry.name} » chargée`); setStatusColor('text-blue-400');
     setTimeout(() => {
@@ -331,22 +406,17 @@ export default function ChordApp() {
     }, 50);
   };
 
-  const handleDeleteSave = (name: string) => persistGrilles(savedGrilles.filter(g => g.name !== name));
+  const handleDeleteSave = async (id: string) => {
+    try {
+      await fetch(`${API_BASE}/grilles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await refreshGrilles();
+    } catch { /* silencieux */ }
+  };
 
   const handleExport = () => setShowExportModal(true);
 
   const doExport = (name: string) => {
-    const hasPianoNotes = Object.keys(pianoNotes).length > 0 &&
-      Object.values(pianoNotes).some(notes => notes.length > 0);
-    const data: Record<string, unknown> = {
-      type: 'chordJAVA-grille', version: 3, input, tempo, sig,
-      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
-      pattern: drumPattern, use432Hz: use432,
-      exportedAt: new Date().toISOString(),
-    };
-    if (hasPianoNotes) {
-      data.pianoNotes = pianoNotes;
-    }
+    const data = buildGrilleObject({ exportedAt: new Date().toISOString() });
     // Nom de fichier lisible : sanitisation du nom choisi par l'utilisateur
     const safeName = name.trim().replace(/[^\w\-]+/g, '_').replace(/_+/g, '_') || 'grille';
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

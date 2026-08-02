@@ -24,9 +24,9 @@ interface SaveModalProps {
 interface LoadModalProps {
   show: boolean;
   onClose: () => void;
-  grilles: Array<{ name: string; input: string; tempo: number; sig: string; date: string }>;
+  grilles: Array<{ name: string; input: string; tempo: number; sig: string; date?: number | string; file?: string }>;
   onLoad: (entry: { name: string; input: string; tempo: number; sig: string }) => void;
-  onDelete: (name: string) => void;
+  onDelete: (id: string) => void;
 }
 
 // ─── SaveModal ──────────────────────────────────────────────────────────
@@ -97,9 +97,9 @@ export function LoadModal({ show, onClose, grilles, onLoad, onDelete }: LoadModa
           <p className="text-gray-500 text-xs py-6 text-center">Aucune grille sauvegardée</p>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-1">
-            {[...grilles].reverse().map((g) => (
+            {grilles.map((g) => (
               <div
-                key={g.name}
+                key={g.file ?? g.name}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer group"
                 onClick={() => onLoad(g)}
               >
@@ -109,9 +109,13 @@ export function LoadModal({ show, onClose, grilles, onLoad, onDelete }: LoadModa
                     {g.input} · {g.tempo}bpm
                   </div>
                 </div>
-                <div className="text-[10px] text-gray-600 hidden group-hover:block">{g.date}</div>
+                <div className="text-[10px] text-gray-600 hidden group-hover:block">
+                  {typeof g.date === 'number'
+                    ? new Date(g.date * 1000).toLocaleString('fr-FR')
+                    : g.date}
+                </div>
                 <button
-                  onClick={e => { e.stopPropagation(); onDelete(g.name); }}
+                  onClick={e => { e.stopPropagation(); onDelete(g.file ?? g.name); }}
                   className="text-gray-600 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-all"
                   title="Supprimer"
                 >
