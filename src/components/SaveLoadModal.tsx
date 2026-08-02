@@ -42,7 +42,7 @@ export function SaveModal({ show, onClose, onSave, title, placeholder, buttonLab
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-80 shadow-2xl"
+        className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-full max-w-80 mx-4 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         <h3 className="text-sm font-bold text-white mb-3">{title ?? '💾 Sauvegarder la grille'}</h3>
@@ -88,7 +88,7 @@ export function LoadModal({ show, onClose, grilles, onLoad, onDelete }: LoadModa
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-96 shadow-2xl max-h-[70vh] flex flex-col"
+        className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-full max-w-96 mx-4 shadow-2xl max-h-[70vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <h3 className="text-sm font-bold text-white mb-3">📂 Grilles sauvegardées</h3>

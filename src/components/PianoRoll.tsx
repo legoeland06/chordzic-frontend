@@ -153,6 +153,15 @@ export default function PianoRoll({
   /** Vrai dès que le mouvement dépasse la deadzone (drag engagé). */
   const dragEngagedRef = useRef(false);
 
+  // ── Tactile : pointers actifs, pinch-zoom, double-tap ────────────
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{
+    active: boolean; dist0: number; zoom0: number; midX0: number; scroll0: number;
+  }>({ active: false, dist0: 0, zoom0: 1, midX0: 0, scroll0: 0 });
+  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
+  /** Barre de défilement horizontale dédiée (mobile). */
+  const barRef = useRef<HTMLDivElement>(null);
+
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
@@ -395,7 +404,64 @@ export default function PianoRoll({
     };
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (canvas) {
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* déjà capturé */ }
+    }
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // ── Pinch-zoom (2 doigts) : annule le geste d'édition en cours ──
+    if (activePointersRef.current.size === 2) {
+      ctxRef.current = createEmptyContext();
+      setCreatingNote(null);
+      marqueeRef.current = null; setMarquee(null);
+      dragSelRef.current = null;
+      gestureBeforeRef.current = null;
+      downScreenRef.current = null;
+      const pts = [...activePointersRef.current.values()];
+      pinchRef.current = {
+        active: true,
+        dist0: Math.max(10, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)),
+        zoom0: zoom,
+        midX0: (pts[0].x + pts[1].x) / 2,
+        scroll0: scrollLeft,
+      };
+      return;
+    }
+    if (pinchRef.current.active) return; // 3e doigt pendant un pinch
+
+    // ── Double-tap (mobile) : supprime la note sous le doigt ──
+    const now = Date.now();
+    const last = lastTapRef.current;
+    const rect0 = canvas?.getBoundingClientRect();
+    if (last && now - last.t < 300 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30 && rect0) {
+      lastTapRef.current = null;
+      const cpx = e.clientX - rect0.left;
+      if (cpx >= PIANO_KEYBOARD_WIDTH) {
+        const adj: MouseCoord = {
+          px: cpx + scrollLeft - PIANO_KEYBOARD_WIDTH,
+          py: e.clientY - rect0.top,
+        };
+        const hit = hitTest(localNotesRef.current, adj, effectivePixelsPerBeat, userMaxPitch);
+        if (hit && tool !== 'select') {
+          pushHistory(localNotesRef.current);
+          const newNotes = deleteNote(localNotesRef.current, hit.note.id);
+          localNotesRef.current = newNotes;
+          setSelectedIds(prev => {
+            if (!prev.has(hit.note.id)) return prev;
+            const n = new Set(prev); n.delete(hit.note.id); return n;
+          });
+          commitNotes(newNotes);
+          draw();
+          return;
+        }
+      }
+    } else {
+      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+    }
+
     const coord = getCoord(e);
 
     // Ignorer les clics sur le clavier de piano (colonne gauche)
@@ -474,11 +540,45 @@ export default function PianoRoll({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Mettre à jour la position du pointeur
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    // ── Pinch-zoom actif : zoom autour du point médian des 2 doigts ──
+    const pinch = pinchRef.current;
+    if (pinch.active && activePointersRef.current.size >= 2) {
+      const pts = [...activePointersRef.current.values()];
+      const dist = Math.max(10, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+      const midX = (pts[0].x + pts[1].x) / 2;
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const newZoom = Math.max(0.25, Math.min(4, pinch.zoom0 * (dist / pinch.dist0)));
+        const ppb0 = pixelsPerBeat * pinch.zoom0;
+        const ppb1 = pixelsPerBeat * newZoom;
+        // Le beat sous le milieu des doigts reste à la même position écran
+        const beatAtMid = (pinch.midX0 - rect.left + pinch.scroll0 - PIANO_KEYBOARD_WIDTH) / ppb0;
+        const newScroll = Math.max(0, beatAtMid * ppb1 - (midX - rect.left) + PIANO_KEYBOARD_WIDTH);
+        setZoom(newZoom);
+        setScrollLeft(newScroll);
+        if (containerRef.current) containerRef.current.scrollLeft = newScroll;
+        if (barRef.current) barRef.current.scrollLeft = newScroll;
+      }
+      return;
+    }
+
     const coord = getCoord(e);
 
     // ── Tooltip : nom de la note sous le curseur (à côté du pointeur) ──
-    if (coord.px >= PIANO_KEYBOARD_WIDTH) {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    const inCanvas = canvasRect
+      ? (e.clientX >= canvasRect.left && e.clientX <= canvasRect.right
+         && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom)
+      : true;
+    if (!inCanvas) {
+      setHoverInfo(null);
+    } else if (coord.px >= PIANO_KEYBOARD_WIDTH) {
       const hAdj: MouseCoord = {
         px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
         py: coord.py,
@@ -571,7 +671,19 @@ export default function PianoRoll({
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    activePointersRef.current.delete(e.pointerId);
+    try { canvasRef.current?.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
+
+    // Fin du pinch : pas d'édition avec un doigt restant
+    if (pinchRef.current.active) {
+      if (activePointersRef.current.size < 2) {
+        pinchRef.current.active = false;
+        ctxRef.current = createEmptyContext();
+      }
+      return;
+    }
+
     const coord = getCoord(e);
     // Le drag était-il engagé ? (clic simple sinon). Refs nettoyées ici pour
     // couvrir tous les chemins de sortie.
@@ -658,6 +770,19 @@ export default function PianoRoll({
     }
 
     ctxRef.current = createEmptyContext();
+  };
+
+  /** Geste interrompu (le navigateur reprend la main) : état remis à zéro. */
+  const handlePointerCancel = () => {
+    activePointersRef.current.clear();
+    pinchRef.current.active = false;
+    ctxRef.current = createEmptyContext();
+    setCreatingNote(null);
+    marqueeRef.current = null; setMarquee(null);
+    dragSelRef.current = null;
+    gestureBeforeRef.current = null;
+    downScreenRef.current = null;
+    dragEngagedRef.current = false;
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -911,7 +1036,12 @@ export default function PianoRoll({
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollLeft((e.target as HTMLDivElement).scrollLeft);
+    const el = e.target as HTMLDivElement;
+    const pos = el.scrollLeft;
+    setScrollLeft(pos);
+    // Synchroniser l'autre conteneur (canvas ↔ barre de défilement)
+    if (el === containerRef.current && barRef.current) barRef.current.scrollLeft = pos;
+    else if (el === barRef.current && containerRef.current) containerRef.current.scrollLeft = pos;
   };
 
   // ── Lecture locale de la piste : play/pause + curseur ────────────
@@ -1026,11 +1156,11 @@ export default function PianoRoll({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <div className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl flex flex-col max-w-[95vw] max-h-[90vh] w-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-bold text-white">🎹 {trackLabel}</span>
+        <div className="flex items-center justify-between gap-2 flex-wrap px-3 sm:px-4 py-3 border-b border-gray-700 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base sm:text-lg font-bold text-white truncate">🎹 {trackLabel}</span>
             <span
-              className="px-2 py-0.5 rounded text-[10px] font-mono"
+              className="px-2 py-0.5 rounded text-[10px] font-mono shrink-0"
               style={{
                 backgroundColor: channelColor + '22',
                 color: channelColor,
@@ -1040,11 +1170,11 @@ export default function PianoRoll({
               Canal {channel} · {notes.length} notes
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Zoom controls */}
             <button
               onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}
-              className="px-2 py-1 text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700"
+              className="px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700 active:bg-gray-600"
               title="Zoom arrière"
             >
               −
@@ -1052,14 +1182,14 @@ export default function PianoRoll({
             <span className="text-[10px] text-gray-500 w-8 text-center">{Math.round(zoom * 100)}%</span>
             <button
               onClick={() => setZoom(z => Math.min(4, z + 0.25))}
-              className="px-2 py-1 text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700"
+              className="px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700 active:bg-gray-600"
               title="Zoom avant"
             >
               +
             </button>
             <button
               onClick={() => { stopPlayback(); onClose(); }}
-              className="px-3 py-1.5 text-xs bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors"
+              className="px-3 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors"
             >
               ✕ Fermer
             </button>
@@ -1067,19 +1197,19 @@ export default function PianoRoll({
         </div>
 
         {/* Barre d'outils : outils, vélocité, presse-papiers, raccourcis */}
-        <div className="px-4 py-1.5 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-3 text-[10px] text-gray-500 shrink-0">
+        <div className="px-3 sm:px-4 py-2 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[10px] text-gray-500 shrink-0">
           {/* Outils */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setTool('edit')}
-              className={`px-2 py-1 rounded border transition-colors ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+              className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
               title="Mode édition : créer / déplacer / redimensionner"
             >
               {'\u270f'} Édition
             </button>
             <button
               onClick={() => setTool('select')}
-              className={`px-2 py-1 rounded border transition-colors ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+              className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
               title="Mode sélection : clic = sélection, drag vide = plage, drag note = déplacer la sélection"
             >
               {'\ud83d\uddb1'} Sélection
@@ -1098,30 +1228,38 @@ export default function PianoRoll({
                 velGestureRef.current = snapshotNotes(localNotesRef.current);
               }}
               disabled={selectedIds.size === 0}
-              className="w-24 accent-amber-400 disabled:opacity-30"
+              className="w-24 sm:w-24 accent-amber-400 disabled:opacity-30"
               title="Vélocité des notes sélectionnées"
             />
             <span className="text-gray-300 w-6">{velValue}</span>
-            <span className="text-gray-600">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
+            <span className="text-gray-600 hidden sm:inline">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
           </div>
 
-          {/* Presse-papiers */}
-          <div className="flex items-center gap-1">
+          {/* Presse-papiers + suppression */}
+          <div className="flex items-center gap-1.5">
             <span
-              className="text-yellow-300 font-mono min-w-[4.5rem] text-center"
+              className="text-yellow-300 font-mono min-w-[4.5rem] text-center hidden sm:inline"
               title={firstSelected ? `Note sélectionnée : ${pitchLabel(firstSelected.pitch)}` : undefined}
             >
               {firstSelected ? `🎵 ${pitchLabel(firstSelected.pitch)}` : ''}
             </span>
             <button onClick={copySelection} disabled={selectedIds.size === 0}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Copier (Ctrl+C)">{'\ud83d\udccb'} Copier</button>
             <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Couper (Ctrl+X)">{'\u2702'} Couper</button>
             <button onClick={pasteClipboard} disabled={!clipboardRef.current}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Coller (Ctrl+V)">{'\ud83d\udccc'} Coller</button>
+            <button
+              onClick={deleteSelection}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 hover:bg-red-800 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+              title="Supprimer la sélection (Suppr)"
+            >
+              🗑 Supprimer
+            </button>
           </div>
 
           {/* Lecture locale de la piste */}
@@ -1129,7 +1267,7 @@ export default function PianoRoll({
             <button
               onClick={togglePlay}
               disabled={!engine || (pianoPlaying === 'idle' && notes.length === 0)}
-              className="px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-2 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title={
                 pianoPlaying === 'playing' ? 'Pause (Espace)'
                 : pianoPlaying === 'paused' ? 'Reprendre (Espace)'
@@ -1141,12 +1279,12 @@ export default function PianoRoll({
           </div>
 
           {/* Subdivision de la grille (snap) */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="text-gray-400">Snap:</span>
             <select
               value={snapUnit}
               onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
-              className="bg-gray-800 text-gray-300 text-[10px] rounded border border-gray-700 px-1 py-0.5"
+              className="bg-gray-800 text-gray-300 text-xs sm:text-[10px] rounded border border-gray-700 px-2 py-2 sm:px-1 sm:py-0.5"
               title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets"
             >
               {SNAP_UNITS.map(u => (
@@ -1156,7 +1294,7 @@ export default function PianoRoll({
             <button
               onClick={quantizeNotes}
               disabled={notes.length === 0}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Quantiser : aligne les notes sélectionnées (ou toutes) sur la grille du snap courant"
             >
               🎯 Quantiser
@@ -1164,17 +1302,17 @@ export default function PianoRoll({
           </div>
 
           {/* Historique */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button onClick={undo} disabled={!canUndo}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Annuler (Ctrl+Z)">{'\u21a9'} Annuler</button>
             <button onClick={redo} disabled={!canRedo}
-              className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
           </div>
 
-          {/* Raccourcis contextuels */}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
+          {/* Raccourcis contextuels (desktop uniquement) */}
+          <div className="hidden sm:flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
             {tool === 'edit' ? (
               <>
                 <span>{'\ud83d\uddb1'} Clic vide → créer</span>
@@ -1195,36 +1333,48 @@ export default function PianoRoll({
           </div>
         </div>
 
-        {/* Canvas container (scrollable) : le canvas reste fixé à la largeur
-            visible (évite la limite de taille des canvas navigateurs à fort
-            zoom) ; un spacer interne porte la largeur réelle du contenu. */}
-        <div
-          ref={containerRef}
-          className="overflow-auto flex-1"
-          style={{ maxHeight: 'calc(90vh - 100px)' }}
-          onWheel={handleWheel}
-          onScroll={handleScroll}
-        >
+        {/* Zone canvas : scroll horizontal natif + barre de défilement
+            dédiée (mobile). Le canvas a touch-action: none → les gestes
+            dessus sont TOUJOURS de l'édition (jamais de scroll parasite) ;
+            le défilement se fait sur la barre en bas. */}
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(90vh - 100px)' }}>
           <div
-            className="relative"
-            style={{
-              width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW),
-              height: canvasHeight,
-            }}
+            ref={containerRef}
+            className="overflow-x-auto"
+            onWheel={handleWheel}
+            onScroll={handleScroll}
           >
-            <canvas
-              ref={canvasRef}
-              className="block cursor-crosshair sticky left-0 top-0"
+            <div
+              className="relative"
               style={{
-                width: viewportW,
+                width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW),
                 height: canvasHeight,
               }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={(e) => { handleMouseUp(e); setHoverInfo(null); }}
-              onDoubleClick={handleDoubleClick}
-            />
+            >
+              <canvas
+                ref={canvasRef}
+                className="block cursor-crosshair sticky left-0 top-0"
+                style={{
+                  width: viewportW,
+                  height: canvasHeight,
+                  touchAction: 'none',
+                }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                onPointerLeave={() => setHoverInfo(null)}
+                onDoubleClick={handleDoubleClick}
+              />
+            </div>
+          </div>
+          {/* Barre de défilement horizontale tactile (mobile) */}
+          <div
+            ref={barRef}
+            className="shrink-0 h-10 sm:h-2.5 overflow-x-auto border-t border-gray-800 bg-gray-900"
+            onScroll={handleScroll}
+          >
+            <div style={{ width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW), height: '100%' }} />
           </div>
         </div>
 
