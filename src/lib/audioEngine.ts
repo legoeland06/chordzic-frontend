@@ -342,6 +342,8 @@ export class AudioEngine {
   /** Position (secondes) et durée (secondes) de la lecture locale. */
   getPianoRollPosition(): number { return this.browserSynth.getPosition(); }
   getPianoRollDuration(): number { return this.browserSynth.getDuration(); }
+  /** Position brute (sans modulo) : -1 si aucune source active. */
+  getPianoRollPositionRaw(): number { return this.browserSynth.getPositionRaw(); }
 
   /** Joue une note en direct (preview PianoRoll) via le backend.
    * Fire-and-forget : ne bloque jamais l'édition. */

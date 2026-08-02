@@ -173,6 +173,12 @@ export class BrowserSynth {
     return ((elapsed % this._buffer.duration) + this._buffer.duration) % this._buffer.duration;
   }
 
+  /** Position brute (secondes depuis le début, sans modulo). -1 si pas de source. */
+  getPositionRaw(): number {
+    if (!this.source || !this.audioCtx || !this._buffer) return -1;
+    return this.audioCtx.currentTime - this.ctxTimeAtStart;
+  }
+
   /** Durée du buffer audio courant (secondes). */
   getDuration(): number {
     return this._buffer?.duration ?? 0;
@@ -195,26 +201,25 @@ export class BrowserSynth {
 
   /** Lance la lecture d'un AudioBuffer. En boucle : `source.loop` simple
    * (durée exacte du buffer → timing métronomique strict). Le fade-out
-   * backend (30 ms réels) évite le clic à la frontière. */
+   * backend (30 ms réels) évite le clic à la frontière. Les erreurs sont
+   * propagées (pas de lecture fantôme silencieuse). */
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
-    try {
-      this.stop();
-      const ctx = this.audioCtx!;
-      const gainNode = ctx.createGain();
-      gainNode.gain.value = 1.0;
-      gainNode.connect(ctx.destination);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = loop;
-      source.connect(gainNode);
-      this.ctxTimeAtStart = ctx.currentTime;
-      source.start();
-      this.source = source;
-      this._playing = true;
-      source.onended = () => {
-        if (this.source === source) { this._playing = false; this.source = null; }
-      };
-    } catch (e) { console.error('❌ _playBuffer error:', e); }
+    this.stop();
+    const ctx = this.audioCtx!;
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1.0;
+    gainNode.connect(ctx.destination);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = loop;
+    source.connect(gainNode);
+    this.ctxTimeAtStart = ctx.currentTime;
+    source.start();
+    this.source = source;
+    this._playing = true;
+    source.onended = () => {
+      if (this.source === source) { this._playing = false; this.source = null; }
+    };
   }
 
   stop() {

@@ -22,6 +22,9 @@ import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
 
+/** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
+const EMPTY_NOTES: PianoNote[] = [];
+
 // Clé localStorage pour les grilles sauvegardées
 const STORAGE_KEY = 'chordjava_saved_grilles';
 
@@ -576,7 +579,7 @@ export default function ChordApp() {
         {/* Piano Roll Modal */}
         {openPianoRoll !== null && (() => {
           const track = tracks.find(t => t.channel === openPianoRoll);
-          const channelNotes = pianoNotes[openPianoRoll] || [];
+          const channelNotes = pianoNotes[openPianoRoll] ?? EMPTY_NOTES;
           return (
             <PianoRoll
               notes={channelNotes}

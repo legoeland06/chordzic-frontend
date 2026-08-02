@@ -577,7 +577,7 @@ export default function PianoRoll({
         dragSelRef.current = null;
         if (dragEngaged) {
           commitGesture();
-          onNotesChange(localNotesRef.current);
+          commitNotes(localNotesRef.current);
         } else {
           // Clic simple : rien n'a bougé, rien à historiser
           gestureBeforeRef.current = null;
@@ -604,7 +604,7 @@ export default function PianoRoll({
         const newNotes = [...localNotesRef.current, finalNote];
         localNotesRef.current = newNotes;
         commitGesture();
-        onNotesChange(newNotes);
+        commitNotes(newNotes);
         setCreatingNote(null);
       }
     } else if (ctx.state === 'DRAGGING' || ctx.state === 'RESIZING') {
@@ -626,7 +626,7 @@ export default function PianoRoll({
         );
         localNotesRef.current = updated;
         commitGesture();
-        onNotesChange(updated);
+        commitNotes(updated);
         // Audition de la note après déplacement/redimensionnement
         const p = result.note?.pitch;
         if (p !== undefined) onPreviewNote?.(p);
@@ -665,7 +665,7 @@ export default function PianoRoll({
         next.delete(hit.note.id);
         return next;
       });
-      onNotesChange(newNotes);
+      commitNotes(newNotes);
       draw();
     }
   };
@@ -691,6 +691,22 @@ export default function PianoRoll({
     };
   }, []);
 
+  /** Arrête la lecture locale (curseur remis à zéro). */
+  const stopPlayback = useCallback(() => {
+    if (pianoPlaying === 'idle' && playPosRef.current === 0) return;
+    playPosRef.current = 0;
+    setPianoPlaying('idle');
+    engine?.stop();
+    draw();
+  }, [pianoPlaying, engine, draw]);
+
+  /** Applique un changement de notes : la lecture s'arrête immédiatement
+   * si elle est active (l'édition invalide le rendu en cours). */
+  const commitNotes = useCallback((newNotes: PianoNote[]) => {
+    if (pianoPlaying !== 'idle') stopPlayback();
+    onNotesChange(newNotes);
+  }, [pianoPlaying, stopPlayback, onNotesChange]);
+
   // ── Historique undo/redo ──────────────────────────────────────────
   const snapshotNotes = useCallback((list: PianoNote[]): PianoNote[] => list.map(n => ({ ...n })), []);
   const notesEqual = useCallback(
@@ -714,9 +730,9 @@ export default function PianoRoll({
     setSelectedIds(new Set());
     setCreatingNote(null);
     ctxRef.current = createEmptyContext();
-    onNotesChange(target);
+    commitNotes(target);
     draw();
-  }, [onNotesChange, draw]);
+  }, [commitNotes, draw]);
 
   const undo = useCallback(() => {
     // Pas d'undo pendant un geste en cours (drag, marquee, slider)
@@ -780,7 +796,7 @@ export default function PianoRoll({
         pushHistory(localNotesRef.current);
         const newNotes = deleteNote(localNotesRef.current, ctxRef.current.targetId);
         localNotesRef.current = newNotes;
-        onNotesChange(newNotes);
+        commitNotes(newNotes);
         ctxRef.current = createEmptyContext();
         draw();
       }
@@ -790,7 +806,7 @@ export default function PianoRoll({
     const newNotes = localNotesRef.current.filter(n => !ids.has(n.id));
     localNotesRef.current = newNotes;
     setSelectedIds(new Set());
-    onNotesChange(newNotes);
+    commitNotes(newNotes);
     draw();
   };
 
@@ -811,7 +827,7 @@ export default function PianoRoll({
     const merged = [...localNotesRef.current, ...newNotes];
     localNotesRef.current = merged;
     setSelectedIds(new Set(newNotes.map(n => n.id)));
-    onNotesChange(merged);
+    commitNotes(merged);
     draw();
   };
 
@@ -829,7 +845,7 @@ export default function PianoRoll({
     const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v, edited: true } : n);
     localNotesRef.current = updated;
     setVelValue(v);
-    onNotesChange(updated);
+    commitNotes(updated);
     draw();
   };
 
@@ -851,15 +867,6 @@ export default function PianoRoll({
   };
 
   // ── Lecture locale de la piste : play/pause + curseur ────────────
-
-  /** Arrête la lecture locale (curseur remis à zéro). */
-  const stopPlayback = useCallback(() => {
-    if (pianoPlaying === 'idle' && playPosRef.current === 0) return;
-    playPosRef.current = 0;
-    setPianoPlaying('idle');
-    engine?.stop();
-    draw();
-  }, [pianoPlaying, engine, draw]);
 
   /** Bascule lecture / pause / reprise de la piste ouverte. */
   const togglePlay = useCallback(async () => {
@@ -890,17 +897,18 @@ export default function PianoRoll({
     let lastBeats = -1;
     const tick = () => {
       const dur = engine.getPianoRollDuration();
-      // Buffer pas encore prêt (render-wav en cours) → curseur à 0
-      if (dur <= 0) {
+      const raw = engine.getPianoRollPositionRaw();
+      // Pas encore prêt (render-wav en cours) → curseur à 0
+      if (dur <= 0 || raw < 0) {
         playPosRef.current = 0;
         return;
       }
-      // Buffer terminé → fin de lecture propre
-      if (!engine.pianoRollActive) {
+      // Position atteinte la durée du buffer → fin de lecture propre
+      if (raw >= dur - 0.05) {
         stopPlayback();
         return;
       }
-      const beats = (engine.getPianoRollPosition() * tempo) / 60;
+      const beats = (raw * tempo) / 60;
       playPosRef.current = beats;
       if (Math.abs(beats - lastBeats) > 0.0005) {
         lastBeats = beats;
@@ -954,7 +962,7 @@ export default function PianoRoll({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo, togglePlay, stopPlayback]);
+  }, [commitNotes, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo, togglePlay, stopPlayback]);
 
   // Nom de la première note sélectionnée (affiché dans la barre d'outils)
   const firstSelected = notes.find(n => selectedIds.has(n.id));
