@@ -26,6 +26,16 @@ export const DEFAULT_PIXELS_PER_BEAT = 96;
 /** Snap minimum : 1/16 de beat (double croche). */
 export const SNAP_UNIT = 1 / 16;
 
+/** Subdivisions de grille disponibles (du plus fin au plus grossier).
+ * Base 1/12 = multiple commun de 3 et 4 → permet triolets (1/12, 1/6, 1/3)
+ * et binaires (1/16, 1/8, 1/4…). 1/18 et 1/24 couvrent les sextolets. */
+export const SNAP_UNITS: number[] = [
+  1 / 32, 1 / 24, 1 / 18, 1 / 16, 1 / 12, 1 / 8, 1 / 6, 1 / 4, 1 / 3, 1 / 2, 1 / 1,
+];
+
+/** Snap par défaut (comportement historique : double croche). */
+export const DEFAULT_SNAP_UNIT = SNAP_UNIT;
+
 /** Hauteur d'une touche blanche en pixels. */
 export const WHITE_KEY_HEIGHT = 16;
 

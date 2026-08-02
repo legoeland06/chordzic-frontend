@@ -91,6 +91,7 @@ export function startInteraction(
   coord: MouseCoord,
   pixelsPerBeat: number,
   maxPitch: number,
+  snapUnit: number = SNAP_UNIT,
 ): { ctx: InteractionContext; createdNote?: PianoNote } {
   const hit = hitTest(notes, coord, pixelsPerBeat, maxPitch);
 
@@ -124,13 +125,13 @@ export function startInteraction(
   }
 
   // Clic sur le vide → créer une nouvelle note
-  const snappedTime = snapToGrid(coord.px / pixelsPerBeat);
+  const snappedTime = snapToGrid(coord.px / pixelsPerBeat, snapUnit);
   const pitch = Math.max(0, Math.min(127, pixelsToPitch(coord.py, maxPitch)));
   const newNote: PianoNote = {
     id: generateNoteId(),
     startTime: Math.max(0, snappedTime),
     pitch,
-    duration: SNAP_UNIT,
+    duration: snapUnit,
     velocity: 100,
   };
 
@@ -162,6 +163,7 @@ export function updateInteraction(
   coord: MouseCoord,
   pixelsPerBeat: number,
   maxPitch: number,
+  snapUnit: number = SNAP_UNIT,
 ): { note?: Partial<PianoNote>; done?: boolean } {
   switch (ctx.state) {
     case 'IDLE':
@@ -169,7 +171,7 @@ export function updateInteraction(
       return {};
 
     case 'DRAGGING': {
-      const newStartTime = snapToGrid(Math.max(0, (coord.px - ctx.offsetX) / pixelsPerBeat));
+      const newStartTime = snapToGrid(Math.max(0, (coord.px - ctx.offsetX) / pixelsPerBeat), snapUnit);
       const rawPitch = pixelsToPitch(coord.py - ctx.offsetY, maxPitch);
       const newPitch = Math.max(0, Math.min(127, rawPitch));
       return {
@@ -179,8 +181,8 @@ export function updateInteraction(
 
     case 'RESIZING': {
       const edgeX = coord.px - ctx.offsetX;
-      const newEndTime = snapToGrid(Math.max(SNAP_UNIT, edgeX / pixelsPerBeat));
-      const newDuration = Math.max(SNAP_UNIT, newEndTime - ctx.startTime);
+      const newEndTime = snapToGrid(Math.max(snapUnit, edgeX / pixelsPerBeat), snapUnit);
+      const newDuration = Math.max(snapUnit, newEndTime - ctx.startTime);
       return {
         note: { duration: newDuration },
       };
@@ -200,8 +202,9 @@ export function endInteraction(
   coord: MouseCoord,
   pixelsPerBeat: number,
   maxPitch: number,
+  snapUnit: number = SNAP_UNIT,
 ): { ctx: InteractionContext; note?: Partial<PianoNote>; finishedNew?: PianoNote } {
-  const update = updateInteraction(ctx, coord, pixelsPerBeat, maxPitch);
+  const update = updateInteraction(ctx, coord, pixelsPerBeat, maxPitch, snapUnit);
 
   const newCtx: InteractionContext = {
     state: 'IDLE',

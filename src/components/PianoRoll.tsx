@@ -23,6 +23,8 @@ import {
   PianoNote,
   DEFAULT_PIXELS_PER_BEAT,
   SNAP_UNIT,
+  SNAP_UNITS,
+  DEFAULT_SNAP_UNIT,
   WHITE_KEY_HEIGHT,
   PIANO_KEYBOARD_WIDTH,
   velocityColor,
@@ -134,6 +136,8 @@ export default function PianoRoll({
   const [pianoPlaying, setPianoPlaying] = useState<'idle' | 'playing' | 'paused'>('idle');
   /** Position de lecture courante en beats (lue par draw). */
   const playPosRef = useRef(0);
+  // ── Subdivision de la grille (snap) : 1/16 par défaut, 1/12 pour les triolets ──
+  const [snapUnit, setSnapUnit] = useState(DEFAULT_SNAP_UNIT);
 
   // ── Historique undo/redo (snapshots des notes) ────────────────────
   const historyRef = useRef<{ undo: PianoNote[][]; redo: PianoNote[][] }>({ undo: [], redo: [] });
@@ -221,6 +225,24 @@ export default function PianoRoll({
         ctx.fillStyle = '#4a4b6e';
         ctx.font = '9px monospace';
         ctx.fillText(`${measure + 1}`, x + 3, 12);
+      }
+    }
+
+    // ── Subdivisions du snap (lignes fines, si l'espacement est lisible) ──
+    const snapPx = snapUnit * ppb;
+    if (snapUnit < 1 && snapPx >= 5) {
+      const steps = Math.round(1 / snapUnit);
+      ctx.strokeStyle = '#22223a';
+      ctx.lineWidth = 0.5;
+      for (let beat = gridStartBeat; beat <= gridEndBeat; beat++) {
+        for (let k = 1; k < steps; k++) {
+          const x = (beat + k * snapUnit) * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+          if (x < PIANO_KEYBOARD_WIDTH || x > w) continue;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+          ctx.stroke();
+        }
       }
     }
 
@@ -332,7 +354,7 @@ export default function PianoRoll({
       ctx.fill();
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying]);
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -390,7 +412,7 @@ export default function PianoRoll({
     const hit = hitTest(localNotesRef.current, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
     pasteAnchorRef.current = hit
       ? hit.note.startTime
-      : Math.max(0, snapToGrid(adjustedCoord.px / effectivePixelsPerBeat));
+      : Math.max(0, snapToGrid(adjustedCoord.px / effectivePixelsPerBeat, snapUnit));
 
     // Capture de l'état avant le geste (pour l'undo, si le geste mute)
     gestureBeforeRef.current = snapshotNotes(localNotesRef.current);
@@ -440,6 +462,7 @@ export default function PianoRoll({
       adjustedCoord,
       effectivePixelsPerBeat,
       userMaxPitch,
+      snapUnit,
     );
 
     ctxRef.current = ctx;
@@ -494,7 +517,7 @@ export default function PianoRoll({
           const moved = new Map(orig.map(n => [n.id, {
             ...n,
             edited: true,
-            startTime: Math.max(0, Math.round((n.startTime + dBeat) / SNAP_UNIT) * SNAP_UNIT),
+            startTime: Math.max(0, Math.round((n.startTime + dBeat) / snapUnit) * snapUnit),
             pitch: Math.min(userMaxPitch, Math.max(userMinPitch, n.pitch + dPitch)),
           }]));
           localNotesRef.current = localNotesRef.current.map(n => moved.get(n.id) ?? n);
@@ -517,14 +540,14 @@ export default function PianoRoll({
     if (ctx.state === 'CREATING') {
       // Ajuster la durée de la note en création
       const endTime = Math.max(0, adjustedCoord.px / effectivePixelsPerBeat);
-      const snappedEnd = Math.max(SNAP_UNIT, snapToGrid(endTime));
+      const snappedEnd = Math.max(snapUnit, snapToGrid(endTime, snapUnit));
       const startTime = ctx.startTime;
-      const duration = Math.max(SNAP_UNIT, snappedEnd - startTime);
+      const duration = Math.max(snapUnit, snappedEnd - startTime);
 
       if (creatingNote) {
         setCreatingNote({
           ...creatingNote,
-          duration: Math.max(SNAP_UNIT, duration),
+          duration: Math.max(snapUnit, duration),
         });
       }
       return;
@@ -538,7 +561,7 @@ export default function PianoRoll({
       else return;
     }
 
-    const result = updateInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
+    const result = updateInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit);
     if (result.note && ctx.targetId) {
       const updated = localNotesRef.current.map(n =>
         n.id === ctx.targetId ? { ...n, ...result.note } : n
@@ -598,8 +621,8 @@ export default function PianoRoll({
       // Finaliser la note créée
       if (creatingNote) {
         const endTime = Math.max(0, adjustedCoord.px / effectivePixelsPerBeat);
-        const snappedEnd = Math.max(SNAP_UNIT, snapToGrid(endTime));
-        const duration = Math.max(SNAP_UNIT, snappedEnd - creatingNote.startTime);
+        const snappedEnd = Math.max(snapUnit, snapToGrid(endTime, snapUnit));
+        const duration = Math.max(snapUnit, snappedEnd - creatingNote.startTime);
         const finalNote = { ...creatingNote, duration, edited: true };
         const newNotes = [...localNotesRef.current, finalNote];
         localNotesRef.current = newNotes;
@@ -608,7 +631,7 @@ export default function PianoRoll({
         setCreatingNote(null);
       }
     } else if (ctx.state === 'DRAGGING' || ctx.state === 'RESIZING') {
-      const result = endInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
+      const result = endInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit);
       ctxRef.current = result.ctx;
 
       if (!dragEngaged) {
@@ -816,7 +839,7 @@ export default function PianoRoll({
     // Coller à l'endroit cliqué (ancre mémorisée), sinon début de la zone visible
     const base = pasteAnchorRef.current !== null
       ? pasteAnchorRef.current
-      : Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / SNAP_UNIT) * SNAP_UNIT);
+      : Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / snapUnit) * snapUnit);
     const stamp = Date.now();
     const newNotes = clip.map((n, i) => ({
       ...n,
@@ -1090,6 +1113,21 @@ export default function PianoRoll({
             >
               {pianoPlaying === 'playing' ? '⏸ Pause' : pianoPlaying === 'paused' ? '▶ Reprendre' : '▶ Lecture'}
             </button>
+          </div>
+
+          {/* Subdivision de la grille (snap) */}
+          <div className="flex items-center gap-1">
+            <span className="text-gray-400">Snap:</span>
+            <select
+              value={snapUnit}
+              onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
+              className="bg-gray-800 text-gray-300 text-[10px] rounded border border-gray-700 px-1 py-0.5"
+              title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets"
+            >
+              {SNAP_UNITS.map(u => (
+                <option key={u} value={u}>1/{Math.round(1 / u)}</option>
+              ))}
+            </select>
           </div>
 
           {/* Historique */}
