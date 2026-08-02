@@ -585,6 +585,8 @@ export default function ChordApp() {
               channel={openPianoRoll}
               onClose={() => setOpenPianoRoll(null)}
               onPreviewNote={(pitch) => { engineRef.current?.playPreviewNote(openPianoRoll, pitch); }}
+              tempo={tempo}
+              engine={engineRef.current}
             />
           );
         })()}

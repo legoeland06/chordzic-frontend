@@ -14,6 +14,7 @@
 import { ChordData, GrilleData } from '../types/chord';
 import { BrowserSynth, RenderOptions } from './browserSynth';
 import { backendUrl, chordToNoteNames } from './chordUtils';
+import { PianoNote } from './pianoRollTypes';
 
 /** États possibles du moteur audio. */
 export type AudioState = 'idle' | 'playing' | 'stopped';
@@ -304,6 +305,43 @@ export class AudioEngine {
       })),
     });
   }
+
+  // ── Lecture locale d'un canal PianoRoll (play/pause + curseur) ──
+
+  /** Joue les notes d'un canal PianoRoll (rendu WAV du canal seul, mode Navig).
+   * Stoppe d'abord toute lecture en cours (locale ou globale). */
+  async playPianoRollChannel(channel: number, notes: PianoNote[], tempo: number): Promise<void> {
+    await this.stop();
+    this.playing = true;
+    const customNotes = notes.map(n => ({
+      channel,
+      start_time: n.startTime,
+      pitch: n.pitch,
+      duration: n.duration,
+      velocity: n.velocity,
+    }));
+    // Tous les canaux en mode custom (les autres vides) → seul `channel` est rendu
+    const customChannels = [0, 2, 3, 4, 9];
+    await this.browserSynth.playPianoRollChannel(customNotes, customChannels, tempo, {
+      tempo: this.tempo,
+      pattern: this.drumPattern, walking: this.walking, sig: this.sig,
+      master_vol: this.masterVol,
+      tracks: this.tracks.map(t => ({
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+      })),
+    });
+  }
+
+  /** Pause / reprise de la lecture locale (gèle le contexte audio). */
+  async pausePianoRoll(): Promise<void> { await this.browserSynth.pause(); }
+  async resumePianoRoll(): Promise<void> { await this.browserSynth.resume(); }
+
+  /** Vrai tant que la lecture locale produit du son (faux quand le buffer est fini). */
+  get pianoRollActive(): boolean { return this.browserSynth.isPlaying; }
+
+  /** Position (secondes) et durée (secondes) de la lecture locale. */
+  getPianoRollPosition(): number { return this.browserSynth.getPosition(); }
+  getPianoRollDuration(): number { return this.browserSynth.getDuration(); }
 
   /** Joue une note en direct (preview PianoRoll) via le backend.
    * Fire-and-forget : ne bloque jamais l'édition. */

@@ -42,6 +42,7 @@ import {
   hitTest,
   MouseCoord,
 } from '../lib/pianoRollEngine';
+import type { AudioEngine } from '../lib/audioEngine';
 
 // ─── Constantes ─────────────────────────────────────────────────────────
 
@@ -76,6 +77,10 @@ interface PianoRollProps {
   onClose: () => void;
   /** Audition en direct : joue la note édité (création, déplacement, resize). */
   onPreviewNote?: (pitch: number) => void;
+  /** Tempo courant (conversion position audio → beats pour le curseur). */
+  tempo: number;
+  /** Moteur audio (lecture locale de la piste ouverte : play/pause + curseur). */
+  engine?: AudioEngine | null;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -92,6 +97,8 @@ export default function PianoRoll({
   height = 400,
   onClose,
   onPreviewNote,
+  tempo,
+  engine,
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -122,6 +129,11 @@ export default function PianoRoll({
   const [velValue, setVelValue] = useState(100);
   /** Note survolée (tooltip) : pitch + position écran du curseur. */
   const [hoverInfo, setHoverInfo] = useState<{ pitch: number; x: number; y: number } | null>(null);
+
+  // ── Lecture locale de la piste (play/pause + curseur) ─────────────
+  const [pianoPlaying, setPianoPlaying] = useState<'idle' | 'playing' | 'paused'>('idle');
+  /** Position de lecture courante en beats (lue par draw). */
+  const playPosRef = useRef(0);
 
   // ── Historique undo/redo (snapshots des notes) ────────────────────
   const historyRef = useRef<{ undo: PianoNote[][]; redo: PianoNote[][] }>({ undo: [], redo: [] });
@@ -302,7 +314,25 @@ export default function PianoRoll({
       ctx.strokeRect(mx, my, mw, mh);
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee]);
+    // ── Curseur de lecture (ligne verticale + repère en haut) ──
+    if (pianoPlaying !== 'idle' || playPosRef.current > 0) {
+      const playX = playPosRef.current * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(playX, 0);
+      ctx.lineTo(playX, h);
+      ctx.stroke();
+      ctx.fillStyle = '#f87171';
+      ctx.beginPath();
+      ctx.moveTo(playX - 5, 0);
+      ctx.lineTo(playX + 5, 0);
+      ctx.lineTo(playX, 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -820,6 +850,82 @@ export default function PianoRoll({
     setScrollLeft((e.target as HTMLDivElement).scrollLeft);
   };
 
+  // ── Lecture locale de la piste : play/pause + curseur ────────────
+
+  /** Arrête la lecture locale (curseur remis à zéro). */
+  const stopPlayback = useCallback(() => {
+    if (pianoPlaying === 'idle' && playPosRef.current === 0) return;
+    playPosRef.current = 0;
+    setPianoPlaying('idle');
+    engine?.stop();
+    draw();
+  }, [pianoPlaying, engine, draw]);
+
+  /** Bascule lecture / pause / reprise de la piste ouverte. */
+  const togglePlay = useCallback(async () => {
+    if (!engine) return;
+    if (pianoPlaying === 'playing') {
+      await engine.pausePianoRoll();
+      setPianoPlaying('paused');
+    } else if (pianoPlaying === 'paused') {
+      await engine.resumePianoRoll();
+      setPianoPlaying('playing');
+    } else {
+      const chNotes = localNotesRef.current;
+      if (chNotes.length === 0) return;
+      playPosRef.current = 0;
+      setPianoPlaying('playing');
+      try {
+        await engine.playPianoRollChannel(channel, chNotes, tempo);
+      } catch (e) {
+        console.error('❌ Lecture PianoRoll:', e);
+        setPianoPlaying('idle');
+      }
+    }
+  }, [engine, pianoPlaying, channel, tempo]);
+
+  // Boucle du curseur : position audio → beats → draw + auto-scroll
+  useEffect(() => {
+    if (pianoPlaying !== 'playing' || !engine) return;
+    let lastBeats = -1;
+    const tick = () => {
+      const dur = engine.getPianoRollDuration();
+      // Buffer pas encore prêt (render-wav en cours) → curseur à 0
+      if (dur <= 0) {
+        playPosRef.current = 0;
+        return;
+      }
+      // Buffer terminé → fin de lecture propre
+      if (!engine.pianoRollActive) {
+        stopPlayback();
+        return;
+      }
+      const beats = (engine.getPianoRollPosition() * tempo) / 60;
+      playPosRef.current = beats;
+      if (Math.abs(beats - lastBeats) > 0.0005) {
+        lastBeats = beats;
+        draw();
+        // Auto-scroll : suivre le curseur quand il sort à droite
+        const el = containerRef.current;
+        if (el) {
+          const x = beats * effectivePixelsPerBeat - el.scrollLeft + PIANO_KEYBOARD_WIDTH;
+          const margin = 80;
+          if (x > el.clientWidth - margin) {
+            el.scrollLeft += x - (el.clientWidth - margin);
+          }
+        }
+      }
+    };
+    const id = setInterval(tick, 40);
+    return () => clearInterval(id);
+  }, [pianoPlaying, engine, tempo, effectivePixelsPerBeat, draw, stopPlayback]);
+
+  // Arrêt automatique de la lecture dès qu'une note est modifiée (édition)
+  useEffect(() => {
+    if (pianoPlaying !== 'idle') stopPlayback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes]);
+
   // ── Raccourcis clavier : sélection, copier/couper/coller, effacer ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -836,12 +942,19 @@ export default function PianoRoll({
         setSelectedIds(new Set(localNotesRef.current.map(n => n.id)));
       }
       else if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelection(); }
-      else if (e.key === 'Escape') { onClose(); }
+      else if (e.key === ' ') {
+        // Ne pas doubler le clic quand un bouton / input a le focus
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT')) return;
+        e.preventDefault();
+        togglePlay();
+      }
+      else if (e.key === 'Escape') { stopPlayback(); onClose(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo]);
+  }, [onNotesChange, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo, togglePlay, stopPlayback]);
 
   // Nom de la première note sélectionnée (affiché dans la barre d'outils)
   const firstSelected = notes.find(n => selectedIds.has(n.id));
@@ -889,7 +1002,7 @@ export default function PianoRoll({
               +
             </button>
             <button
-              onClick={onClose}
+              onClick={() => { stopPlayback(); onClose(); }}
               className="px-3 py-1.5 text-xs bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors"
             >
               ✕ Fermer
@@ -953,6 +1066,22 @@ export default function PianoRoll({
             <button onClick={pasteClipboard} disabled={!clipboardRef.current}
               className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
               title="Coller (Ctrl+V)">{'\ud83d\udccc'} Coller</button>
+          </div>
+
+          {/* Lecture locale de la piste */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={togglePlay}
+              disabled={!engine || (pianoPlaying === 'idle' && notes.length === 0)}
+              className="px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors"
+              title={
+                pianoPlaying === 'playing' ? 'Pause (Espace)'
+                : pianoPlaying === 'paused' ? 'Reprendre (Espace)'
+                : 'Lecture de la piste (Espace)'
+              }
+            >
+              {pianoPlaying === 'playing' ? '⏸ Pause' : pianoPlaying === 'paused' ? '▶ Reprendre' : '▶ Lecture'}
+            </button>
           </div>
 
           {/* Historique */}

@@ -84,38 +84,61 @@ export class BrowserSynth {
     sequence: { notes: string[]; beats: number }[],
     tempo: number, doLoop: boolean, opts?: RenderOptions,
   ): Promise<void> {
-    try {
-      const body: Record<string, unknown> = { sequence, tempo };
-      if (opts) {
-        if (opts.pattern) body.pattern = opts.pattern;
-        if (opts.walking !== undefined) body.walking = opts.walking;
-        if (opts.sig) body.sig = opts.sig;
-        if (opts.tracks) body.tracks = opts.tracks;
-        if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
-        if (opts.customNotes && opts.customNotes.length > 0) {
-          body.custom_notes = opts.customNotes;
-        }
-        if (opts.customChannels && opts.customChannels.length > 0) {
-          body.custom_channels = opts.customChannels;
-        }
+    const body: Record<string, unknown> = { sequence, tempo };
+    if (opts) {
+      if (opts.pattern) body.pattern = opts.pattern;
+      if (opts.walking !== undefined) body.walking = opts.walking;
+      if (opts.sig) body.sig = opts.sig;
+      if (opts.tracks) body.tracks = opts.tracks;
+      if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
+      if (opts.customNotes && opts.customNotes.length > 0) {
+        body.custom_notes = opts.customNotes;
       }
-
-      const resp = await fetch(`${backendUrl()}/render-wav`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
-
-      const wavData = await resp.arrayBuffer();
-      const ctx = await this.getContext();
-      const buffer = await ctx.decodeAudioData(wavData);
-      this._buffer = buffer;
-      this._playBuffer(buffer, doLoop);
-    } catch (e) {
-      console.error('❌ BrowserSynth render error:', e);
-      throw e;
+      if (opts.customChannels && opts.customChannels.length > 0) {
+        body.custom_channels = opts.customChannels;
+      }
     }
+    await this._renderAndPlay(body, doLoop);
+  }
+
+  /** Joue un rendu WAV personnalisé : uniquement les notes PianoRoll d'un canal
+   * (tous les canaux passés en mode custom, les autres vides → seuls les notes
+   * fournies sont rendues). */
+  async playPianoRollChannel(
+    customNotes: NonNullable<RenderOptions['customNotes']>,
+    customChannels: number[],
+    tempo: number,
+    opts?: RenderOptions,
+  ): Promise<void> {
+    const body: Record<string, unknown> = {
+      sequence: [], tempo,
+      custom_notes: customNotes,
+      custom_channels: customChannels,
+    };
+    if (opts) {
+      if (opts.pattern) body.pattern = opts.pattern;
+      if (opts.walking !== undefined) body.walking = opts.walking;
+      if (opts.sig) body.sig = opts.sig;
+      if (opts.tracks) body.tracks = opts.tracks;
+      if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
+    }
+    await this._renderAndPlay(body, false);
+  }
+
+  /** Appelle /render-wav puis décode et joue le buffer. */
+  private async _renderAndPlay(body: Record<string, unknown>, doLoop: boolean): Promise<void> {
+    const resp = await fetch(`${backendUrl()}/render-wav`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
+
+    const wavData = await resp.arrayBuffer();
+    const ctx = await this.getContext();
+    const buffer = await ctx.decodeAudioData(wavData);
+    this._buffer = buffer;
+    this._playBuffer(buffer, doLoop);
   }
 
   /** Récupère les notes générées par le mode classique (base PianoRoll).
@@ -153,6 +176,21 @@ export class BrowserSynth {
   /** Durée du buffer audio courant (secondes). */
   getDuration(): number {
     return this._buffer?.duration ?? 0;
+  }
+
+  /** Pause : gèle le contexte audio → le son et le curseur se figent,
+   * la reprise est exacte (le currentTime ne bouge pas). */
+  async pause(): Promise<void> {
+    if (this.audioCtx && this.audioCtx.state === 'running') {
+      try { await this.audioCtx.suspend(); } catch { /* silencieux */ }
+    }
+  }
+
+  /** Reprend après une pause. */
+  async resume(): Promise<void> {
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      try { await this.audioCtx.resume(); } catch { /* silencieux */ }
+    }
   }
 
   /** Lance la lecture d'un AudioBuffer. En boucle : `source.loop` simple
