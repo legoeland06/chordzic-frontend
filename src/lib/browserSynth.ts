@@ -44,6 +44,8 @@ export class BrowserSynth {
   private source: AudioBufferSourceNode | null = null;
   private _playing = false;
   private _buffer: AudioBuffer | null = null;
+  /** Dernier WAV brut reçu du backend (extraction par l'utilisateur). */
+  private _lastWavBlob: Blob | null = null;
   private ctxTimeAtStart = 0;
   private _loopTimer: ReturnType<typeof setTimeout> | null = null;
   private sources: AudioBufferSourceNode[] = [];
@@ -135,6 +137,8 @@ export class BrowserSynth {
     if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
 
     const wavData = await resp.arrayBuffer();
+    // Garder le WAV brut : permet l'extraction (téléchargement) par l'utilisateur
+    this._lastWavBlob = new Blob([wavData], { type: 'audio/wav' });
     const ctx = await this.getContext();
     const buffer = await ctx.decodeAudioData(wavData);
     this._buffer = buffer;
@@ -182,6 +186,11 @@ export class BrowserSynth {
   /** Durée du buffer audio courant (secondes). */
   getDuration(): number {
     return this._buffer?.duration ?? 0;
+  }
+
+  /** Dernier WAV rendu (blob brut), ou null si aucun rendu. */
+  getLastWavBlob(): Blob | null {
+    return this._lastWavBlob;
   }
 
   /** Pause : gèle le contexte audio → le son et le curseur se figent,

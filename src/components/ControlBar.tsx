@@ -5,7 +5,7 @@
  * Agit comme un hub de commandes pour ChordApp : chaque bouton déclenche
  * une callback vers le composant parent.
  */
-import { Play, Square, Trash2, Gauge, Save, FolderOpen } from 'lucide-react';
+import { Play, Square, Trash2, Gauge, Save, FolderOpen, Download } from 'lucide-react';
 
 interface ControlBarProps {
   chords: { time: number }[];
@@ -19,6 +19,10 @@ interface ControlBarProps {
   onLoad: () => void;
   onExport: () => void;
   onImport: () => void;
+  /** Extrait le dernier rendu WAV (mode Navig) en fichier téléchargeable. */
+  onExtractWav: () => void;
+  /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
+  hasWav: boolean;
   onTempoChange: (t: number) => void;
 }
 
@@ -26,6 +30,7 @@ export default function ControlBar({
   chords, playing, tempo,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport,
+  onExtractWav, hasWav,
   onTempoChange,
 }: ControlBarProps) {
   return (
@@ -52,6 +57,16 @@ export default function ControlBar({
           className="px-3 sm:px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
         >
           <Square className="w-3 h-3" /> Stop
+        </button>
+
+        {/* ── Extraction du rendu WAV (mode Navig) ── */}
+        <button
+          onClick={onExtractWav}
+          disabled={!hasWav}
+          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-gray-800 text-amber-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          title="Extrait le dernier rendu WAV (mode Navig) en fichier .wav"
+        >
+          <Download className="w-3 h-3" /> Extract Wav
         </button>
 
         <button

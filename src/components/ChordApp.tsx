@@ -58,6 +58,8 @@ export default function ChordApp() {
   const [volume, setVolume] = useState(127);
   const [use432, setUse432] = useState(true);
   const [browserAudio, setBrowserAudio] = useState(false);
+  /** Vrai dès qu'un WAV a été rendu en mode Navig (bouton Extract actif). */
+  const [hasWav, setHasWav] = useState(false);
   const [tracks, setLocalTracks] = useState<TrackConfig[]>([
     { channel: 0, label: 'Lead',    program: 51, volume: 60, mute: false },
     { channel: 2, label: 'Bass',    program: 33, volume: 70, mute: false },
@@ -322,6 +324,8 @@ export default function ChordApp() {
     const customChannels = Object.keys(pianoNotes).map(Number);
 
     const grille = { titre: 'Session', tempo, chords: chordsToPlay };
+    // En mode Navig (rendu WAV), le WAV sera disponible à l'extraction
+    if (browserAudio) setHasWav(true);
     engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
@@ -329,7 +333,7 @@ export default function ChordApp() {
       setPlaying(false);
       setStatus(`❌ Erreur: ${e.message}`); setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input]);
+  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input, browserAudio]);
 
   const stop = () => {
     if (engineRef.current) engineRef.current.stop();
@@ -427,6 +431,24 @@ export default function ChordApp() {
     URL.revokeObjectURL(url);
     setShowExportModal(false);
     setStatus('📤 Grille exportée en JSON'); setStatusColor('text-green-400');
+  };
+
+  /** Extrait le dernier rendu WAV (mode Navig) en fichier téléchargeable. */
+  const handleExtractWav = () => {
+    const blob = engineRef.current?.getLastWavBlob();
+    if (!blob) {
+      setStatus('❌ Aucun WAV à extraire — lance une lecture d\'abord'); setStatusColor('text-red-400');
+      return;
+    }
+    // Nom de fichier : début de la grille + horodatage
+    const base = (input.slice(0, 24).replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')) || 'grille';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${base}_${Date.now()}.wav`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus(`📥 WAV extrait (${(blob.size / 1048576).toFixed(1)} Mo)`); setStatusColor('text-green-400');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -562,6 +584,7 @@ export default function ChordApp() {
             onSave={() => setShowSaveModal(true)}
             onLoad={() => setShowLoadModal(true)}
             onExport={handleExport} onImport={() => fileInputRef.current?.click()}
+            onExtractWav={handleExtractWav} hasWav={hasWav}
             onTempoChange={setTempo}
           />
 

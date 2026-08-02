@@ -345,6 +345,9 @@ export class AudioEngine {
   /** Position brute (sans modulo) : -1 si aucune source active. */
   getPianoRollPositionRaw(): number { return this.browserSynth.getPositionRaw(); }
 
+  /** Dernier WAV rendu par le backend (mode Navig), pour extraction. */
+  getLastWavBlob(): Blob | null { return this.browserSynth.getLastWavBlob(); }
+
   /** Joue une note en direct (preview PianoRoll) via le backend.
    * Fire-and-forget : ne bloque jamais l'édition. */
   async playPreviewNote(channel: number, pitch: number): Promise<void> {
