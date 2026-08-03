@@ -67,9 +67,9 @@ interface PianoRollProps {
   channel: number;
   /** Couleur de thème (optionnel, déduite du canal si omis). */
   accentColor?: string;
-  /** Pitch minimum affiché (défaut: 36 = C3). */
+  /** Pitch minimum affiché (défaut : plage selon le canal, voir CHANNEL_RANGES). */
   minPitch?: number;
-  /** Pitch maximum affiché (défaut: 96 = C7). */
+  /** Pitch maximum affiché (défaut : plage selon le canal, voir CHANNEL_RANGES). */
   maxPitch?: number;
   /** Pixels par beat (zoom horizontal, défaut: 96). */
   pixelsPerBeat?: number;
@@ -93,8 +93,8 @@ export default function PianoRoll({
   trackLabel,
   channel,
   accentColor,
-  minPitch: userMinPitch = 36,
-  maxPitch: userMaxPitch = 96,
+  minPitch,
+  maxPitch,
   pixelsPerBeat = DEFAULT_PIXELS_PER_BEAT,
   height = 400,
   onClose,
@@ -104,6 +104,19 @@ export default function PianoRoll({
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // ── Plage de pitch par canal : chaque instrument voit son registre utile ──
+  // (ex: la basse s'ouvre sur le grave, le lead sur le médium/aigu)
+  const CHANNEL_RANGES: Record<number, [number, number]> = {
+    0: [48, 96],   // Lead    : C3 → C7
+    2: [24, 72],   // Bass    : C1 → C5
+    3: [36, 84],   // Nappes  : C2 → C6
+    4: [36, 84],   // Accent  : C2 → C6
+    9: [35, 81],   // Drums   : plage GM (kick/snare/hihat/cymbales/toms)
+  };
+  const [defaultMin, defaultMax] = CHANNEL_RANGES[channel] ?? [36, 96];
+  const userMinPitch = minPitch ?? defaultMin;
+  const userMaxPitch = maxPitch ?? defaultMax;
 
   // État machine des interactions
   const ctxRef = useRef<InteractionContext>(createEmptyContext());
