@@ -144,6 +144,8 @@ export default function PianoRoll({
   /** Position (en beats) où coller : dernier endroit cliqué dans le piano roll. */
   const pasteAnchorRef = useRef<number | null>(null);
   const [velValue, setVelValue] = useState(100);
+  /** Durée (en subdivisions de grille) affichée par le slider de la toolbar. */
+  const [durSnaps, setDurSnaps] = useState(4);
   /** Note survolée (tooltip) : pitch + position écran du curseur. */
   const [hoverInfo, setHoverInfo] = useState<{ pitch: number; x: number; y: number } | null>(null);
 
@@ -163,6 +165,9 @@ export default function PianoRoll({
   /** Geste slider vélocité : état avant le geste + flag d'activité. */
   const velGestureRef = useRef<PianoNote[] | null>(null);
   const velGestureActiveRef = useRef(false);
+  /** Geste slider durée : état avant le geste + flag d'activité. */
+  const durGestureRef = useRef<PianoNote[] | null>(null);
+  const durGestureActiveRef = useRef(false);
   /** Position écran du mousedown (pour distinguer clic simple vs drag). */
   const downScreenRef = useRef<{ x: number; y: number } | null>(null);
   /** Vrai dès que le mouvement dépasse la deadzone (drag engagé). */
@@ -336,19 +341,39 @@ export default function PianoRoll({
       const noteW = Math.max(3, note.duration * ppb);
       const noteH = WHITE_KEY_HEIGHT - 1;
       const isSel = selectedIds.has(note.id);
+      const isGrouped = !!note.groupId;
 
       // Ombre
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillRect(x + 1, y + 1, noteW, noteH);
 
-      // Rectangle principal
-      ctx.fillStyle = isCreating ? velocityColor(note.velocity) : velocityColor(note.velocity);
-      ctx.fillRect(x, y, noteW, noteH);
+      if (isSel) {
+        // Sélection : rouge vif + glow → bien visible d'un coup d'œil
+        ctx.save();
+        ctx.shadowColor = 'rgba(255,30,30,0.9)';
+        ctx.shadowBlur = 9;
+        ctx.fillStyle = '#ff2222';
+        ctx.fillRect(x, y, noteW, noteH);
+        ctx.restore();
+        ctx.strokeStyle = '#ff5a5a';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(x, y, noteW, noteH);
+      } else {
+        // Rectangle principal (couleur selon la vélocité)
+        ctx.fillStyle = velocityColor(note.velocity);
+        ctx.fillRect(x, y, noteW, noteH);
+        // Bordure (plus brillante si forte vélocité)
+        ctx.strokeStyle = note.velocity > 100 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, noteW, noteH);
+      }
 
-      // Bordure (plus brillante si forte vélocité, jaune si sélectionnée)
-      ctx.strokeStyle = isSel ? '#fbbf24' : (note.velocity > 100 ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)');
-      ctx.lineWidth = isSel ? 2 : 1;
-      ctx.strokeRect(x, y, noteW, noteH);
+      // Chaîne ⛓ sur les notes groupées (si assez larges)
+      if (isGrouped && noteW > 26) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = '9px monospace';
+        ctx.fillText('\u26d3\ufe0f', x + noteW - 12, y + WHITE_KEY_HEIGHT - 5);
+      }
 
       // Hauteur de note si assez large
       if (noteW > 20) {
@@ -529,7 +554,11 @@ export default function PianoRoll({
           next = new Set(selectedIds);
           if (next.has(id)) next.delete(id); else next.add(id);
         } else if (!selectedIds.has(id)) {
-          next = new Set([id]);
+          // Clic sur une note groupée → tout le groupe est sélectionné
+          const gid = hit.note.groupId;
+          next = gid
+            ? new Set(localNotesRef.current.filter(n => n.groupId === gid).map(n => n.id))
+            : new Set([id]);
         }
         setSelectedIds(next);
         // Préparer le déplacement de la sélection entière
@@ -550,7 +579,24 @@ export default function PianoRoll({
 
     // ── Mode édition : un clic sur une note existante la sélectionne ──
     if (hit) {
-      setSelectedIds(new Set([hit.note.id]));
+      const gid = hit.note.groupId;
+      if (gid) {
+        // Note groupée → la sélection devient le groupe entier
+        const groupNotes = localNotesRef.current.filter(n => n.groupId === gid);
+        setSelectedIds(new Set(groupNotes.map(n => n.id)));
+        // Drag sur le corps → déplacement de TOUT le groupe (le bord droit
+        // garde le resize individuel de la note)
+        if (hit.region === 'body') {
+          dragSelRef.current = {
+            startPx: adjustedCoord.px,
+            startPy: adjustedCoord.py,
+            orig: groupNotes,
+          };
+          return;
+        }
+      } else {
+        setSelectedIds(new Set([hit.note.id]));
+      }
     } else {
       setSelectedIds(new Set());
     }
@@ -622,8 +668,9 @@ export default function PianoRoll({
       setHoverInfo(null);
     }
 
-    // ── Mode sélection : marquee / déplacement de sélection ──
-    if (tool === 'select') {
+    // ── Mode sélection, ou drag de groupe initié en mode édition :
+    // marquee / déplacement de sélection ──
+    if (tool === 'select' || dragSelRef.current || marqueeRef.current) {
       if (marqueeRef.current) {
         const rect = { ...marqueeRef.current, x1: coord.px, y1: coord.py };
         marqueeRef.current = rect;
@@ -724,8 +771,9 @@ export default function PianoRoll({
     dragEngagedRef.current = false;
     downScreenRef.current = null;
 
-    // ── Mode sélection : finaliser marquee / déplacement ──
-    if (tool === 'select') {
+    // ── Mode sélection, ou drag de groupe initié en mode édition :
+    // finaliser marquee / déplacement ──
+    if (tool === 'select' || dragSelRef.current || marqueeRef.current) {
       if (marqueeRef.current) {
         const rect = marqueeRef.current;
         const sel = notesInRect(localNotesRef.current, rect);
@@ -855,15 +903,21 @@ export default function PianoRoll({
   const selectedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { selectedIdsRef.current = selectedIds; }, [selectedIds]);
 
-  // ── Slider vélocité : reflète la 1re note sélectionnée ──
+  // ── Sliders vélocité / durée : reflètent la 1re note sélectionnée ──
   useEffect(() => {
     const first = notes.find(n => selectedIds.has(n.id));
-    if (first) setVelValue(first.velocity);
-  }, [selectedIds, notes]);
+    if (first) {
+      setVelValue(first.velocity);
+      setDurSnaps(Math.max(1, Math.round(first.duration / snapUnit)));
+    }
+  }, [selectedIds, notes, snapUnit]);
 
-  // Clôture du geste slider vélocité (pointer relâché n'importe où)
+  // Clôture des gestes sliders vélocité/durée (pointer relâché n'importe où)
   useEffect(() => {
-    const end = () => { velGestureActiveRef.current = false; velGestureRef.current = null; };
+    const end = () => {
+      velGestureActiveRef.current = false; velGestureRef.current = null;
+      durGestureActiveRef.current = false; durGestureRef.current = null;
+    };
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
     return () => {
@@ -917,7 +971,7 @@ export default function PianoRoll({
 
   const undo = useCallback(() => {
     // Pas d'undo pendant un geste en cours (drag, marquee, slider)
-    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current) return;
+    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current || durGestureActiveRef.current) return;
     const h = historyRef.current;
     const prev = h.undo.pop();
     if (!prev) return;
@@ -928,7 +982,7 @@ export default function PianoRoll({
   }, [snapshotNotes, restoreHistory]);
 
   const redo = useCallback(() => {
-    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current) return;
+    if (ctxRef.current.state !== 'IDLE' || dragSelRef.current || marqueeRef.current || velGestureActiveRef.current || durGestureActiveRef.current) return;
     const h = historyRef.current;
     const next = h.redo.pop();
     if (!next) return;
@@ -999,11 +1053,22 @@ export default function PianoRoll({
       ? pasteAnchorRef.current
       : Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / snapUnit) * snapUnit);
     const stamp = Date.now();
-    const newNotes = clip.map((n, i) => ({
-      ...n,
-      id: `pasted-${stamp}-${i}`,
-      startTime: base + n.startTime,
-    }));
+    // Nouveaux IDs de groupe pour la copie : les groupes internes sont
+    // préservés, mais détachés des groupes d'origine (pas de fusion).
+    const gidMap = new Map<string, string>();
+    const newNotes = clip.map((n, i) => {
+      let gid: string | undefined;
+      if (n.groupId) {
+        if (!gidMap.has(n.groupId)) gidMap.set(n.groupId, `grp_${stamp}_${gidMap.size}`);
+        gid = gidMap.get(n.groupId);
+      }
+      return {
+        ...n,
+        id: `pasted-${stamp}-${i}`,
+        groupId: gid,
+        startTime: base + n.startTime,
+      };
+    });
     pushHistory(localNotesRef.current);
     const merged = [...localNotesRef.current, ...newNotes];
     localNotesRef.current = merged;
@@ -1026,6 +1091,49 @@ export default function PianoRoll({
     const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, velocity: v, edited: true } : n);
     localNotesRef.current = updated;
     setVelValue(v);
+    commitNotes(updated);
+    draw();
+  };
+
+  /** Applique la durée (en subdivisions de grille) à toutes les notes
+   * sélectionnées. Même logique d'undo que la vélocité : une seule entrée
+   * par geste du slider. */
+  const applyDuration = (snaps: number) => {
+    const ids = selectedIdsRef.current;
+    if (ids.size === 0) return;
+    const d = Math.max(snapUnit, snaps * snapUnit);
+    if (durGestureRef.current) {
+      pushHistory(durGestureRef.current);
+      durGestureRef.current = null;
+    } else if (!durGestureActiveRef.current) {
+      pushHistory(localNotesRef.current);
+    }
+    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, duration: d, edited: true } : n);
+    localNotesRef.current = updated;
+    setDurSnaps(snaps);
+    commitNotes(updated);
+    draw();
+  };
+
+  /** Grouper : les notes sélectionnées reçoivent le même groupId. */
+  const groupSelection = () => {
+    const ids = selectedIdsRef.current;
+    if (ids.size < 2) return;
+    const gid = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    pushHistory(localNotesRef.current);
+    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, groupId: gid, edited: true } : n);
+    localNotesRef.current = updated;
+    commitNotes(updated);
+    draw();
+  };
+
+  /** Dégrouper : retire le groupId des notes sélectionnées. */
+  const ungroupSelection = () => {
+    const ids = selectedIdsRef.current;
+    if (ids.size === 0) return;
+    pushHistory(localNotesRef.current);
+    const updated = localNotesRef.current.map(n => ids.has(n.id) ? { ...n, groupId: undefined, edited: true } : n);
+    localNotesRef.current = updated;
     commitNotes(updated);
     draw();
   };
@@ -1178,6 +1286,9 @@ export default function PianoRoll({
   // Nom de la première note sélectionnée (affiché dans la barre d'outils)
   const firstSelected = notes.find(n => selectedIds.has(n.id));
 
+  // Nombre de groupes distincts (badge du header)
+  const groupCount = new Set(notes.filter(n => n.groupId).map(n => n.groupId)).size;
+
   // ── Barre d'outils ──
   const totalBeats = Math.max(
     16, // minimum 4 mesures
@@ -1202,6 +1313,14 @@ export default function PianoRoll({
             >
               Canal {channel} · {notes.length} notes
             </span>
+            {groupCount > 0 && (
+              <span
+                className="px-2 py-0.5 rounded text-[10px] font-mono shrink-0"
+                style={{ backgroundColor: '#26d3ff22', color: '#26d3ff', border: '1px solid #26d3ff44' }}
+              >
+                {'\u26d3\ufe0f'} {groupCount} groupe{groupCount > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             {/* Zoom controls */}
@@ -1268,6 +1387,23 @@ export default function PianoRoll({
             <span className="text-gray-600 hidden sm:inline">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
           </div>
 
+          {/* Durée de la sélection (même logique que la vélocité) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-400">Dur:</span>
+            <input
+              type="range" min={1} max={64} value={durSnaps}
+              onChange={(e) => applyDuration(parseInt(e.target.value))}
+              onPointerDown={() => {
+                durGestureActiveRef.current = true;
+                durGestureRef.current = snapshotNotes(localNotesRef.current);
+              }}
+              disabled={selectedIds.size === 0}
+              className="w-24 sm:w-24 accent-sky-400 disabled:opacity-30"
+              title={`Durée des notes sélectionnées, en subdivisions de la grille (1/${Math.round(1 / snapUnit)} chacune)`}
+            />
+            <span className="text-gray-300 w-8">{durSnaps}</span>
+          </div>
+
           {/* Presse-papiers + suppression */}
           <div className="flex items-center gap-1.5">
             <span
@@ -1292,6 +1428,22 @@ export default function PianoRoll({
               title="Supprimer la sélection (Suppr)"
             >
               🗑 Supprimer
+            </button>
+            <button
+              onClick={groupSelection}
+              disabled={selectedIds.size < 2}
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+              title="Grouper la sélection : un clic sur une note du groupe sélectionne tout le groupe, déplacer une note déplace tout le groupe"
+            >
+              {'\u26d3\ufe0f'} Grouper
+            </button>
+            <button
+              onClick={ungroupSelection}
+              disabled={selectedIds.size === 0}
+              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+              title="Dégrouper les notes sélectionnées"
+            >
+              {'\u26d3\ufe0f'} Dégrouper
             </button>
           </div>
 
@@ -1382,6 +1534,7 @@ export default function PianoRoll({
               </>
             )}
             <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
+            <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
             <span>{'\ud83d\udd0d'} Ctrl+molette → zoom</span>
           </div>
         </div>

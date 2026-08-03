@@ -16,6 +16,9 @@ export interface PianoNote {
   velocity: number;   // Vélocité (0-127)
   /** true si la note a été modifiée par l'utilisateur (protège du re-seed). */
   edited?: boolean;
+  /** Groupe (grouper/dégrouper) : les notes partageant le même groupId se
+   * sélectionnent et se déplacent ensemble. Absent = note non groupée. */
+  groupId?: string;
 }
 
 // ─── Constantes de rendu ───────────────────────────────────────────────
