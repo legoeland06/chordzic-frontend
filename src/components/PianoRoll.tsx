@@ -177,6 +177,24 @@ export default function PianoRoll({
   /** Barre de défilement horizontale dédiée (mobile). */
   const barRef = useRef<HTMLDivElement>(null);
 
+  // ── Registre auto-couvrant : le registre visible s'étend pour couvrir
+  // TOUTES les notes de la piste (insérées par l'utilisateur ou pré-remplies
+  // automatiquement). Il ne se resserre jamais tout seul — l'utilisateur
+  // garde la main avec les sliders Reg:.
+  useEffect(() => {
+    let mn = userMinPitch, mx = userMaxPitch;
+    let changed = false;
+    for (const n of notes) {
+      if (n.pitch < mn) { mn = n.pitch - 2; changed = true; }
+      if (n.pitch > mx) { mx = n.pitch + 2; changed = true; }
+    }
+    if (!changed) return;
+    mn = Math.max(0, Math.min(mn, userMaxPitch - 12));
+    mx = Math.min(127, Math.max(mx, userMinPitch + 12));
+    if (mn !== userMinPitch) setUserMinPitch(mn);
+    if (mx !== userMaxPitch) setUserMaxPitch(mx);
+  }, [notes, userMinPitch, userMaxPitch]);
+
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
