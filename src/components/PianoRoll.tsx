@@ -115,8 +115,10 @@ export default function PianoRoll({
     9: [35, 81],   // Drums   : plage GM (kick/snare/hihat/cymbales/toms)
   };
   const [defaultMin, defaultMax] = CHANNEL_RANGES[channel] ?? [36, 96];
-  const userMinPitch = minPitch ?? defaultMin;
-  const userMaxPitch = maxPitch ?? defaultMax;
+  // Registre visible : réglable par l'utilisateur (sliders dans la toolbar),
+  // initialisé sur la plage du canal (ou les props explicites du parent).
+  const [userMinPitch, setUserMinPitch] = useState(minPitch ?? defaultMin);
+  const [userMaxPitch, setUserMaxPitch] = useState(maxPitch ?? defaultMax);
 
   // État machine des interactions
   const ctxRef = useRef<InteractionContext>(createEmptyContext());
@@ -1322,6 +1324,26 @@ export default function PianoRoll({
             <button onClick={redo} disabled={!canRedo}
               className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
               title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
+          </div>
+
+          {/* Registre visible : sliders bord bas / bord haut (écart min 1 octave) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-400">Reg:</span>
+            <input
+              type="range" min={0} max={127} value={userMinPitch}
+              onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
+              className="w-14 sm:w-20 accent-blue-500"
+              title="Bord bas du registre visible (plage grave)"
+            />
+            <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMinPitch)}</span>
+            <span className="text-gray-600">→</span>
+            <input
+              type="range" min={0} max={127} value={userMaxPitch}
+              onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
+              className="w-14 sm:w-20 accent-blue-500"
+              title="Bord haut du registre visible (plage aiguë)"
+            />
+            <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMaxPitch)}</span>
           </div>
 
           {/* Raccourcis contextuels (desktop uniquement) */}
