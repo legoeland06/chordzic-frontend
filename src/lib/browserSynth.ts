@@ -208,9 +208,14 @@ export class BrowserSynth {
     }
   }
 
-  /** Joue le buffer courant depuis une position (secondes). */
+  /** Joue le buffer courant depuis une position (secondes).
+   * Reprend le contexte s'il était suspendu (pause précédente) : un source
+   * créé sur un contexte suspendu ne produit aucun son. */
   playBufferFrom(seconds: number, loop: boolean) {
     if (!this._buffer || !this.audioCtx) return;
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
     this.stop();
     const ctx = this.audioCtx;
     const gainNode = ctx.createGain();
