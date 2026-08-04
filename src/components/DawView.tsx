@@ -281,10 +281,29 @@ export default function DawView({
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
   const renderSigRef = useRef('');
 
+  // ── Durée totale à afficher : la grille (input) + les notes, minimum 4 mesures
+  const totalBeats = useMemo(() => {
+    let max = MIN_BEATS;
+    // Durée de la grille d'accords (chaque accord de durée t dure 4/t beats)
+    for (const tok of input.split(/\s+/)) {
+      const m = tok.match(/^(\d+):/);
+      if (m) max = Math.max(max, 4 / parseInt(m[1], 10));
+    }
+    for (const list of Object.values(pianoNotes)) {
+      for (const n of list) max = Math.max(max, n.startTime + n.duration);
+    }
+    return Math.ceil(max);
+  }, [input, pianoNotes]);
+
   // ── Zoom molette des lanes (centré sur le curseur, tête de lecture intacte) ──
   const [lanePpb, setLanePpb] = useState(LANE_PPB);
   const lanePpbRef = useRef(LANE_PPB);
   const lanesScrollRef = useRef<HTMLDivElement>(null);
+
+  /** Ppb minimum pour montrer TOUTE la piste (fit-to-width). */
+  const minPpbFor = (el: HTMLElement) =>
+    Math.max(0.25, (el.clientWidth - TRACK_LABEL_W) / Math.max(1, totalBeats));
+
   useEffect(() => {
     const el = lanesScrollRef.current;
     if (!el) return;
@@ -297,8 +316,10 @@ export default function DawView({
       const contentW = Math.max(el.scrollWidth - TRACK_LABEL_W, 1);
       // Beat pointé par la souris
       const beat = ((xView + el.scrollLeft - TRACK_LABEL_W) * totalBeats) / contentW;
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      const newPpb = Math.min(LANE_ZOOM_MAX, Math.max(LANE_ZOOM_MIN, oldPpb * factor));
+      // Zoom asymétrique : sortie plus rapide (vue d'ensemble) qu'entrée
+      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.35;
+      const minPpb = minPpbFor(el);
+      const newPpb = Math.min(LANE_ZOOM_MAX, Math.max(minPpb, oldPpb * factor));
       if (Math.abs(newPpb - oldPpb) < 0.01) return;
       lanePpbRef.current = newPpb;
       setLanePpb(newPpb);
@@ -313,7 +334,23 @@ export default function DawView({
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
-  }, []);
+  }, [totalBeats]);
+
+  // Re-clamp quand la durée change (grille chargée) ou à la redimension
+  useEffect(() => {
+    const el = lanesScrollRef.current;
+    if (!el) return;
+    const clamp = () => {
+      const minPpb = minPpbFor(el);
+      if (lanePpbRef.current < minPpb) {
+        lanePpbRef.current = minPpb;
+        setLanePpb(minPpb);
+      }
+    };
+    clamp();
+    window.addEventListener('resize', clamp);
+    return () => window.removeEventListener('resize', clamp);
+  }, [totalBeats]);
 
   const contentSig = useMemo(
     () => JSON.stringify({
@@ -323,15 +360,6 @@ export default function DawView({
     }),
     [input, tempo, pianoNotes, tracks],
   );
-
-  // Durée totale à afficher (notes + minimum 4 mesures)
-  const totalBeats = useMemo(() => {
-    let max = MIN_BEATS;
-    for (const list of Object.values(pianoNotes)) {
-      for (const n of list) max = Math.max(max, n.startTime + n.duration);
-    }
-    return Math.ceil(max);
-  }, [pianoNotes]);
 
   // ── Afficheurs (compteurs) ─────────────────────────────────────
   const beatsPerBar = (() => {
