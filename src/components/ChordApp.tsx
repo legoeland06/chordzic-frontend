@@ -437,7 +437,7 @@ export default function ChordApp() {
       setPlaying(false);
       setStatus(`❌ Erreur: ${e.message}`); setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input, browserAudio]);
+  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input, browserAudio, pianoNotes]);
 
   const stop = () => {
     if (engineRef.current) engineRef.current.stop();
