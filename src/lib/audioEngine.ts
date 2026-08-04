@@ -90,11 +90,40 @@ export class AudioEngine {
 
   // ── Méthodes de configuration ──
 
-  /** Modifie la configuration d'une piste et l'envoie au backend. */
+  /**
+   * Modifie la configuration d'une piste et l'envoie au backend.
+   * Si le canal est inconnu (piste ajoutée par l'utilisateur), la piste
+   * est créée dans le moteur (pistes DYNAMIQUES).
+   */
   setTrack(channel: number, config: Partial<TrackConfig>) {
-    const t = this.tracks.find(tc => tc.channel === channel);
-    if (!t) return;
+    let t = this.tracks.find(tc => tc.channel === channel);
+    if (!t) {
+      t = {
+        channel,
+        label: config.label ?? `Piste ${channel}`,
+        program: config.program ?? 0,
+        volume: config.volume ?? 100,
+        mute: config.mute ?? false,
+      };
+      this.tracks.push(t);
+    }
     Object.assign(t, config);
+    this.sendConfig();
+  }
+
+  /** Ajoute une nouvelle piste (canal inconnu) au moteur et l'envoie. */
+  addTrack(track: TrackConfig) {
+    if (this.tracks.some(t => t.channel === track.channel)) {
+      this.setTrack(track.channel, track);
+      return;
+    }
+    this.tracks.push({ ...track });
+    this.sendConfig();
+  }
+
+  /** Supprime une piste du moteur (le backend mute le canal orphelin). */
+  removeTrack(channel: number) {
+    this.tracks = this.tracks.filter(t => t.channel !== channel);
     this.sendConfig();
   }
 

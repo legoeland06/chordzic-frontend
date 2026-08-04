@@ -184,22 +184,34 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
 
           {/* ── Pistes & réglages ── */}
           <Section id="pistes" icon="🎚️" title="Pistes & réglages">
-            <p>5 pistes MIDI, chacune avec son instrument, son volume et son mute :</p>
+            <p>
+              <b className="text-white">Pistes dynamiques</b> : 5 pistes par défaut, mais vous pouvez{' '}
+              <b className="text-white">ajouter</b> (carte <b>➕ Ajouter une piste</b>, canal MIDI libre) ou{' '}
+              <b className="text-white">supprimer</b> (bouton 🗑) des pistes. Le <b className="text-white">nom</b> de
+              chaque piste est <b className="text-white">modifiable</b> (cliquez dessus, Entrée valide, Esc annule)
+              et est sauvegardé avec la grille (Save).
+            </p>
+            <p>Pistes par défaut (canal, instrument GM, rôle dans l'arrangement) :</p>
             <div className="rounded-lg border border-gray-700 overflow-hidden text-xs">
               {[
-                ['🎹 Lead', 'Canal 0', 'Synth Strings 1 (51)', '#60a5fa'],
-                ['🎸 Bass', 'Canal 2', 'Electric Bass finger (33)', '#fbbf24'],
-                ['🎻 Nappes', 'Canal 3', 'String Ensemble 2 (48)', '#c084fc'],
-                ['🥁 Drums', 'Canal 9', 'Kit standard (fixe)', '#f87171'],
-                ['🎹 Accent', 'Canal 4', 'Electric Grand Piano (2)', '#f87171'],
-              ].map(([label, ch, inst, color]) => (
+                ['🎹 Lead', 'Canal 0', 'Synth Strings 1 (51)', '#60a5fa', 'mélodie / pompe skank'],
+                ['🎸 Bass', 'Canal 2', 'Electric Bass finger (33)', '#fbbf24', 'basse (tenue ou walking)'],
+                ['🎻 Nappes', 'Canal 3', 'String Ensemble 2 (48)', '#c084fc', "tenues d'accords"],
+                ['🥁 Drums', 'Canal 9', 'Kit standard (fixe)', '#f87171', 'batterie (pattern)'],
+                ['🎹 Accent', 'Canal 4', 'Electric Grand Piano (2)', '#34d399', 'backbeat 2&4'],
+              ].map(([label, ch, inst, color, role]) => (
                 <div key={ch as string} className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800 last:border-0">
                   <span className="w-20 font-bold" style={{ color: color as string }}>{label}</span>
                   <span className="text-gray-500 w-16">{ch}</span>
-                  <span className="text-gray-400">{inst}</span>
+                  <span className="text-gray-400 w-44">{inst}</span>
+                  <span className="text-gray-500">{role}</span>
                 </div>
               ))}
             </div>
+            <p className="text-xs text-gray-500">
+              💡 Une piste ajoutée n'a pas de rôle automatique : remplissez-la dans son
+              <b> Piano Roll</b> (les notes personnalisées jouent en mode 📱 Navig.).
+            </p>
             <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut." />

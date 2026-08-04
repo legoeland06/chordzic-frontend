@@ -74,6 +74,40 @@ export default function ChordApp() {
     engineRef.current?.setTrack(channel, cfg);
   };
 
+  // ── Pistes dynamiques : ajout / suppression ────────────────────────
+  /** Canaux MIDI proposés pour une nouvelle piste (le 9 est réservé aux drums). */
+  const AVAILABLE_CHANNELS = [1, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+
+  /** Ajoute une nouvelle piste instrument sur le premier canal libre. */
+  const addTrack = () => {
+    const used = new Set(tracks.map(t => t.channel));
+    const ch = AVAILABLE_CHANNELS.find(c => !used.has(c));
+    if (ch === undefined) {
+      setStatus('❌ Tous les canaux MIDI sont utilisés'); setStatusColor('text-red-400');
+      return;
+    }
+    const newTrack: TrackConfig = {
+      channel: ch, label: `Piste ${ch}`, program: 0, volume: 80, mute: false,
+    };
+    setLocalTracks(prev => [...prev, newTrack]);
+    engineRef.current?.addTrack(newTrack);
+    setStatus(`➕ Piste « ${newTrack.label} » ajoutée (canal ${ch})`); setStatusColor('text-blue-400');
+  };
+
+  /** Supprime une piste (UI, moteur, notes du piano roll, backend). */
+  const removeTrack = (channel: number) => {
+    const t = tracks.find(tc => tc.channel === channel);
+    setLocalTracks(prev => prev.filter(tc => tc.channel !== channel));
+    engineRef.current?.removeTrack(channel);
+    setPianoNotes(prev => {
+      const next = { ...prev };
+      delete next[channel];
+      return next;
+    });
+    if (openPianoRoll === channel) setOpenPianoRoll(null);
+    setStatus(`🗑 Piste « ${t?.label ?? channel} » supprimée`); setStatusColor('text-blue-400');
+  };
+
   // ── État : options musicales ─────────────────────────────────────
   const [loopOn, setLoopOn] = useState(false);
   const [walkingBass, setWalkingBass] = useState(false);
@@ -374,7 +408,7 @@ export default function ChordApp() {
       Object.values(pianoNotes).some(notes => notes.length > 0);
     return {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
-      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute })),
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label })),
       pattern: drumPattern, use432Hz: use432,
       ...(hasPianoNotes ? { pianoNotes } : {}),
       ...extra,
@@ -614,6 +648,8 @@ export default function ChordApp() {
             onSetLoop={setLoopOn} onSetWalkingBass={setWalkingBass}
             onSetDrumPattern={setDrumPattern} onSetSig={setSig} onSetTempo={setTempo}
             onUpdateTrack={updateTrack}
+            onAddTrack={addTrack}
+            onRemoveTrack={removeTrack}
             useLoops={useLoops} loopOffset={loopOffset} loopName={loopName}
             availableSamples={availableSamples} loopVolume={loopVolume}
             onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}

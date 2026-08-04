@@ -17,6 +17,48 @@ import { Volume2 } from 'lucide-react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import { getChordColor, ChordData } from '../types/chord';
 
+/** Icône d'une piste selon son canal (les nouveaux canaux → 🎼 partition). */
+const trackIcon = (ch: number) =>
+  ch === 0 ? '🎹' : ch === 2 ? '🎸' : ch === 3 ? '🎻' : ch === 9 ? '🥁' : '🎼';
+
+/** Couleur d'une piste selon son canal (les nouveaux canaux → cyan). */
+const trackColor = (ch: number) =>
+  ch === 0 ? '#60a5fa'
+  : ch === 2 ? '#fbbf24'
+  : ch === 3 ? '#c084fc'
+  : ch === 9 ? '#f87171'
+  : ch === 4 ? '#34d399'
+  : '#26d3ff';
+
+/** Nom de piste ÉDITABLE : commit au blur / Entrée, Esc annule. */
+function TrackLabel({ channel, label, color, onCommit }: {
+  channel: number; label: string; color: string;
+  onCommit: (channel: number, label: string) => void;
+}) {
+  const [val, setVal] = useState(label);
+  React.useEffect(() => { setVal(label); }, [label]);
+  const commit = () => {
+    const v = val.trim();
+    if (v && v !== label) onCommit(channel, v);
+    else setVal(label);
+  };
+  return (
+    <input
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        else if (e.key === 'Escape') { setVal(label); (e.target as HTMLInputElement).blur(); }
+      }}
+      className="bg-transparent text-xs font-bold outline-none border-b border-transparent focus:border-gray-500 w-24 min-w-0 truncate"
+      style={{ color }}
+      title="Cliquer pour renommer la piste (Entrée valide, Esc annule)"
+      spellCheck={false}
+    />
+  );
+}
+
 interface TrackPanelProps {
   chords: ChordData[];
   highlighted: number;
@@ -51,6 +93,10 @@ interface TrackPanelProps {
   loopVolume: number;
   /** Callback pour ouvrir le PianoRoll d'une piste (channel). */
   onOpenPianoRoll?: (channel: number) => void;
+  /** Ajoute une nouvelle piste instrument. */
+  onAddTrack: () => void;
+  /** Supprime une piste (channel). */
+  onRemoveTrack: (channel: number) => void;
 }
 
 export default function TrackPanel({
@@ -61,7 +107,7 @@ export default function TrackPanel({
   loopVolume,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
   onSetUseLoops, onSetLoopOffset, onSetLoopName, onSetLoopVolume,
-  onOpenPianoRoll,
+  onOpenPianoRoll, onAddTrack, onRemoveTrack,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
   // Échantillons disponibles pour le tempo courant
@@ -172,30 +218,21 @@ export default function TrackPanel({
             }`}
           >
             {/* En-tête : icône + label + bouton piano roll + mute */}
-            <div className="flex items-center justify-between mb-1.5">
-              <span
-                className="text-xs font-bold"
-                style={{
-                  color: t.channel === 0 ? '#60a5fa'
-                       : t.channel === 2 ? '#fbbf24'
-                       : t.channel === 3 ? '#c084fc'
-                       : '#f87171',
-                }}
-              >
-                {/* Icônes par type de piste */}
-                {t.channel === 0 ? '\ud83c\udfb9'
-                 : t.channel === 2 ? '\ud83c\udfb8'
-                 : t.channel === 3 ? '\ud83c\udfbb'
-                 : '\ud83e\udd41'} {t.label}
-              </span>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <TrackLabel
+                channel={t.channel}
+                label={t.label}
+                color={trackColor(t.channel)}
+                onCommit={(ch, label) => onUpdateTrack(ch, { label })}
+              />
+              <div className="flex items-center gap-1 shrink-0">
                 {/* Bouton Piano Roll */}
                 <button
                   onClick={() => onOpenPianoRoll?.(t.channel)}
                   className="px-1.5 py-0.5 text-xs rounded font-bold bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-yellow-400 transition-colors"
                   title="Ouvrir le Piano Roll"
                 >
-                  {'\ud83c\udfb9'}
+                  {trackIcon(t.channel)}
                 </button>
                 <button
                   onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
@@ -207,6 +244,13 @@ export default function TrackPanel({
                 >
                   {t.mute ? 'MUTE' : 'On'}
                 </button>
+                <button
+                  onClick={() => onRemoveTrack(t.channel)}
+                  className="text-xs px-1.5 py-0.5 rounded font-bold bg-gray-800 text-gray-500 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+                  title="Supprimer cette piste"
+                >
+                  🗑
+                </button>
               </div>
             </div>
 
@@ -216,11 +260,7 @@ export default function TrackPanel({
                 value={t.program}
                 onChange={e => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
                 className="w-full bg-gray-900 text-xs px-1.5 py-1 rounded border border-gray-700 outline-none mb-1.5"
-                style={{
-                  color: t.channel === 0 ? '#60a5fa'
-                       : t.channel === 2 ? '#fbbf24'
-                       : '#c084fc',
-                }}
+                style={{ color: trackColor(t.channel) }}
               >
                 {AudioEngine.INSTRUMENTS.map((name, i) => (
                   <option key={i} value={i}>{name}</option>
@@ -243,6 +283,15 @@ export default function TrackPanel({
             </div>
           </div>
         ))}
+        {/* Carte « Ajouter une piste » (pistes dynamiques) */}
+        <button
+          onClick={onAddTrack}
+          className="rounded-lg border border-dashed border-gray-700 hover:border-gray-500 hover:bg-gray-800/40 text-gray-500 hover:text-gray-300 text-xs font-bold px-3 py-2 transition-colors flex flex-col items-center justify-center gap-1 min-h-[76px]"
+          title="Ajouter une nouvelle piste instrument (canal MIDI libre)"
+        >
+          <span className="text-lg">➕</span>
+          Ajouter une piste
+        </button>
       </div>
 
       {/* ── Accord en cours + suivant ── */}
