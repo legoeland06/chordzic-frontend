@@ -28,6 +28,23 @@ export interface TrackConfig {
   mute: boolean;      // Mute
 }
 
+/**
+ * Constructeur de piste (factory) — défauts centralisés.
+ * Symétrique de `LiveTrack::new` côté backend.
+ * Toute création de piste DOIT passer par ici (un seul endroit à modifier
+ * si de nouveaux paramètres sont ajoutés à TrackConfig).
+ */
+export function createTrack(channel: number, overrides: Partial<TrackConfig> = {}): TrackConfig {
+  return {
+    channel,
+    label: `Piste ${channel}`,
+    program: 0,
+    volume: 80,
+    mute: false,
+    ...overrides,
+  };
+}
+
 export class AudioEngine {
   private playing = false;
   private playGen = 0;                      // Génération de lecture (évite les conflits)
@@ -98,13 +115,8 @@ export class AudioEngine {
   setTrack(channel: number, config: Partial<TrackConfig>) {
     let t = this.tracks.find(tc => tc.channel === channel);
     if (!t) {
-      t = {
-        channel,
-        label: config.label ?? `Piste ${channel}`,
-        program: config.program ?? 0,
-        volume: config.volume ?? 100,
-        mute: config.mute ?? false,
-      };
+      // Nouvelle piste (canal inconnu) → la construire via la factory
+      t = createTrack(channel, config);
       this.tracks.push(t);
     }
     Object.assign(t, config);

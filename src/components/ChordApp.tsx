@@ -12,7 +12,7 @@ import { Sparkles, Music } from 'lucide-react';
 
 import { parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
-import { AudioEngine, TrackConfig } from '../lib/audioEngine';
+import { AudioEngine, TrackConfig, createTrack } from '../lib/audioEngine';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
@@ -70,9 +70,19 @@ export default function ChordApp() {
   ]);
 
   const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
-    setLocalTracks(prev => prev.map(t => t.channel === channel ? { ...t, ...cfg } : t));
+    setLocalTracks(prev => {
+      if (prev.some(t => t.channel === channel)) {
+        return prev.map(t => t.channel === channel ? { ...t, ...cfg } : t);
+      }
+      // Piste inconnue (ex: grille chargée avec des pistes ajoutées) → l'ajouter
+      return [...prev, createTrack(channel, cfg)];
+    });
     engineRef.current?.setTrack(channel, cfg);
   };
+
+  /** Vrai pendant un chargement de grille : l'auto-config Reggae est suspendue
+   * (elle écraserait les instruments sauvegardés — bug « Load 2 fois »). */
+  const suppressAutoConfigRef = useRef(false);
 
   // ── Pistes dynamiques : ajout / suppression ────────────────────────
   /** Canaux MIDI proposés pour une nouvelle piste (le 9 est réservé aux drums). */
@@ -86,9 +96,7 @@ export default function ChordApp() {
       setStatus('❌ Tous les canaux MIDI sont utilisés'); setStatusColor('text-red-400');
       return;
     }
-    const newTrack: TrackConfig = {
-      channel: ch, label: `Piste ${ch}`, program: 0, volume: 80, mute: false,
-    };
+    const newTrack = createTrack(ch);
     setLocalTracks(prev => [...prev, newTrack]);
     engineRef.current?.addTrack(newTrack);
     setStatus(`➕ Piste « ${newTrack.label} » ajoutée (canal ${ch})`); setStatusColor('text-blue-400');
@@ -298,10 +306,16 @@ export default function ChordApp() {
     const engine = await getEngine();
     if (!engine) return;
 
-    engine.setTrack(0, { program: tracks[0].program, mute: tracks[0].mute });
+    // Lookups par CANAL (les index fixes tracks[i] se décale si une piste
+    // est supprimée — pistes dynamiques).
+    const tLead = tracks.find(t => t.channel === 0);
+    const tBass = tracks.find(t => t.channel === 2);
+    const tStr = tracks.find(t => t.channel === 3);
+    const tDrums = tracks.find(t => t.channel === 9);
+    engine.setTrack(0, { program: tLead?.program ?? 0, mute: tLead?.mute ?? true });
     engine.setWalking(walkingBass); engine.set432Hz(use432); engine.setVolume(volume);
-    engine.setDrums(!tracks[3].mute); engine.setBass(!tracks[1].mute);
-    engine.setArpeggios(!tracks[0].mute); engine.setNappes(!tracks[2].mute);
+    engine.setDrums(!(tDrums?.mute ?? true)); engine.setBass(!(tBass?.mute ?? true));
+    engine.setArpeggios(!(tLead?.mute ?? true)); engine.setNappes(!(tStr?.mute ?? true));
     engine.setPattern(drumPattern); engine.setSig(sig);
     engine.onHighlight((idx) => setHighlighted(idx));
 
@@ -336,10 +350,16 @@ export default function ChordApp() {
     }
     if (chordsToPlay.length === 0) return;
 
-    engine.setTrack(0, { program: tracks[0].program, mute: tracks[0].mute });
+    // Lookups par CANAL (les index fixes tracks[i] se décale si une piste
+    // est supprimée — pistes dynamiques).
+    const tLead = tracks.find(t => t.channel === 0);
+    const tBass = tracks.find(t => t.channel === 2);
+    const tStr = tracks.find(t => t.channel === 3);
+    const tDrums = tracks.find(t => t.channel === 9);
+    engine.setTrack(0, { program: tLead?.program ?? 0, mute: tLead?.mute ?? true });
     engine.setWalking(walkingBass); engine.set432Hz(use432); engine.setVolume(volume);
-    engine.setDrums(!tracks[3].mute); engine.setBass(!tracks[1].mute);
-    engine.setArpeggios(!tracks[0].mute); engine.setNappes(!tracks[2].mute);
+    engine.setDrums(!(tDrums?.mute ?? true)); engine.setBass(!(tBass?.mute ?? true));
+    engine.setArpeggios(!(tLead?.mute ?? true)); engine.setNappes(!(tStr?.mute ?? true));
     engine.setPattern(drumPattern); engine.setSig(sig);
     engine.onHighlight((idx) => setHighlighted(idx));
 
@@ -433,6 +453,8 @@ export default function ChordApp() {
   };
 
   const handleLoad = (entry: GrilleEntry) => {
+    // Les instruments/paramètres sauvegardés ont priorité sur l'auto-config
+    suppressAutoConfigRef.current = true;
     setInput(entry.input); setTempo(entry.tempo); setSig(entry.sig);
     // Restaurer les notes du PianoRoll (ancien format sans le champ → aucune)
     setPianoNotes(entry.pianoNotes ?? {});
@@ -496,6 +518,8 @@ export default function ChordApp() {
       try {
         const data = JSON.parse(ev.target?.result as string);
         if (data.type === 'chordJAVA-grille' && data.input) {
+          // Les instruments/paramètres importés ont priorité sur l'auto-config
+          suppressAutoConfigRef.current = true;
           setInput(data.input); setTempo(data.tempo || 120);
           if (data.sig) setSig(data.sig);
           if (data.tracks) data.tracks.forEach((tc: any) => updateTrack(tc.channel, tc));
@@ -524,13 +548,27 @@ export default function ChordApp() {
 
   // ─── Effets divers ──────────────────────────────────────────────
 
-  useEffect(() => { const t = tracks.find(tc => tc.channel === 9); if (t) engineRef.current?.setDrums(!t.mute); }, [tracks[3].mute]);
-  useEffect(() => { const t = tracks.find(tc => tc.channel === 2); if (t) engineRef.current?.setBass(!t.mute); }, [tracks[1].mute]);
-  useEffect(() => { const t = tracks.find(tc => tc.channel === 0); if (t) engineRef.current?.setArpeggios(!t.mute); }, [tracks[0].mute]);
-  useEffect(() => { const t = tracks.find(tc => tc.channel === 3); if (t) engineRef.current?.setNappes(!t.mute); }, [tracks[2].mute]);
+  // ── Répercussion des mutes de l'UI vers le moteur ────────────────
+  // Dépendances par VALEURS SÛRES (lookup par canal + fallback true) :
+  // les anciennes dépendances tracks[i].mute plantaient quand le tableau
+  // devenait plus court qu'un rôle supprimé.
+  const mute9 = tracks.find(t => t.channel === 9)?.mute ?? true;
+  const mute2 = tracks.find(t => t.channel === 2)?.mute ?? true;
+  const mute0 = tracks.find(t => t.channel === 0)?.mute ?? true;
+  const mute3 = tracks.find(t => t.channel === 3)?.mute ?? true;
+  useEffect(() => { engineRef.current?.setDrums(!mute9); }, [mute9]);
+  useEffect(() => { engineRef.current?.setBass(!mute2); }, [mute2]);
+  useEffect(() => { engineRef.current?.setArpeggios(!mute0); }, [mute0]);
+  useEffect(() => { engineRef.current?.setNappes(!mute3); }, [mute3]);
   useEffect(() => {
-    // Auto-config Reggae : quand on sélectionne le pattern reggae,
-    // les paramètres suivants sont forcés automatiquement.
+    // Auto-config Reggae : quand on sélectionne le pattern reggae, les
+    // paramètres suivants sont forcés automatiquement. Suspendue pendant
+    // un chargement de grille (les instruments sauvegardés ont priorité).
+    if (suppressAutoConfigRef.current) {
+      suppressAutoConfigRef.current = false;
+      engineRef.current?.setPattern(drumPattern);
+      return;
+    }
     if (drumPattern === 'reggae') {
       updateTrack(0, { program: 16, volume: 114 });  // Lead → Drawbar Organ
       updateTrack(4, { program: 4, volume: 114 });   // Accent → Electric Piano 1
