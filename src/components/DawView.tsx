@@ -236,7 +236,7 @@ export default function DawView({
     () => JSON.stringify({
       input, tempo,
       notes: pianoNotes,
-      tracks: tracks.map(t => `${t.channel}:${t.program}:${t.volume}:${t.mute}:${t.label}`),
+      tracks: tracks.map(t => `${t.channel}:${t.program}:${t.volume}:${t.mute}:${t.label}:${JSON.stringify(t.fx ?? FX_ZERO)}`),
     }),
     [input, tempo, pianoNotes, tracks],
   );
@@ -452,7 +452,7 @@ export default function DawView({
           {tracks.map(t => (
             <div
               key={t.channel}
-              className={`shrink-0 w-28 rounded-lg border px-2 pt-2 pb-2 flex flex-col items-center gap-1.5 ${t.mute ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-gray-700 bg-gray-800/50'}`}
+              className={`shrink-0 w-32 rounded-lg border px-2 pt-2 pb-2 flex flex-col items-center gap-1.5 ${t.mute ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-gray-700 bg-gray-800/50'}`}
             >
               {/* Nom éditable */}
               <input
@@ -506,15 +506,15 @@ export default function DawView({
               <div className="w-full flex flex-col gap-0.5 mt-1 pt-1.5 border-t border-gray-800">
                 <span className="text-[8px] text-gray-600 uppercase tracking-widest text-center">FX</span>
                 {([['Rv', 'reverb'], ['Ch', 'chorus'], ['Dl', 'delay'], ['Dr', 'drive']] as const).map(([label, key]) => (
-                  <div key={key} className="flex items-center gap-1">
-                    <span className="text-[8px] text-gray-500 w-4 font-mono">{label}</span>
+                  <div key={key} className="flex items-center gap-1 min-w-0">
+                    <span className="text-[8px] text-gray-500 w-4 shrink-0 font-mono">{label}</span>
                     <input
                       type="range" min={0} max={100} value={t.fx?.[key] ?? 0}
                       onChange={(e) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), [key]: parseInt(e.target.value) } })}
-                      className="flex-1 h-1 accent-[#8f7a4a]"
+                      className="flex-1 min-w-0 h-1 accent-[#8f7a4a]"
                       title={`${label} — appliqué au rendu WAV (mode Navig)`}
                     />
-                    <span className="text-[8px] text-gray-500 w-5 text-right font-mono">{t.fx?.[key] ?? 0}</span>
+                    <span className="text-[8px] text-gray-500 w-4 shrink-0 text-right font-mono">{t.fx?.[key] ?? 0}</span>
                   </div>
                 ))}
               </div>

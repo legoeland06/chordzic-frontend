@@ -221,7 +221,7 @@ export class AudioEngine {
         sig: this.sig,
         master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
-          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
         })),
       });
     } else {
@@ -235,7 +235,7 @@ export class AudioEngine {
             sequence, tempo: this.tempo, sig: this.sig,
             pattern: this.drumPattern, walking: this.walking, loop_enabled: true,
             tracks: this.tracks.map(t => ({
-              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
             })),
           }),
         });
@@ -275,7 +275,7 @@ export class AudioEngine {
         tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
         master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
-          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
         })),
         customNotes,
         customChannels,
@@ -292,7 +292,7 @@ export class AudioEngine {
             sequence, tempo: this.tempo, sig: this.sig,
             pattern: this.drumPattern, walking: this.walking, loop_enabled: loop || false,
             tracks: this.tracks.map(t => ({
-              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
             })),
             custom_notes: customNotes || [],
           }),
@@ -357,7 +357,7 @@ export class AudioEngine {
     return this.browserSynth.getPianoNotes(sequence, this.tempo, {
       tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
       tracks: this.tracks.map(t => ({
-        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
       })),
     });
   }
@@ -383,7 +383,7 @@ export class AudioEngine {
       pattern: this.drumPattern, walking: this.walking, sig: this.sig,
       master_vol: this.masterVol,
       tracks: this.tracks.map(t => ({
-        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
       })),
     });
   }
