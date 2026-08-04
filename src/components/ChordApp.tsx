@@ -21,6 +21,7 @@ import ChordGrid from './ChordGrid';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
+import HelpModal from './HelpModal';
 
 /** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
 const EMPTY_NOTES: PianoNote[] = [];
@@ -154,6 +155,8 @@ export default function ChordApp() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  /** Documentation utilisateur (bouton ❓ du header). */
+  const [showHelp, setShowHelp] = useState(false);
   const [savedGrilles, setSavedGrilles] = useState<GrilleEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -570,7 +573,17 @@ export default function ChordApp() {
               <p className="text-xs text-gray-500">Moteur Harmonique - by Legoeland</p>
             </div>
           </div>
-          <span className={`text-xs font-mono ${statusColor}`}>{status}</span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-mono ${statusColor}`}>{status}</span>
+            {/* Bouton aide : documentation utilisateur intégrée */}
+            <button
+              onClick={() => setShowHelp(true)}
+              className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 border border-gray-700 hover:text-yellow-300 hover:border-gray-500 transition-colors text-sm font-bold shrink-0"
+              title="Aide — documentation utilisateur"
+            >
+              ❓
+            </button>
+          </div>
         </div>
 
         {/* Saisie des accords */}
@@ -686,6 +699,9 @@ export default function ChordApp() {
             />
           );
         })()}
+
+        {/* Aide utilisateur */}
+        <HelpModal show={showHelp} onClose={() => setShowHelp(false)} />
 
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland · Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}

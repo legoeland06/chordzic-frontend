@@ -1,0 +1,306 @@
+/**
+ * HelpModal — documentation utilisateur de chordZIC V2.
+ *
+ * Modal plein écran avec sommaire cliquable et sections détaillées :
+ * démarrage rapide, format des accords, barre de contrôle, pistes,
+ * piano roll, sauvegarde, extraction WAV, boucles drums et dépannage.
+ *
+ * Contenu en dur (JSX) : aucune dépendance externe, cohérent avec le
+ * thème sombre de l'application.
+ */
+import React, { useState } from 'react';
+
+interface HelpModalProps {
+  show: boolean;
+  onClose: () => void;
+}
+
+/** Petite section avec titre + contenu. */
+function Section({ id, icon, title, children }: {
+  id: string; icon: string; title: string; children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="mb-8 scroll-mt-20">
+      <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <span>{icon}</span> {title}
+      </h3>
+      <div className="text-gray-300 text-sm leading-relaxed space-y-2">{children}</div>
+    </section>
+  );
+}
+
+/** Ligne d'un tableau de raccourcis / boutons. */
+function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-3 py-1.5 border-b border-gray-800 last:border-0">
+      <div className="w-36 sm:w-44 shrink-0 font-mono text-yellow-300 text-xs">{k}</div>
+      <div className="text-xs text-gray-400">{v}</div>
+    </div>
+  );
+}
+
+/** Pastille de raccourci clavier. */
+function Key({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-block px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300 font-mono text-[10px]">
+      {children}
+    </span>
+  );
+}
+
+export default function HelpModal({ show, onClose }: HelpModalProps) {
+  const [query, setQuery] = useState('');
+
+  if (!show) return null;
+
+  // Sommaire : sections + mots-clés de recherche
+  const sections = [
+    { id: 'demarrage', icon: '🚀', title: 'Démarrage rapide', keys: 'démarrer jouer premier accord grille' },
+    { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
+    { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
+    { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
+    { id: 'pianoroll', icon: '🎹', title: 'Piano Roll', keys: 'note édition sélection créer déplacer redimensionner snap libre quantiser vélocité durée grouper zoom' },
+    { id: 'raccourcis', icon: '⌨️', title: 'Raccourcis clavier', keys: 'ctrl z y c x v a suppr espace escape annuler copier coller' },
+    { id: 'sauvegarde', icon: '💾', title: 'Sauvegarde & fichiers', keys: 'save load export import json grilles' },
+    { id: 'boucles', icon: '🔁', title: 'Boucles WAV drums', keys: 'boucle échantillon sample offset drums' },
+    { id: 'depannage', icon: '🛠️', title: 'Dépannage', keys: 'pas de son fluidsynth midi muet erreur' },
+  ];
+
+  const filtered = sections.filter(s =>
+    !query.trim() || (s.title + ' ' + s.keys).toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* En-tête */}
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-gray-700 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-lg">❓</span>
+            <h2 className="text-base sm:text-lg font-bold text-white truncate">Aide — chordZic V2</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-sm bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors shrink-0"
+          >
+            ✕ Fermer
+          </button>
+        </div>
+
+        {/* Recherche */}
+        <div className="px-4 sm:px-5 py-2 border-b border-gray-800 shrink-0">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="🔍 Rechercher dans l'aide…"
+            className="w-full bg-gray-800 text-gray-200 text-sm rounded-lg border border-gray-700 px-3 py-1.5 outline-none focus:border-blue-500 placeholder:text-gray-600"
+          />
+        </div>
+
+        {/* Corps scrollable */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          {/* Sommaire */}
+          <nav className="mb-8 flex flex-wrap gap-1.5">
+            {filtered.map(s => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                className="px-2.5 py-1 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-xs hover:bg-gray-700 hover:text-yellow-300 transition-colors"
+              >
+                {s.icon} {s.title}
+              </a>
+            ))}
+            {filtered.length === 0 && (
+              <span className="text-xs text-gray-600">Aucune section ne correspond à « {query} »</span>
+            )}
+          </nav>
+
+          {/* ── Démarrage rapide ── */}
+          <Section id="demarrage" icon="🚀" title="Démarrage rapide">
+            <p>
+              chordZic est un <b className="text-white">moteur harmonique</b> : vous écrivez une grille
+              d'accords, il la joue avec un arrangement automatique complet (lead, basse, nappes,
+              batterie, accent) en temps réel.
+            </p>
+            <ol className="list-decimal list-inside space-y-1.5 text-gray-300">
+              <li>Saisissez vos accords dans la zone de texte (une grille d'exemple est déjà chargée).</li>
+              <li>Cliquez <b className="text-green-400">▶ Jouer</b> pour écouter. <b className="text-red-400">■ Stop</b> arrête.</li>
+              <li>Réglez le <b>Tempo</b>, le <b>Pattern</b> (style de batterie) et la <b>Mesure</b>.</li>
+              <li>Activez <b className="text-purple-400">📱 Navig.</b> pour un rendu WAV du PC, puis <b className="text-amber-400">Extract Wav</b> pour télécharger le fichier.</li>
+              <li>Sauvegardez vos grilles avec <b className="text-emerald-400">Save</b>, retrouvez-les avec <b className="text-cyan-400">Load</b>.</li>
+            </ol>
+            <p className="text-xs text-gray-500">
+              Chaque piste peut être éditée note par note dans le <b>Piano Roll</b> (bouton 🎹 sur la piste).
+            </p>
+          </Section>
+
+          {/* ── Saisie des accords ── */}
+          <Section id="accords" icon="🎼" title="Saisie des accords">
+            <p>Format : <code className="text-yellow-300 bg-gray-800 px-1.5 py-0.5 rounded text-xs">{'durée:Accord'}</code> séparés par des espaces.</p>
+            <div className="bg-gray-800/60 rounded-lg px-3 py-2 font-mono text-xs text-green-300">
+              4:Cm7 2:FM7 4:G7 4:C
+            </div>
+            <Row k="durée" v={<>nombre de <b>temps</b> avant les deux-points (défaut : 4). Un accord de durée <code>2</code> dure 2 temps, soit une blanche en 4/4.</>} />
+            <Row k="fondamentale" v={<>note de <code>A</code> à <code>G</code>, avec dièse <code>#</code> ou bémol <code>b</code> (ex. <code>F#</code>, <code>Bb</code>).</>} />
+            <Row k="qualité" v={<>plus de 70 types : triades (<code>m</code>, <code>dim</code>, <code>sus4</code>…), 7tes (<code>7</code>, <code>m7</code>, <code>M7</code>, <code>7#9</code>…), 9/11/13 (<code>9</code>, <code>m9</code>, <code>13b9</code>…), <code>ø</code>, <code>°</code>, <code>add9</code>… Vide ou inconnu → accord <b>majeur</b>.</>} />
+            <Row k="basse alt." v={<>après <code>/</code> (ex. <code>Cm7/Bb</code>) : la basse joue la note indiquée (octave grave).</>} />
+            <Row k="silence" v={<><code>_</code> (ex. <code>2:_</code>) : vrai silence — aucun instrument ne joue, le tempo continue.</>} />
+            <p className="pt-2">
+              <b className="text-white">Autocomplétion :</b> tapez <code>4:Cm</code> puis <Key>Tab</Key> →
+              menu des qualités (naviguez <Key>↑</Key> <Key>↓</Key>, validez <Key>Tab</Key>/<Key>Enter</Key>, fermez <Key>Esc</Key>).
+              Tapez <code>4:</code> pour proposer le <b>dernier accord tapé</b>.
+            </p>
+            <p>
+              <b className="text-white">Édition :</b> cliquez sur un accord de la grille → modal détail
+              (notes, intervalles, clavier visuel) ; cliquez sur le chiffrage pour le modifier.
+              Glissez les lignes de la grille (↕) pour <b>réordonner</b> les accords (désactivé pendant la lecture).
+            </p>
+          </Section>
+
+          {/* ── Barre de contrôle ── */}
+          <Section id="controles" icon="🎛️" title="Barre de contrôle">
+            <Row k="Analyser" v="Parse immédiatement la grille (l'analyse est sinon automatique ~0,6 s après la frappe)." />
+            <Row k="▶ Jouer" v="Lance la lecture de la grille entière (désactivé si la grille est vide)." />
+            <Row k="■ Stop" v="Arrête la lecture." />
+            <Row k="Extract Wav" v="Télécharge le dernier rendu WAV (mode 📱 Navig.) en fichier .wav." />
+            <Row k="🗑 Effacer" v="Arrête et vide la grille." />
+            <Row k="💾 Save / 📂 Load" v="Sauvegarde / charge une grille sur le serveur (fichier JSON)." />
+            <Row k="📤 / 📥" v="Exporte la grille en fichier JSON / importe un fichier JSON." />
+            <Row k="Tempo" v="Slider 40–220 BPM + champ numérique." />
+          </Section>
+
+          {/* ── Pistes & réglages ── */}
+          <Section id="pistes" icon="🎚️" title="Pistes & réglages">
+            <p>5 pistes MIDI, chacune avec son instrument, son volume et son mute :</p>
+            <div className="rounded-lg border border-gray-700 overflow-hidden text-xs">
+              {[
+                ['🎹 Lead', 'Canal 0', 'Synth Strings 1 (51)', '#60a5fa'],
+                ['🎸 Bass', 'Canal 2', 'Electric Bass finger (33)', '#fbbf24'],
+                ['🎻 Nappes', 'Canal 3', 'String Ensemble 2 (48)', '#c084fc'],
+                ['🥁 Drums', 'Canal 9', 'Kit standard (fixe)', '#f87171'],
+                ['🎹 Accent', 'Canal 4', 'Electric Grand Piano (2)', '#f87171'],
+              ].map(([label, ch, inst, color]) => (
+                <div key={ch as string} className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800 last:border-0">
+                  <span className="w-20 font-bold" style={{ color: color as string }}>{label}</span>
+                  <span className="text-gray-500 w-16">{ch}</span>
+                  <span className="text-gray-400">{inst}</span>
+                </div>
+              ))}
+            </div>
+            <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
+            <Row k="Vol:" v="Volume master (10–127)." />
+            <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut." />
+            <Row k="📱 Navig." v="Mode navigateur : le PC synthétise un WAV complet (rendu plus fidèle) au lieu du MIDI temps réel. Permet « Extract Wav »." />
+            <Row k="🔁 Loop" v="Répète la grille en boucle (désactivé pendant la lecture)." />
+            <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue." />
+            <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz." />
+            <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
+            <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique)." />
+            <p className="text-xs text-gray-500">
+              💡 Choisir le pattern <b>Reggae</b> applique automatiquement une configuration
+              complète (orgue drawbar, piano électrique, basse acoustique, nappes piano, loop activé).
+            </p>
+          </Section>
+
+          {/* ── Piano Roll ── */}
+          <Section id="pianoroll" icon="🎹" title="Piano Roll">
+            <p>
+              Ouvert par le bouton <b>🎹</b> d'une piste. Les notes que jouerait le mode classique y sont
+              <b> pré-remplies automatiquement</b> ; vos modifications ne sont jamais écrasées.
+            </p>
+            <p className="font-bold text-white mt-3">Mode ✏️ Édition (défaut)</p>
+            <Row k="Clic sur le vide" v="Crée une note (audition immédiate). Glisser ajuste la durée." />
+            <Row k="Drag sur une note" v="La déplace (le curseur devient une main)." />
+            <Row k="Bord droit (↔)" v="Redimensionne la note (le curseur devient une flèche bidirectionnelle)." />
+            <Row k="Double-clic" v="Supprime la note." />
+            <Row k="Clic simple" v="Sélectionne la note et la joue instantanément." />
+            <p className="font-bold text-white mt-3">Mode 🖱 Sélection</p>
+            <Row k="Clic" v="Sélectionne (⇧+clic : ajoute/retire)." />
+            <Row k="Drag sur le vide" v="Rectangle de sélection (marquee jaune)." />
+            <Row k="Drag sur une note" v="Déplace toute la sélection." />
+            <p className="font-bold text-white mt-3">Outils de la barre</p>
+            <Row k="🧲 Snap / ✋ Libre" v="Snap magnétique sur la grille, ou placement 100 % libre (positions et durées)." />
+            <Row k="Snap: 1/16…" v="Subdivision de la grille : 1/32 → 1/1 ; 1/12, 1/6, 1/3 = triolets ; 1/24, 1/18 = sextolets." />
+            <Row k="🎯 Quantiser" v="Aligne début ET fin des notes sélectionnées (ou toutes) sur la grille." />
+            <Row k="Vel:" v="Vélocité (1–127) des notes sélectionnées." />
+            <Row k="Dur:" v="Durée en subdivisions de grille des notes sélectionnées." />
+            <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers interne ; le collage se fait à l'endroit du dernier clic." />
+            <Row k="⛓ Grouper / Dégrouper" v="Les notes groupées se sélectionnent et se déplacent ensemble (le bord droit reste individuel)." />
+            <Row k="↩ Annuler / ↪ Rétablir" v="Historique de 100 gestes." />
+            <Row k="− / + (zoom)" v="Zoom horizontal 25–400 % (ou Ctrl+molette ; Shift+molette = défilement)." />
+            <Row k="Reg:" v="Registre visible (plage de notes affichée) ; s'étend automatiquement pour couvrir les notes." />
+            <Row k="▶ Lecture" v="Écoute la piste seule (rendu WAV du canal) avec curseur rouge ; Espace = lecture/pause." />
+            <p className="text-xs text-gray-500">
+              📱 Tactile : pincer pour zoomer, double-tap sur une note = supprimer, barre de défilement en bas.
+            </p>
+          </Section>
+
+          {/* ── Raccourcis clavier ── */}
+          <Section id="raccourcis" icon="⌨️" title="Raccourcis clavier">
+            <p className="text-xs text-gray-500">(Piano Roll ouvert — les raccourcis ⌘ fonctionnent aussi sur Mac)</p>
+            <Row k={<><Key>Ctrl</Key>+<Key>Z</Key></>} v="Annuler" />
+            <Row k={<><Key>Ctrl</Key>+<Key>Shift</Key>+<Key>Z</Key> / <Key>Ctrl</Key>+<Key>Y</Key></>} v="Rétablir" />
+            <Row k={<><Key>Ctrl</Key>+<Key>C</Key> / <Key>X</Key> / <Key>V</Key></>} v="Copier / Couper / Coller" />
+            <Row k={<><Key>Ctrl</Key>+<Key>A</Key></>} v="Tout sélectionner" />
+            <Row k={<><Key>Delete</Key> / <Key>Backspace</Key></>} v="Supprimer la sélection" />
+            <Row k={<Key>Espace</Key>} v="Lecture / pause de la piste (hors saisie)" />
+            <Row k={<Key>Esc</Key>} v="Fermer le piano roll" />
+            <Row k={<><Key>Ctrl</Key>+molette</>} v="Zoom horizontal" />
+            <Row k={<><Key>Shift</Key>+molette</>} v="Défilement horizontal" />
+          </Section>
+
+          {/* ── Sauvegarde & fichiers ── */}
+          <Section id="sauvegarde" icon="💾" title="Sauvegarde & fichiers">
+            <p>
+              <b className="text-white">Save / Load</b> utilisent le serveur : les grilles sont stockées en
+              fichiers JSON dans <code className="text-gray-400">~/ChordZIC/grilles/</code> (nom, tempo, mesure,
+              pistes, pattern, 432 Hz et notes du piano roll).
+            </p>
+            <p>
+              <b className="text-white">📤 Export</b> télécharge un fichier <code className="text-gray-400">.json</code>
+              autonome ; <b className="text-white">📥 Import</b> le relit (les anciens formats sont convertis automatiquement).
+            </p>
+            <p>
+              <b className="text-white">Extract Wav</b> : en mode <b className="text-purple-400">📱 Navig.</b>, lancez une
+              lecture puis cliquez — le WAV rendu est téléchargé (nom = début de grille + horodatage).
+            </p>
+          </Section>
+
+          {/* ── Boucles WAV drums ── */}
+          <Section id="boucles" icon="🔁" title="Boucles WAV drums">
+            <p>
+              Si des échantillons existent pour le tempo courant dans{' '}
+              <code className="text-gray-400">~/samples/drums/</code>, une section « boucle » apparaît :
+              volume, toggle <b>🎵 Boucle</b>, choix du fichier et <b>offset en millisecondes</b> (calage fin de la boucle).
+            </p>
+            <p className="text-xs text-gray-500">
+              La boucle est jouée en parallèle de l'arrangement MIDI. Sans échantillon pour ce tempo :
+              « Aucune boucle pour {`{tempo}`} bpm dans ~/samples/drums/ ».
+            </p>
+          </Section>
+
+          {/* ── Dépannage ── */}
+          <Section id="depannage" icon="🛠️" title="Dépannage">
+            <Row k="Pas de son ?" v="Vérifiez que le synthétiseur FluidSynth tourne et que la sortie MIDI est sur FluidSynth (ou Roland). Le backend se reconnecte automatiquement si FluidSynth redémarre." />
+            <Row k="Mode 📱 Navig. muet" v="Relancez la lecture : le WAV est re-synthétisé à chaque lecture. Puis « Extract Wav » pour récupérer le fichier." />
+            <Row k="« ❌ Erreur: … »" v="Le serveur a refusé la demande (séquence vide, etc.) — relisez le message affiché dans la ligne de statut." />
+            <Row k="Save échoue" v="« Sauvegarde impossible (serveur injoignable) » : le serveur :4000 doit être accessible." />
+            <Row k="Boucles absentes" v="Ajoutez des fichiers .wav nommés par tempo (ex. snap_120.wav) dans ~/samples/drums/." />
+            <Row k="Registre piano roll" v="S'il s'étend tout seul, resserrez-le avec les sliders Reg: (écart min. 1 octave)." />
+          </Section>
+
+          <p className="text-center text-[10px] text-gray-600 pt-4">
+            chordZIC V2 · Moteur Harmonique · by Legoeland — documentation intégrée
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
