@@ -26,7 +26,20 @@ export interface TrackConfig {
   program: number;    // Instrument GM (0-127)
   volume: number;     // Volume (0-127)
   mute: boolean;      // Mute
+  /** Effets de piste (0-100 chacun), appliqués au rendu WAV (mode Navig). */
+  fx?: TrackFx;
 }
+
+/** Effets d'une piste : reverb / chorus / delay / overdrive (0-100). */
+export interface TrackFx {
+  reverb: number;
+  chorus: number;
+  delay: number;
+  drive: number;
+}
+
+/** Effets neutres (tout à 0). */
+export const FX_ZERO: TrackFx = { reverb: 0, chorus: 0, delay: 0, drive: 0 };
 
 /**
  * Constructeur de piste (factory) — défauts centralisés.
@@ -41,6 +54,7 @@ export function createTrack(channel: number, overrides: Partial<TrackConfig> = {
     program: 0,
     volume: 80,
     mute: false,
+    fx: { ...FX_ZERO },
     ...overrides,
   };
 }
@@ -156,6 +170,7 @@ export class AudioEngine {
       body: JSON.stringify({
         tracks: this.tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+          effects: t.fx ?? FX_ZERO,
         })),
         pattern: this.drumPattern,
         walking: this.walking,

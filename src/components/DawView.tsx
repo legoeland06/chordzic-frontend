@@ -14,7 +14,7 @@
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor } from 'lucide-react';
-import { AudioEngine, TrackConfig } from '../lib/audioEngine';
+import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
@@ -501,6 +501,22 @@ export default function DawView({
                 >
                   🗑
                 </button>
+              </div>
+              {/* Modules d'effets (appliqués avant le rendu WAV) */}
+              <div className="w-full flex flex-col gap-0.5 mt-1 pt-1.5 border-t border-gray-800">
+                <span className="text-[8px] text-gray-600 uppercase tracking-widest text-center">FX</span>
+                {([['Rv', 'reverb'], ['Ch', 'chorus'], ['Dl', 'delay'], ['Dr', 'drive']] as const).map(([label, key]) => (
+                  <div key={key} className="flex items-center gap-1">
+                    <span className="text-[8px] text-gray-500 w-4 font-mono">{label}</span>
+                    <input
+                      type="range" min={0} max={100} value={t.fx?.[key] ?? 0}
+                      onChange={(e) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), [key]: parseInt(e.target.value) } })}
+                      className="flex-1 h-1 accent-[#8f7a4a]"
+                      title={`${label} — appliqué au rendu WAV (mode Navig)`}
+                    />
+                    <span className="text-[8px] text-gray-500 w-5 text-right font-mono">{t.fx?.[key] ?? 0}</span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

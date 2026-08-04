@@ -12,7 +12,7 @@ import { Sparkles, Music } from 'lucide-react';
 
 import { parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
-import { AudioEngine, TrackConfig, createTrack } from '../lib/audioEngine';
+import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
@@ -475,7 +475,7 @@ export default function ChordApp() {
       Object.values(pianoNotes).some(notes => notes.length > 0);
     return {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
-      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label })),
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
       ...(hasPianoNotes ? { pianoNotes } : {}),
       ...extra,

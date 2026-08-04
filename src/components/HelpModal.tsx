@@ -231,6 +231,18 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               par piste avec <b>nom modifiable</b>, <b>instrument</b>, <b>fader de volume</b> et <b>MUTE</b> —
               plus la carte <b>➕ Piste</b> pour ajouter un instrument.
             </p>
+            <p className="font-bold text-white mt-2">Modules d'effets (FX) par piste</p>
+            <p>
+              Chaque piste possède 4 potards d'effets (<b>Rv</b> reverb, <b>Ch</b> chorus, <b>Dl</b> delay,
+              <b>Dr</b> overdrive, 0-100). Ils sont appliqués <b className="text-white">avant le mixage final</b> :
+              chaque piste est rendue séparément, passe dans sa chaîne d'effets
+              (overdrive → delay → chorus → reverb), puis les pistes sont mixées. Réglés à 0 (défaut),
+              le rendu reste le rendu classique rapide. Sauvegardés avec la grille (Save).
+            </p>
+            <p className="text-xs text-gray-500">
+              💡 Reverb/Chorus sont aussi audibles en mode Live (envoyés au synthé via CC91/93) ;
+              delay et overdrive ne s'entendent qu'au rendu WAV (mode 📱 Navig.).
+            </p>
             <p>
               En dessous, chaque piste est affichée <b className="text-white">horizontalement</b> (une ligne par
               piste, comme dans un DAW) avec ses notes en petits rectangles (position, durée, hauteur = note).
