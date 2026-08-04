@@ -2,19 +2,17 @@
  * DawView — vue « table de mixage + pistes » du mode Navigateur (📱 Navig.).
  *
  * Layout type DAW, destiné au travail sur les pistes instrument :
- * - Barre de transport en haut (lecture, extraction WAV, loop, tempo,
- *   save/load, retour mode Live, aide)
+ * - Barre de transport complète : ▶ Play / ⏸ Pause / ■ Stop / ⏮ Begin
  * - TABLE DE MIXAGE : une colonne par piste (nom éditable, instrument,
  *   fader de volume, mute) — remplace le champ texte des accords
- * - PISTES HORIZONTALES : une ligne par piste, notes dessinées en petits
- *   rectangles (canvas), positionnées par temps et hauteur de note —
- *   comme dans un DAW. Clic sur une piste → ouvre son Piano Roll.
- *
- * Les contrôles liés à l'arrangement automatique (pattern, WB, 432Hz,
- * grille d'accords) sont volontairement absents : en mode Navig,
- * l'utilisateur travaille sur SES notes.
+ * - PISTES HORIZONTALES : une ligne par piste, notes en petits rectangles
+ *   (canvas). Fines par défaut, agrandissables/rétrécissables au chevron.
+ *   Clic sur la ligne (canvas) = déplacer la tête de lecture (scrub).
+ *   Clic sur l'étiquette = ouvrir le Piano Roll de la piste.
+ * - LIGNE VERTICALE de lecture qui court pendant la lecture, se fige à la
+ *   pause, et se déplace au clic.
  */
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -22,10 +20,10 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 
 /** Pixels par beat dans les lanes (zoom lecture compact, notes en pixels). */
 const LANE_PPB = 24;
-/** Hauteur d'un demi-ton dans une lane. */
+/** Pixels par demi-ton quand une lane est agrandie. */
 const PITCH_PX = 6;
-/** Hauteur minimale d'une lane. */
-const LANE_MIN_HEIGHT = 48;
+/** Hauteur d'une lane fine (défaut). */
+const LANE_COMPACT_H = 26;
 /** Durée minimale affichée (beats). */
 const MIN_BEATS = 16;
 
@@ -51,12 +49,14 @@ interface DawViewProps {
   hasWav: boolean;
   tempo: number;
   loopOn: boolean;
-  onPlay: () => void;
+  input: string;                        // signature du contenu (re-rendu si modifié)
+  engine: AudioEngine;                  // lecture / pause / seek
+  onPlay: () => void;                   // rend le WAV + joue depuis 0 (via ChordApp)
   onStop: () => void;
   onExtractWav: () => void;
   onTempoChange: (t: number) => void;
   onSetLoop: (v: boolean) => void;
-  onSetLive: () => void;               // revenir au mode Live
+  onSetLive: () => void;
   onSave: () => void;
   onLoad: () => void;
   onExport: () => void;
@@ -71,18 +71,20 @@ interface DawViewProps {
 // ─── Lane : une piste horizontale avec ses notes (canvas) ─────────────
 
 function TrackLane({
-  track, notes, totalBeats,
-  onClick,
+  track, notes, totalBeats, posBeats, compact, onScrub, onOpenPianoRoll,
 }: {
   track: TrackConfig;
   notes: PianoNote[];
   totalBeats: number;
-  onClick: () => void;
+  posBeats: number;
+  compact: boolean;
+  onScrub: (beats: number) => void;
+  onOpenPianoRoll: (channel: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const color = trackColor(track.channel);
 
-  // Plage de pitch visible : couvre toutes les notes (ou plage par défaut)
+  // Plage de pitch (utilisée seulement en vue agrandie)
   const { minPitch, maxPitch } = useMemo(() => {
     if (notes.length === 0) return { minPitch: 36, maxPitch: 96 };
     let mn = 127, mx = 0;
@@ -90,73 +92,107 @@ function TrackLane({
     return { minPitch: Math.max(0, mn - 2), maxPitch: Math.min(127, mx + 2) };
   }, [notes]);
 
-  const laneHeight = Math.max(LANE_MIN_HEIGHT, (maxPitch - minPitch + 1) * PITCH_PX);
+  const laneHeight = compact ? LANE_COMPACT_H : Math.max(48, (maxPitch - minPitch + 1) * PITCH_PX);
   const canvasW = Math.max(totalBeats * LANE_PPB, 200);
-  const canvasH = laneHeight;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = canvasW * dpr;
-    canvas.height = canvasH * dpr;
+    canvas.height = laneHeight * dpr;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
     // Fond
     ctx.fillStyle = '#14141d';
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    ctx.fillRect(0, 0, canvasW, laneHeight);
 
-    // Lignes de temps (tous les 4 temps = mesure)
-    ctx.strokeStyle = '#2a2b3e';
-    ctx.lineWidth = 1;
+    // Lignes de temps (mesures) + numéros
     for (let beat = 0; beat <= totalBeats; beat++) {
       const x = beat * LANE_PPB;
       ctx.strokeStyle = beat % 4 === 0 ? '#333455' : '#222233';
+      ctx.lineWidth = beat % 4 === 0 ? 1 : 0.5;
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvasH);
+      ctx.lineTo(x, laneHeight);
       ctx.stroke();
-      if (beat % 4 === 0) {
+      if (beat % 4 === 0 && !compact) {
         ctx.fillStyle = '#4a4b6e';
         ctx.font = '8px monospace';
         ctx.fillText(`${beat / 4 + 1}`, x + 2, 10);
       }
     }
 
-    // Lignes de pitch (Do = plus clair)
-    for (let p = minPitch; p <= maxPitch; p++) {
-      const y = (maxPitch - p) * PITCH_PX + PITCH_PX - 0.5;
-      ctx.strokeStyle = p % 12 === 0 ? '#2d2d4a' : '#1d1d2c';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvasW, y);
-      ctx.stroke();
+    // Lignes de pitch (vue agrandie uniquement)
+    if (!compact) {
+      for (let p = minPitch; p <= maxPitch; p++) {
+        const y = (maxPitch - p) * PITCH_PX + PITCH_PX - 0.5;
+        ctx.strokeStyle = p % 12 === 0 ? '#2d2d4a' : '#1d1d2c';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvasW, y);
+        ctx.stroke();
+      }
     }
 
     // Notes (petits rectangles)
     for (const n of notes) {
       const x = n.startTime * LANE_PPB;
       const w = Math.max(2, n.duration * LANE_PPB);
-      const y = (maxPitch - n.pitch) * PITCH_PX;
-      const h = PITCH_PX - 1;
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.45 + (n.velocity / 127) * 0.55;
-      ctx.fillRect(x, y, w, h);
-      ctx.globalAlpha = 1;
+      if (compact) {
+        // Vue fine : bande unique, pixels centrés
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.5 + (n.velocity / 127) * 0.5;
+        ctx.fillRect(x, 2, w, laneHeight - 4);
+        ctx.globalAlpha = 1;
+      } else {
+        const y = (maxPitch - n.pitch) * PITCH_PX;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.45 + (n.velocity / 127) * 0.55;
+        ctx.fillRect(x, y, w, PITCH_PX - 1);
+        ctx.globalAlpha = 1;
+      }
     }
-  }, [notes, color, canvasW, canvasH, minPitch, maxPitch, totalBeats]);
+
+    // Ligne de lecture verticale (rouge, pleine hauteur)
+    const px = posBeats * LANE_PPB;
+    if (px >= 0 && px <= canvasW) {
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, laneHeight);
+      ctx.stroke();
+      // Repère triangulaire en haut
+      ctx.fillStyle = '#f87171';
+      ctx.beginPath();
+      ctx.moveTo(px - 4, 0);
+      ctx.lineTo(px + 4, 0);
+      ctx.lineTo(px, 6);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }, [notes, color, canvasW, laneHeight, minPitch, maxPitch, totalBeats, posBeats, compact]);
+
+  /** Clic sur le canvas → déplacer la tête de lecture (scrub). */
+  const handleScrub = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    const beats = Math.max(0, ((e.clientX - rect.left) / rect.width) * totalBeats);
+    onScrub(beats);
+  };
 
   return (
-    <div
-      className="flex items-stretch gap-2 py-1 group cursor-pointer"
-      onClick={onClick}
-      title={`Ouvrir le Piano Roll de ${track.label}`}
-    >
-      {/* Étiquette piste (fixe à gauche) */}
-      <div className="w-32 shrink-0 flex flex-col justify-center pl-1">
+    <div className="flex items-stretch gap-2 py-0.5 group">
+      {/* Étiquette piste (clic → Piano Roll) */}
+      <div
+        className="w-32 shrink-0 flex flex-col justify-center pl-1 cursor-pointer hover:opacity-80"
+        onClick={() => onOpenPianoRoll(track.channel)}
+        title={`Ouvrir le Piano Roll de ${track.label}`}
+      >
         <span className="text-xs font-bold truncate" style={{ color }}>
           {trackIcon(track.channel)} {track.label}
         </span>
@@ -164,11 +200,13 @@ function TrackLane({
           {notes.length} note{notes.length > 1 ? 's' : ''} · {track.mute ? 'MUTE' : 'On'}
         </span>
       </div>
-      {/* Canvas des notes */}
-      <div className="flex-1 overflow-hidden rounded border border-gray-800 group-hover:border-gray-600 transition-colors">
+      {/* Canvas des notes (clic = déplacer la tête de lecture) */}
+      <div className="flex-1 overflow-hidden rounded border border-gray-800 group-hover:border-gray-600 transition-colors relative">
         <canvas
           ref={canvasRef}
-          style={{ width: '100%', height: canvasH, display: 'block' }}
+          style={{ width: '100%', height: laneHeight, display: 'block', cursor: 'copy', touchAction: 'none' }}
+          onPointerDown={handleScrub}
+          title="Cliquer : déplacer la tête de lecture"
         />
       </div>
     </div>
@@ -178,12 +216,30 @@ function TrackLane({
 // ─── Composant principal ───────────────────────────────────────────────
 
 export default function DawView({
-  tracks, pianoNotes, playing, hasWav, tempo, loopOn,
+  tracks, pianoNotes, playing, hasWav, tempo, loopOn, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport,
   onAddTrack, onRemoveTrack, onUpdateTrack, onOpenPianoRoll, onHelp,
 }: DawViewProps) {
-  // Durée totale à afficher (notes + grille, minimum 4 mesures)
+  // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
+  type PlayState = 'idle' | 'playing' | 'paused';
+  const [playState, setPlayState] = useState<PlayState>('idle');
+  const [posBeats, setPosBeats] = useState(0);
+  /** Canaux dont la lane est agrandie (défaut : fines). */
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
+  const renderSigRef = useRef('');
+
+  const sig = useMemo(
+    () => JSON.stringify({
+      input, tempo,
+      notes: pianoNotes,
+      tracks: tracks.map(t => `${t.channel}:${t.program}:${t.volume}:${t.mute}:${t.label}`),
+    }),
+    [input, tempo, pianoNotes, tracks],
+  );
+
+  // Durée totale à afficher (notes + minimum 4 mesures)
   const totalBeats = useMemo(() => {
     let max = MIN_BEATS;
     for (const list of Object.values(pianoNotes)) {
@@ -192,24 +248,121 @@ export default function DawView({
     return Math.ceil(max);
   }, [pianoNotes]);
 
+  const doStop = useCallback(() => {
+    engine.stop();
+    setPlayState('idle');
+    setPosBeats(0);
+  }, [engine]);
+
+  const doBegin = useCallback(() => {
+    engine.stop();
+    setPlayState('idle');
+    setPosBeats(0);
+  }, [engine]);
+
+  const doPlay = useCallback(() => {
+    if (playState === 'paused') {
+      engine.resumePianoRoll();
+      setPlayState('playing');
+      return;
+    }
+    if (sig !== renderSigRef.current) {
+      // Contenu modifié → re-rendre le WAV (joue depuis 0)
+      renderSigRef.current = sig;
+      setPosBeats(0);
+      onPlay();
+    } else {
+      // Buffer déjà rendu → jouer depuis la position de la tête
+      engine.playNavigFrom((posBeats * 60) / tempo, loopOn);
+    }
+    setPlayState('playing');
+  }, [playState, sig, engine, onPlay, posBeats, tempo, loopOn]);
+
+  const doPause = useCallback(() => {
+    engine.pausePianoRoll();
+    setPlayState('paused');
+  }, [engine]);
+
+  /** Scrub : clic sur une lane → déplace la tête (lecture, pause ou arrêt). */
+  const doScrub = useCallback((beats: number) => {
+    setPosBeats(beats);
+    if (playState === 'playing' || playState === 'paused') {
+      engine.seekNavig((beats * 60) / tempo);
+    }
+  }, [playState, engine, tempo]);
+
+  // Ticker : position de lecture → ligne verticale (+ détection de fin)
+  const doStopRef = useRef(doStop);
+  doStopRef.current = doStop;
+  useEffect(() => {
+    if (playState !== 'playing') return;
+    const id = setInterval(() => {
+      const raw = engine.getPianoRollPositionRaw();
+      const dur = engine.getPianoRollDuration();
+      if (raw < 0 || dur <= 0) return;
+      if (raw >= dur - 0.05) {
+        // Fin naturelle du buffer (hors boucle)
+        if (!loopOn) { doStopRef.current(); return; }
+        setPosBeats(((raw % dur) * tempo) / 60);
+        return;
+      }
+      setPosBeats((raw * tempo) / 60);
+    }, 40);
+    return () => clearInterval(id);
+  }, [playState, engine, tempo, loopOn]);
+
+  // Quand ChordApp arrête la lecture (stop externe, édition…)
+  useEffect(() => {
+    if (!playing && playState !== 'idle') {
+      setPlayState('idle');
+      setPosBeats(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
+
+  const toggleExpanded = (ch: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(ch)) next.delete(ch); else next.add(ch);
+      return next;
+    });
+  };
+
   const btn = 'px-3 py-2 text-xs font-bold rounded-lg border transition-colors shrink-0';
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3">
-      {/* ── Barre de transport ── */}
+      {/* ── Barre de transport (play / pause / stop / begin) ── */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3 pb-3 border-b border-gray-800">
         <button
-          onClick={onPlay}
-          disabled={playing}
-          className={`${btn} bg-green-700 hover:bg-green-600 disabled:bg-gray-800 disabled:text-gray-600 text-white`}
+          onClick={doPlay}
+          disabled={playState === 'playing'}
+          className={`${btn} ${playState === 'paused' ? 'bg-amber-800 hover:bg-amber-700 text-white' : 'bg-green-700 hover:bg-green-600 disabled:bg-gray-800 disabled:text-gray-600 text-white'}`}
+          title={playState === 'paused' ? 'Reprendre la lecture' : 'Lire depuis la tête de lecture'}
         >
-          ▶ Jouer
+          {playState === 'paused' ? '▶ Reprendre' : '▶ Play'}
         </button>
         <button
-          onClick={onStop}
+          onClick={doPause}
+          disabled={playState !== 'playing'}
+          className={`${btn} bg-gray-800 text-yellow-300 hover:bg-gray-700 disabled:opacity-30`}
+          title="Pause (la tête de lecture se fige)"
+        >
+          ⏸ Pause
+        </button>
+        <button
+          onClick={doStop}
           className={`${btn} bg-red-800 hover:bg-red-700 text-white`}
+          title="Arrêter et revenir au début"
         >
           ■ Stop
+        </button>
+        <button
+          onClick={doBegin}
+          className={`${btn} bg-gray-800 text-gray-300 hover:bg-gray-700`}
+          title="Revenir au début (tête de lecture à 0)"
+        >
+          ⏮ Begin
         </button>
         <button
           onClick={onExtractWav}
@@ -221,7 +374,7 @@ export default function DawView({
         </button>
         <button
           onClick={() => onSetLoop(!loopOn)}
-          disabled={playing}
+          disabled={playState === 'playing'}
           className={`${btn} ${loopOn ? 'bg-purple-900/40 border-purple-500 text-purple-400' : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'}`}
         >
           🔁 Loop
@@ -327,18 +480,38 @@ export default function DawView({
 
       {/* ── Pistes horizontales (lanes) ── */}
       <div>
-        <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">🎹 Pistes — cliquer pour ouvrir le Piano Roll</div>
+        <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 flex items-center gap-2">
+          <span>🎹 Pistes</span>
+          <span className="text-gray-700 normal-case">— clic sur la piste : tête de lecture · clic sur le nom : Piano Roll · chevron : hauteur</span>
+        </div>
         <div className="overflow-x-auto">
           <div style={{ minWidth: '100%' }}>
-            {tracks.map(t => (
-              <TrackLane
-                key={t.channel}
-                track={t}
-                notes={pianoNotes[t.channel] ?? []}
-                totalBeats={totalBeats}
-                onClick={() => onOpenPianoRoll(t.channel)}
-              />
-            ))}
+            {tracks.map(t => {
+              const isExpanded = expanded.has(t.channel);
+              return (
+                <div key={t.channel} className="flex items-center gap-1.5">
+                  {/* Chevron agrandir/rétrécir */}
+                  <button
+                    onClick={() => toggleExpanded(t.channel)}
+                    className="w-5 h-5 shrink-0 text-[10px] text-gray-500 hover:text-yellow-300 rounded"
+                    title={isExpanded ? 'Rétrécir la piste' : 'Agrandir la piste'}
+                  >
+                    {isExpanded ? '▼' : '▶'}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <TrackLane
+                      track={t}
+                      notes={pianoNotes[t.channel] ?? []}
+                      totalBeats={totalBeats}
+                      posBeats={posBeats}
+                      compact={!isExpanded}
+                      onScrub={doScrub}
+                      onOpenPianoRoll={onOpenPianoRoll}
+                    />
+                  </div>
+                </div>
+              );
+            })}
             {tracks.length === 0 && (
               <div className="text-center text-gray-600 text-xs py-8">
                 Aucune piste — utilisez « ➕ Piste » pour en créer une.

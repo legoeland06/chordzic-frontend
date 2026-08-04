@@ -234,10 +234,18 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               En dessous, chaque piste est affichée <b className="text-white">horizontalement</b> (une ligne par
               piste, comme dans un DAW) avec ses notes en petits rectangles (position, durée, hauteur = note).
-              Un <b className="text-white">clic sur une piste</b> ouvre son Piano Roll pour l'éditer en détail.
+              Les pistes sont <b className="text-white">fines par défaut</b> ; le <b className="text-white">chevron ▶/▼</b> à gauche
+              les agrandit (hauteur = notes, comme un piano roll) ou les rétrécit.
+              Un <b className="text-white">clic sur le nom</b> d'une piste ouvre son Piano Roll pour l'éditer en détail.
               Les pistes sont <b>pré-remplies automatiquement</b> avec l'arrangement classique ; vos
               modifications ne sont jamais écrasées.
             </p>
+            <p className="font-bold text-white mt-3">Lecture (barre de transport)</p>
+            <Row k="▶ Play" v="Lance le rendu WAV et la lecture depuis la tête de lecture (re-rendu automatique si le contenu a changé)." />
+            <Row k="⏸ Pause" v="Gèle le son ET la tête de lecture (reprise exacte)." />
+            <Row k="■ Stop" v="Arrête et remet la tête au début." />
+            <Row k="⏮ Begin" v="Remet la tête de lecture au début." />
+            <Row k="Ligne rouge verticale" v="Indique la position de lecture dans les pistes. Elle court pendant la lecture, se fige à la pause, et se déplace au <b>clic de souris</b> sur une piste (scrub — la lecture repart de l'endroit cliqué)." />
             <p className="text-xs text-gray-500">
               💡 Choisir le pattern <b>Reggae</b> applique automatiquement une configuration
               complète (orgue drawbar, piano électrique, basse acoustique, nappes piano, loop activé).

@@ -386,6 +386,16 @@ export class AudioEngine {
   /** Position brute (sans modulo) : -1 si aucune source active. */
   getPianoRollPositionRaw(): number { return this.browserSynth.getPositionRaw(); }
 
+  /** Joue le buffer Navig courant depuis une position (scrub + lecture). */
+  playNavigFrom(seconds: number, loop: boolean): void {
+    this.browserSynth.playBufferFrom(seconds, loop);
+  }
+
+  /** Déplace la tête de lecture du rendu Navig courant (lecture ou pause). */
+  seekNavig(seconds: number): void {
+    this.browserSynth.seekTo(seconds);
+  }
+
   /** Dernier WAV rendu par le backend (mode Navig), pour extraction. */
   getLastWavBlob(): Blob | null { return this.browserSynth.getLastWavBlob(); }
 

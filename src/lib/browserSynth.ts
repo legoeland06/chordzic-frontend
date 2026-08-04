@@ -208,6 +208,54 @@ export class BrowserSynth {
     }
   }
 
+  /** Joue le buffer courant depuis une position (secondes). */
+  playBufferFrom(seconds: number, loop: boolean) {
+    if (!this._buffer || !this.audioCtx) return;
+    this.stop();
+    const ctx = this.audioCtx;
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1.0;
+    gainNode.connect(ctx.destination);
+    const source = ctx.createBufferSource();
+    source.buffer = this._buffer;
+    source.loop = loop;
+    source.connect(gainNode);
+    this.ctxTimeAtStart = ctx.currentTime - Math.max(0, seconds);
+    source.start(0, Math.max(0, seconds));
+    this.source = source;
+    this._playing = true;
+    source.onended = () => {
+      if (this.source === source) { this._playing = false; this.source = null; }
+    };
+  }
+
+  /** Scrub : déplace la tête de lecture (recrée le source à la position).
+   * En lecture ou pause → le buffer repart de `seconds` (la pause reste
+   * suspendue jusqu'à la reprise). En arrêt → ne fait rien (la position
+   * est gérée par l'UI). */
+  seekTo(seconds: number) {
+    if (!this._buffer || !this.audioCtx) return;
+    const loop = this.source?.loop ?? false;
+    const wasPlaying = this._playing;
+    if (!wasPlaying) return; // arrêté : la position manuelle est gérée par l'UI
+    this.stop();
+    const ctx = this.audioCtx;
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1.0;
+    gainNode.connect(ctx.destination);
+    const source = ctx.createBufferSource();
+    source.buffer = this._buffer;
+    source.loop = loop;
+    source.connect(gainNode);
+    this.ctxTimeAtStart = ctx.currentTime - Math.max(0, seconds);
+    source.start(0, Math.max(0, seconds));
+    this.source = source;
+    this._playing = true;
+    source.onended = () => {
+      if (this.source === source) { this._playing = false; this.source = null; }
+    };
+  }
+
   /** Lance la lecture d'un AudioBuffer. En boucle : `source.loop` simple
    * (durée exacte du buffer → timing métronomique strict). Le fade-out
    * backend (30 ms réels) évite le clic à la frontière. Les erreurs sont

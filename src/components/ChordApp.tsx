@@ -729,6 +729,8 @@ export default function ChordApp() {
             onUpdateTrack={updateTrack}
             onOpenPianoRoll={setOpenPianoRoll}
             onHelp={() => setShowHelp(true)}
+            engine={engineRef.current}
+            input={input}
           />
         ) : (
           <>
