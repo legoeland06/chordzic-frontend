@@ -685,6 +685,7 @@ export default function PianoRoll({
         if (st === 'RESIZING') canvasEl.style.cursor = 'ew-resize';
         else if (st === 'DRAGGING') canvasEl.style.cursor = 'grabbing';
         else if (st === 'CREATING') canvasEl.style.cursor = 'crosshair';
+        else if (dragSelRef.current) canvasEl.style.cursor = 'grabbing';
         else if (tool === 'edit' && h?.region === 'rightEdge') canvasEl.style.cursor = 'ew-resize';
         else if (tool === 'edit' && h?.region === 'body') canvasEl.style.cursor = 'grab';
         else canvasEl.style.cursor = '';
