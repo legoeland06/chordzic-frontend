@@ -75,6 +75,31 @@ interface DawViewProps {
   onHelp: () => void;
 }
 
+/** Vumètre à segments (LED) : 10 segments, vert → jaune → rouge. */
+function VUMeter({ level, height = 64 }: { level: number; height?: number }) {
+  const segs = 10;
+  const lit = Math.max(0, Math.min(segs, Math.round(level * segs)));
+  return (
+    <div className="flex flex-col-reverse gap-[2px] shrink-0" style={{ height }}>
+      {Array.from({ length: segs }).map((_, i) => {
+        const on = i < lit;
+        const color = i / segs < 0.6 ? '#4ade80' : i / segs < 0.85 ? '#facc15' : '#f87171';
+        return (
+          <div
+            key={i}
+            className="w-1.5 rounded-sm"
+            style={{
+              height: (height - 2 * (segs - 1)) / segs,
+              backgroundColor: on ? color : '#262a34',
+              transition: 'background-color 45ms linear',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Lane : une piste horizontale avec ses notes (canvas) ─────────────
 
 function TrackLane({
@@ -325,16 +350,41 @@ export default function DawView({
   };
   const elapsedSec = (posBeats * 60) / Math.max(40, tempo);
 
+  // ── Vumètres par piste (énergie des notes actives à la position courante) ──
+  const [levels, setLevels] = useState<Record<number, number>>({});
+  const refreshLevels = useCallback((beats: number) => {
+    const cur: Record<number, number> = {};
+    for (const t of tracks) {
+      const notes = pianoNotes[t.channel] ?? [];
+      let maxV = 0, sumV = 0;
+      for (const n of notes) {
+        if (beats >= n.startTime && beats < n.startTime + n.duration) {
+          if (n.velocity > maxV) maxV = n.velocity;
+          sumV += n.velocity;
+        }
+      }
+      cur[t.channel] = Math.min(1, (maxV + 0.25 * sumV) / 127);
+    }
+    setLevels(prev => {
+      const keys = new Set([...Object.keys(prev).map(Number), ...Object.keys(cur).map(Number)]);
+      const out: Record<number, number> = {};
+      for (const ch of keys) out[ch] = Math.max(cur[ch] ?? 0, (prev[ch] ?? 0) * 0.85);
+      return out;
+    });
+  }, [tracks, pianoNotes]);
+
   const doStop = useCallback(() => {
     engine.stop();
     setPlayState('idle');
     setPosBeats(0);
+    setLevels({});
   }, [engine]);
 
   const doBegin = useCallback(() => {
     engine.stop();
     setPlayState('idle');
     setPosBeats(0);
+    setLevels({});
   }, [engine]);
 
   const doPlay = useCallback(() => {
@@ -380,13 +430,17 @@ export default function DawView({
       if (raw >= dur - 0.05) {
         // Fin naturelle du buffer (hors boucle)
         if (!loopOn) { doStopRef.current(); return; }
-        setPosBeats(((raw % dur) * tempo) / 60);
+        const b = ((raw % dur) * tempo) / 60;
+        setPosBeats(b);
+        refreshLevels(b);
         return;
       }
-      setPosBeats((raw * tempo) / 60);
+      const b = (raw * tempo) / 60;
+      setPosBeats(b);
+      refreshLevels(b);
     }, 40);
     return () => clearInterval(id);
-  }, [playState, engine, tempo, loopOn]);
+  }, [playState, engine, tempo, loopOn, refreshLevels]);
 
   // Quand ChordApp arrête la lecture (stop externe, édition…)
   useEffect(() => {
@@ -533,7 +587,7 @@ export default function DawView({
                   <option key={i} value={i}>{name}</option>
                 ))}
               </select>
-              {/* Fader de volume (vertical) */}
+              {/* Fader de volume (vertical) + vumètre */}
               <div className="flex items-center gap-1.5">
                 <input
                   type="range" min={1} max={127} value={t.volume}
@@ -542,6 +596,8 @@ export default function DawView({
                   style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
                   title="Volume de la piste"
                 />
+                {/* Vumètre : activité des notes à la position de lecture */}
+                <VUMeter level={levels[t.channel] ?? 0} height={64} />
                 <span className="text-[10px] text-gray-500 w-5 text-center">{t.volume}</span>
               </div>
               {/* Mute + supprimer */}

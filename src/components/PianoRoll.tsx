@@ -1308,6 +1308,13 @@ export default function PianoRoll({
         e.preventDefault();
         togglePlay();
       }
+      else if (k === 'g' || k === 'h') {
+        // Zoom horizontal : G = arrière, H = avant (hors saisie)
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+        setZoom(z => k === 'g' ? Math.max(0.25, z - 0.25) : Math.min(4, z + 0.25));
+      }
       else if (e.key === 'Escape') { stopPlayback(); onClose(); }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1576,7 +1583,7 @@ export default function PianoRoll({
             )}
             <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
             <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
-            <span>{'\ud83d\udd0d'} Ctrl+molette → zoom</span>
+            <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom</span>
           </div>
         </div>
 

@@ -309,6 +309,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k={<Key>Espace</Key>} v="Lecture / pause de la piste (hors saisie)" />
             <Row k={<Key>Esc</Key>} v="Fermer le piano roll" />
             <Row k={<><Key>Ctrl</Key>+molette</>} v="Zoom horizontal" />
+            <Row k={<><Key>G</Key> / <Key>H</Key></>} v="Zoom arrière / zoom avant (piano roll)" />
             <Row k={<><Key>Shift</Key>+molette</>} v="Défilement horizontal" />
           </Section>
 
