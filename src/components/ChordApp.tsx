@@ -22,6 +22,7 @@ import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
 import HelpModal from './HelpModal';
+import DawView from './DawView';
 
 /** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
 const EMPTY_NOTES: PianoNote[] = [];
@@ -301,6 +302,52 @@ export default function ChordApp() {
   }, [input]);
 
   // ─── Play / Stop / Clear ────────────────────────────────────────
+
+  /** Bascule le mode Navigateur (WAV) / Live (MIDI). */
+  const setNavigMode = (v: boolean) => {
+    setBrowserAudio(v);
+    engineRef.current.browserAudio = v;
+  };
+
+  // ── Pré-remplissage Navig : à l'activation du mode 📱, toutes les pistes
+  // non encore initialisées reçoivent les notes du mode classique (seed).
+  // Les pistes déjà remplies (éditées OU vidées par l'utilisateur) ne sont
+  // jamais touchées. Re-déclenché quand la grille change ou quand les canaux
+  // des pistes changent.
+  const channelsKey = tracks.map(t => t.channel).join(',');
+  useEffect(() => {
+    if (!browserAudio || chords.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const engine = await getEngine();
+        const fetched = await engine.getPianoNotes({ titre: 'Session', tempo, chords });
+        if (cancelled || !fetched) return;
+        setPianoNotes(prev => {
+          const next = { ...prev };
+          let changed = false;
+          for (const t of tracks) {
+            const ch = t.channel;
+            // Déjà initialisée (éditée ou vidée volontairement) → ne pas toucher
+            if (next[ch] !== undefined) continue;
+            const chNotes = fetched
+              .filter(n => n.channel === ch)
+              .map((n, i) => ({
+                id: `seed-${ch}-${i}`,
+                startTime: n.start_time,
+                pitch: n.pitch,
+                duration: n.duration,
+                velocity: n.velocity,
+              }));
+            if (chNotes.length > 0) { next[ch] = chNotes; changed = true; }
+          }
+          return changed ? next : prev;
+        });
+      } catch { /* silencieux */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browserAudio, chords, tempo, channelsKey]);
 
   const playChordPreview = useCallback(async (chord: ChordData) => {
     const engine = await getEngine();
@@ -658,10 +705,37 @@ export default function ChordApp() {
           </div>
         </div>
 
-        {/* Saisie des accords */}
-        <ChordInput input={input} onChange={setInput} />
+        {/* Mode Navigateur : vue DAW (table de mixage + pistes horizontales) */}
+        {browserAudio ? (
+          <DawView
+            tracks={tracks}
+            pianoNotes={pianoNotes}
+            playing={playing}
+            hasWav={hasWav}
+            tempo={tempo}
+            loopOn={loopOn}
+            onPlay={play}
+            onStop={stop}
+            onExtractWav={handleExtractWav}
+            onTempoChange={setTempo}
+            onSetLoop={setLoopOn}
+            onSetLive={() => setNavigMode(false)}
+            onSave={() => setShowSaveModal(true)}
+            onLoad={() => setShowLoadModal(true)}
+            onExport={handleExport}
+            onImport={() => fileInputRef.current?.click()}
+            onAddTrack={addTrack}
+            onRemoveTrack={removeTrack}
+            onUpdateTrack={updateTrack}
+            onOpenPianoRoll={setOpenPianoRoll}
+            onHelp={() => setShowHelp(true)}
+          />
+        ) : (
+          <>
+            {/* Saisie des accords */}
+            <ChordInput input={input} onChange={setInput} />
 
-        {/* Contrôles + TrackPanel */}
+            {/* Contrôles + TrackPanel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
           <ControlBar
             chords={chords} playing={playing} tempo={tempo}
@@ -673,8 +747,6 @@ export default function ChordApp() {
             onTempoChange={setTempo}
           />
 
-          <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
-
           <TrackPanel
             chords={chords} highlighted={highlighted} playing={playing}
             currentBeat={currentBeat} tempo={tempo}
@@ -682,7 +754,7 @@ export default function ChordApp() {
             loopOn={loopOn} walkingBass={walkingBass} drumPattern={drumPattern} sig={sig}
             tracks={tracks}
             onSetVolume={setVolume} onSet432={setUse432}
-            onSetBrowserAudio={(v) => { setBrowserAudio(v); engineRef.current.browserAudio = v; }}
+            onSetBrowserAudio={setNavigMode}
             onSetLoop={setLoopOn} onSetWalkingBass={setWalkingBass}
             onSetDrumPattern={setDrumPattern} onSetSig={setSig} onSetTempo={setTempo}
             onUpdateTrack={updateTrack}
@@ -711,12 +783,17 @@ export default function ChordApp() {
           }}
         />
 
-        {chords.length === 0 && (
-          <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-            <Sparkles className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-            <p className="text-gray-500 text-sm">Entre des accords pour commencer</p>
-          </div>
+            {chords.length === 0 && (
+              <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+                <Sparkles className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                <p className="text-gray-500 text-sm">Entre des accords pour commencer</p>
+              </div>
+            )}
+          </>
         )}
+
+        {/* Input fichier caché (import JSON — utilisé dans les deux modes) */}
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
 
         {/* Modals */}
         <SaveModal

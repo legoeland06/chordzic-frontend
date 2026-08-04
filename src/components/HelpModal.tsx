@@ -139,7 +139,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <li>Saisissez vos accords dans la zone de texte (une grille d'exemple est déjà chargée).</li>
               <li>Cliquez <b className="text-green-400">▶ Jouer</b> pour écouter. <b className="text-red-400">■ Stop</b> arrête.</li>
               <li>Réglez le <b>Tempo</b>, le <b>Pattern</b> (style de batterie) et la <b>Mesure</b>.</li>
-              <li>Activez <b className="text-purple-400">📱 Navig.</b> pour un rendu WAV du PC, puis <b className="text-amber-400">Extract Wav</b> pour télécharger le fichier.</li>
+              <li>Activez <b className="text-purple-400">📱 Navig.</b> : vue <b>DAW</b> (table de mixage + pistes horizontales) et rendu WAV du PC. <b className="text-amber-400">Extract Wav</b> télécharge le fichier.</li>
               <li>Sauvegardez vos grilles avec <b className="text-emerald-400">Save</b>, retrouvez-les avec <b className="text-cyan-400">Load</b>.</li>
             </ol>
             <p className="text-xs text-gray-500">
@@ -214,13 +214,30 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
             <Row k="Vol:" v="Volume master (10–127)." />
-            <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut." />
-            <Row k="📱 Navig." v="Mode navigateur : le PC synthétise un WAV complet (rendu plus fidèle) au lieu du MIDI temps réel. Permet « Extract Wav »." />
+            <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut — mode Live uniquement." />
+            <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste.</>} />
             <Row k="🔁 Loop" v="Répète la grille en boucle (désactivé pendant la lecture)." />
-            <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue." />
-            <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz." />
+            <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />
+            <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
-            <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique)." />
+            <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique). Mode Live uniquement." />
+            <p className="text-xs text-gray-500">
+              💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,
+              grille d'accords) disparaissent : le travail se fait sur <b>vos notes</b>, piste par piste.
+            </p>
+            <p className="font-bold text-white mt-3">Vue DAW (mode 📱 Navig.)</p>
+            <p>
+              La <b className="text-white">table de mixage</b> (en haut, à la place du champ texte) : une colonne
+              par piste avec <b>nom modifiable</b>, <b>instrument</b>, <b>fader de volume</b> et <b>MUTE</b> —
+              plus la carte <b>➕ Piste</b> pour ajouter un instrument.
+            </p>
+            <p>
+              En dessous, chaque piste est affichée <b className="text-white">horizontalement</b> (une ligne par
+              piste, comme dans un DAW) avec ses notes en petits rectangles (position, durée, hauteur = note).
+              Un <b className="text-white">clic sur une piste</b> ouvre son Piano Roll pour l'éditer en détail.
+              Les pistes sont <b>pré-remplies automatiquement</b> avec l'arrangement classique ; vos
+              modifications ne sont jamais écrasées.
+            </p>
             <p className="text-xs text-gray-500">
               💡 Choisir le pattern <b>Reggae</b> applique automatiquement une configuration
               complète (orgue drawbar, piano électrique, basse acoustique, nappes piano, loop activé).
