@@ -21,6 +21,11 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 
 /** Pixels par beat dans les lanes (zoom lecture compact, notes en pixels). */
 const LANE_PPB = 24;
+/** Largeur de l'étiquette d'une piste (w-32 = 128 px) — pour le zoom centré. */
+const TRACK_LABEL_W = 128;
+/** Zoom horizontal des lanes : plage 0.25× – 8× (6 à 192 px/beat). */
+const LANE_ZOOM_MIN = LANE_PPB * 0.25;
+const LANE_ZOOM_MAX = LANE_PPB * 8;
 /** Pixels par demi-ton quand une lane est agrandie. */
 const PITCH_PX = 6;
 /** Hauteur d'une lane fine (défaut). */
@@ -84,7 +89,21 @@ function TrackLane({
   onOpenPianoRoll: (channel: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const color = trackColor(track.channel);
+  /** Largeur réelle (CSS) du canvas — mesure via ResizeObserver. */
+  const [width, setWidth] = useState(200);
+
+  // Suivre la largeur réelle (zoom, redimensionnement)
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const update = () => setWidth(wrap.getBoundingClientRect().width || 200);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
 
   // Plage de pitch (utilisée seulement en vue agrandie)
   const { minPitch, maxPitch } = useMemo(() => {
@@ -95,32 +114,34 @@ function TrackLane({
   }, [notes]);
 
   const laneHeight = compact ? LANE_COMPACT_H : Math.max(48, (maxPitch - minPitch + 1) * PITCH_PX);
-  const canvasW = Math.max(totalBeats * LANE_PPB, 200);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || width <= 0) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvasW * dpr;
-    canvas.height = laneHeight * dpr;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.max(1, Math.round(laneHeight * dpr));
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
+    // Échelle réelle : le canvas occupe la largeur du conteneur (totalBeats)
+    const sx = totalBeats > 0 ? width / totalBeats : 1;
+
     // Fond
     ctx.fillStyle = '#14141d';
-    ctx.fillRect(0, 0, canvasW, laneHeight);
+    ctx.fillRect(0, 0, width, laneHeight);
 
     // Lignes de temps (mesures) + numéros
     for (let beat = 0; beat <= totalBeats; beat++) {
-      const x = beat * LANE_PPB;
+      const x = beat * sx;
       ctx.strokeStyle = beat % 4 === 0 ? '#333455' : '#222233';
       ctx.lineWidth = beat % 4 === 0 ? 1 : 0.5;
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, laneHeight);
       ctx.stroke();
-      if (beat % 4 === 0 && !compact) {
+      if (beat % 4 === 0 && !compact && sx > 14) {
         ctx.fillStyle = '#4a4b6e';
         ctx.font = '8px monospace';
         ctx.fillText(`${beat / 4 + 1}`, x + 2, 10);
@@ -135,15 +156,15 @@ function TrackLane({
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(canvasW, y);
+        ctx.lineTo(width, y);
         ctx.stroke();
       }
     }
 
     // Notes (petits rectangles)
     for (const n of notes) {
-      const x = n.startTime * LANE_PPB;
-      const w = Math.max(2, n.duration * LANE_PPB);
+      const x = n.startTime * sx;
+      const w = Math.max(2, n.duration * sx);
       if (compact) {
         // Vue fine : bande unique, pixels centrés
         ctx.fillStyle = color;
@@ -160,8 +181,8 @@ function TrackLane({
     }
 
     // Ligne de lecture verticale (rouge, pleine hauteur)
-    const px = posBeats * LANE_PPB;
-    if (px >= 0 && px <= canvasW) {
+    const px = posBeats * sx;
+    if (px >= 0 && px <= width) {
       ctx.strokeStyle = '#f87171';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -177,7 +198,7 @@ function TrackLane({
       ctx.closePath();
       ctx.fill();
     }
-  }, [notes, color, canvasW, laneHeight, minPitch, maxPitch, totalBeats, posBeats, compact]);
+  }, [notes, color, width, laneHeight, minPitch, maxPitch, totalBeats, posBeats, compact]);
 
   /** Clic sur le canvas → déplacer la tête de lecture (scrub). */
   const handleScrub = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -202,13 +223,16 @@ function TrackLane({
           {notes.length} note{notes.length > 1 ? 's' : ''} · {track.mute ? 'MUTE' : 'On'}
         </span>
       </div>
-      {/* Canvas des notes (clic = déplacer la tête de lecture) */}
-      <div className="flex-1 overflow-hidden rounded border border-gray-800 group-hover:border-gray-600 transition-colors relative">
+      {/* Canvas des notes (clic = déplacer la tête, molette = zoom centré) */}
+      <div
+        ref={wrapRef}
+        className="flex-1 min-w-0 overflow-hidden rounded border border-gray-800 group-hover:border-gray-600 transition-colors relative"
+      >
         <canvas
           ref={canvasRef}
           style={{ width: '100%', height: laneHeight, display: 'block', cursor: 'copy', touchAction: 'none' }}
           onPointerDown={handleScrub}
-          title="Cliquer : déplacer la tête de lecture"
+          title="Clic : déplacer la tête de lecture · Molette : zoomer (centré sur le curseur)"
         />
       </div>
     </div>
@@ -231,6 +255,40 @@ export default function DawView({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
   const renderSigRef = useRef('');
+
+  // ── Zoom molette des lanes (centré sur le curseur, tête de lecture intacte) ──
+  const [lanePpb, setLanePpb] = useState(LANE_PPB);
+  const lanePpbRef = useRef(LANE_PPB);
+  const lanesScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = lanesScrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const xView = e.clientX - rect.left;              // souris dans le viewport
+      const oldPpb = lanePpbRef.current;
+      // Largeur réelle de la zone des notes (étirée si < viewport)
+      const contentW = Math.max(el.scrollWidth - TRACK_LABEL_W, 1);
+      // Beat pointé par la souris
+      const beat = ((xView + el.scrollLeft - TRACK_LABEL_W) * totalBeats) / contentW;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const newPpb = Math.min(LANE_ZOOM_MAX, Math.max(LANE_ZOOM_MIN, oldPpb * factor));
+      if (Math.abs(newPpb - oldPpb) < 0.01) return;
+      lanePpbRef.current = newPpb;
+      setLanePpb(newPpb);
+      // Le beat pointé reste sous le curseur après le zoom
+      requestAnimationFrame(() => {
+        if (lanesScrollRef.current) {
+          const el2 = lanesScrollRef.current;
+          const newContentW = Math.max(totalBeats * newPpb, el2.clientWidth - TRACK_LABEL_W);
+          el2.scrollLeft = Math.max(0, (beat * newContentW) / totalBeats - xView + TRACK_LABEL_W);
+        }
+      });
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
 
   const contentSig = useMemo(
     () => JSON.stringify({
@@ -538,8 +596,8 @@ export default function DawView({
           <span>🎹 Pistes</span>
           <span className="text-gray-700 normal-case">— clic sur la piste : tête de lecture · clic sur le nom : Piano Roll · chevron : hauteur</span>
         </div>
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: '100%' }}>
+        <div ref={lanesScrollRef} className="overflow-x-auto">
+          <div style={{ width: TRACK_LABEL_W + totalBeats * lanePpb, minWidth: '100%' }}>
             {tracks.map(t => {
               const isExpanded = expanded.has(t.channel);
               return (
