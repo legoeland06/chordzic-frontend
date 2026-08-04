@@ -39,6 +39,11 @@ export const SNAP_UNITS: number[] = [
 /** Snap par défaut (comportement historique : double croche). */
 export const DEFAULT_SNAP_UNIT = SNAP_UNIT;
 
+/** Durée minimale d'une note en mode snap libre (en beats).
+ * Volontairement fine (1/100 de beat ≈ 3 ticks à 288 PPQ) pour laisser
+ * toute la liberté de placement, tout en restant représentable en MIDI. */
+export const MIN_FREE_DURATION = 0.01;
+
 /** Hauteur d'une touche blanche en pixels. */
 export const WHITE_KEY_HEIGHT = 16;
 

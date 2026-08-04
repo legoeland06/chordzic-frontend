@@ -25,6 +25,7 @@ import {
   SNAP_UNIT,
   SNAP_UNITS,
   DEFAULT_SNAP_UNIT,
+  MIN_FREE_DURATION,
   WHITE_KEY_HEIGHT,
   PIANO_KEYBOARD_WIDTH,
   velocityColor,
@@ -155,6 +156,15 @@ export default function PianoRoll({
   const playPosRef = useRef(0);
   // ── Subdivision de la grille (snap) : 1/16 par défaut, 1/12 pour les triolets ──
   const [snapUnit, setSnapUnit] = useState(DEFAULT_SNAP_UNIT);
+  // ── Snap magnétique ON/OFF : quand OFF, les notes se placent librement ──
+  const [snapEnabled, setSnapEnabled] = useState(true);
+
+  /** Applique le snap seulement s'il est actif (sinon position libre). */
+  const snapTime = useCallback((time: number) =>
+    snapEnabled ? snapToGrid(time, snapUnit) : time,
+  [snapEnabled, snapUnit]);
+  /** Durée minimale : un cran de grille en mode snap, très fine en mode libre. */
+  const minDur = snapEnabled ? snapUnit : MIN_FREE_DURATION;
 
   // ── Historique undo/redo (snapshots des notes) ────────────────────
   const historyRef = useRef<{ undo: PianoNote[][]; redo: PianoNote[][] }>({ undo: [], redo: [] });
@@ -276,8 +286,9 @@ export default function PianoRoll({
     }
 
     // ── Subdivisions du snap (lignes fines, si l'espacement est lisible) ──
+    // Masquées en mode libre : plus de grille = placement entièrement libre.
     const snapPx = snapUnit * ppb;
-    if (snapUnit < 1 && snapPx >= 5) {
+    if (snapEnabled && snapUnit < 1 && snapPx >= 5) {
       const steps = Math.round(1 / snapUnit);
       ctx.strokeStyle = '#22223a';
       ctx.lineWidth = 0.5;
@@ -421,7 +432,7 @@ export default function PianoRoll({
       ctx.fill();
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit]);
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -536,7 +547,7 @@ export default function PianoRoll({
     const hit = hitTest(localNotesRef.current, adjustedCoord, effectivePixelsPerBeat, userMaxPitch);
     pasteAnchorRef.current = hit
       ? hit.note.startTime
-      : Math.max(0, snapToGrid(adjustedCoord.px / effectivePixelsPerBeat, snapUnit));
+      : Math.max(0, snapTime(adjustedCoord.px / effectivePixelsPerBeat));
 
     // Capture de l'état avant le geste (pour l'undo, si le geste mute)
     gestureBeforeRef.current = snapshotNotes(localNotesRef.current);
@@ -608,6 +619,7 @@ export default function PianoRoll({
       effectivePixelsPerBeat,
       userMaxPitch,
       snapUnit,
+      snapEnabled,
     );
 
     ctxRef.current = ctx;
@@ -655,8 +667,10 @@ export default function PianoRoll({
       ? (e.clientX >= canvasRect.left && e.clientX <= canvasRect.right
          && e.clientY >= canvasRect.top && e.clientY <= canvasRect.bottom)
       : true;
+    const canvasEl = canvasRef.current;
     if (!inCanvas) {
       setHoverInfo(null);
+      if (canvasEl) canvasEl.style.cursor = '';
     } else if (coord.px >= PIANO_KEYBOARD_WIDTH) {
       const hAdj: MouseCoord = {
         px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
@@ -664,8 +678,20 @@ export default function PianoRoll({
       };
       const h = hitTest(localNotesRef.current, hAdj, effectivePixelsPerBeat, userMaxPitch);
       setHoverInfo(h ? { pitch: h.note.pitch, x: e.clientX, y: e.clientY } : null);
+      // ── Curseur contextuel : flèche bidirectionnelle horizontale (↔) sur
+      // le bord droit d'une note → l'utilisateur voit qu'il peut la redimensionner.
+      if (canvasEl) {
+        const st = ctxRef.current.state;
+        if (st === 'RESIZING') canvasEl.style.cursor = 'ew-resize';
+        else if (st === 'DRAGGING') canvasEl.style.cursor = 'grabbing';
+        else if (st === 'CREATING') canvasEl.style.cursor = 'crosshair';
+        else if (tool === 'edit' && h?.region === 'rightEdge') canvasEl.style.cursor = 'ew-resize';
+        else if (tool === 'edit' && h?.region === 'body') canvasEl.style.cursor = 'grab';
+        else canvasEl.style.cursor = '';
+      }
     } else {
       setHoverInfo(null);
+      if (canvasEl) canvasEl.style.cursor = '';
     }
 
     // ── Mode sélection, ou drag de groupe initié en mode édition :
@@ -697,7 +723,7 @@ export default function PianoRoll({
           const moved = new Map(orig.map(n => [n.id, {
             ...n,
             edited: true,
-            startTime: Math.max(0, Math.round((n.startTime + dBeat) / snapUnit) * snapUnit),
+            startTime: Math.max(0, snapTime(n.startTime + dBeat)),
             pitch: Math.min(userMaxPitch, Math.max(userMinPitch, n.pitch + dPitch)),
           }]));
           localNotesRef.current = localNotesRef.current.map(n => moved.get(n.id) ?? n);
@@ -720,14 +746,14 @@ export default function PianoRoll({
     if (ctx.state === 'CREATING') {
       // Ajuster la durée de la note en création
       const endTime = Math.max(0, adjustedCoord.px / effectivePixelsPerBeat);
-      const snappedEnd = Math.max(snapUnit, snapToGrid(endTime, snapUnit));
+      const snappedEnd = Math.max(minDur, snapTime(endTime));
       const startTime = ctx.startTime;
-      const duration = Math.max(snapUnit, snappedEnd - startTime);
+      const duration = Math.max(minDur, snappedEnd - startTime);
 
       if (creatingNote) {
         setCreatingNote({
           ...creatingNote,
-          duration: Math.max(snapUnit, duration),
+          duration,
         });
       }
       return;
@@ -741,7 +767,7 @@ export default function PianoRoll({
       else return;
     }
 
-    const result = updateInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit);
+    const result = updateInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit, snapEnabled);
     if (result.note && ctx.targetId) {
       const updated = localNotesRef.current.map(n =>
         n.id === ctx.targetId ? { ...n, ...result.note } : n
@@ -814,8 +840,8 @@ export default function PianoRoll({
       // Finaliser la note créée
       if (creatingNote) {
         const endTime = Math.max(0, adjustedCoord.px / effectivePixelsPerBeat);
-        const snappedEnd = Math.max(snapUnit, snapToGrid(endTime, snapUnit));
-        const duration = Math.max(snapUnit, snappedEnd - creatingNote.startTime);
+        const snappedEnd = Math.max(minDur, snapTime(endTime));
+        const duration = Math.max(minDur, snappedEnd - creatingNote.startTime);
         const finalNote = { ...creatingNote, duration, edited: true };
         const newNotes = [...localNotesRef.current, finalNote];
         localNotesRef.current = newNotes;
@@ -824,7 +850,7 @@ export default function PianoRoll({
         setCreatingNote(null);
       }
     } else if (ctx.state === 'DRAGGING' || ctx.state === 'RESIZING') {
-      const result = endInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit);
+      const result = endInteraction(ctx, adjustedCoord, effectivePixelsPerBeat, userMaxPitch, snapUnit, snapEnabled);
       ctxRef.current = result.ctx;
 
       if (!dragEngaged) {
@@ -851,6 +877,9 @@ export default function PianoRoll({
     }
 
     ctxRef.current = createEmptyContext();
+    // Curseur : retour au défaut (le prochain pointermove le re-contextualise)
+    const canvasEl = canvasRef.current;
+    if (canvasEl) canvasEl.style.cursor = '';
   };
 
   /** Geste interrompu (le navigateur reprend la main) : état remis à zéro. */
@@ -864,6 +893,8 @@ export default function PianoRoll({
     gestureBeforeRef.current = null;
     downScreenRef.current = null;
     dragEngagedRef.current = false;
+    const canvasEl = canvasRef.current;
+    if (canvasEl) canvasEl.style.cursor = '';
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1051,7 +1082,7 @@ export default function PianoRoll({
     // Coller à l'endroit cliqué (ancre mémorisée), sinon début de la zone visible
     const base = pasteAnchorRef.current !== null
       ? pasteAnchorRef.current
-      : Math.max(0, Math.round((scrollLeft / effectivePixelsPerBeat) / snapUnit) * snapUnit);
+      : Math.max(0, snapTime(scrollLeft / effectivePixelsPerBeat));
     const stamp = Date.now();
     // Nouveaux IDs de groupe pour la copie : les groupes internes sont
     // préservés, mais détachés des groupes d'origine (pas de fusion).
@@ -1465,12 +1496,21 @@ export default function PianoRoll({
 
           {/* Subdivision de la grille (snap) */}
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setSnapEnabled(s => !s)}
+              className={`px-3 py-2 sm:px-2 sm:py-0.5 rounded border transition-colors text-xs sm:text-[10px] ${snapEnabled ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-gray-500'}`}
+              title={snapEnabled
+                ? "Snap magnétique actif : les notes s'alignent sur la grille. Cliquer pour libérer le placement (positions et durées libres)."
+                : "Snap libre : les notes se placent où vous voulez, sans magnétisme de grille. Cliquer pour réactiver le snap."}
+            >
+              {snapEnabled ? '🧲 Snap' : '✋ Libre'}
+            </button>
             <span className="text-gray-400">Snap:</span>
             <select
               value={snapUnit}
               onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
               className="bg-gray-800 text-gray-300 text-xs sm:text-[10px] rounded border border-gray-700 px-2 py-2 sm:px-1 sm:py-0.5"
-              title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets"
+              title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets. (Inactif en mode Libre.)"
             >
               {SNAP_UNITS.map(u => (
                 <option key={u} value={u}>1/{Math.round(1 / u)}</option>
@@ -1569,7 +1609,11 @@ export default function PianoRoll({
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerCancel}
-                onPointerLeave={() => setHoverInfo(null)}
+                onPointerLeave={() => {
+                  setHoverInfo(null);
+                  const c = canvasRef.current;
+                  if (c) c.style.cursor = '';
+                }}
                 onDoubleClick={handleDoubleClick}
               />
             </div>

@@ -7,7 +7,7 @@
  * États : IDLE → CREATING / DRAGGING / RESIZING → IDLE
  */
 
-import { PianoNote, generateNoteId, snapToGrid, DEFAULT_PIXELS_PER_BEAT, SNAP_UNIT, WHITE_KEY_HEIGHT, pitchToPixels, pixelsToPitch } from './pianoRollTypes';
+import { PianoNote, generateNoteId, snapToGrid, DEFAULT_PIXELS_PER_BEAT, SNAP_UNIT, WHITE_KEY_HEIGHT, pitchToPixels, pixelsToPitch, MIN_FREE_DURATION } from './pianoRollTypes';
 
 // ─── Types de l'état machine ───────────────────────────────────────────
 
@@ -57,8 +57,6 @@ export function hitTest(
   pixelsPerBeat: number = DEFAULT_PIXELS_PER_BEAT,
   maxPitch: number = 96,
 ): { index: number; note: PianoNote; region: 'body' | 'rightEdge' } | null {
-  const edgeThreshold = 6;
-
   for (let i = notes.length - 1; i >= 0; i--) {
     const n = notes[i];
     const x = n.startTime * pixelsPerBeat;
@@ -67,6 +65,11 @@ export function hitTest(
     const h = WHITE_KEY_HEIGHT;
 
     if (coord.px >= x && coord.px <= x + w && coord.py >= y && coord.py <= y + h) {
+      // Zone de resize : proportionnelle à la largeur de la note (25% max),
+      // bornée entre 4 px (utilisable à faible zoom) et 10 px (confortable à
+      // fort zoom). Sans ce plafond proportionnel, une note étroite à petit
+      // zoom serait entièrement une zone de resize → impossible à déplacer.
+      const edgeThreshold = Math.max(4, Math.min(10, w * 0.25));
       if (coord.px >= x + w - edgeThreshold) {
         return { index: i, note: n, region: 'rightEdge' };
       }
@@ -92,6 +95,7 @@ export function startInteraction(
   pixelsPerBeat: number,
   maxPitch: number,
   snapUnit: number = SNAP_UNIT,
+  snapEnabled: boolean = true,
 ): { ctx: InteractionContext; createdNote?: PianoNote } {
   const hit = hitTest(notes, coord, pixelsPerBeat, maxPitch);
 
@@ -125,13 +129,16 @@ export function startInteraction(
   }
 
   // Clic sur le vide → créer une nouvelle note
-  const snappedTime = snapToGrid(coord.px / pixelsPerBeat, snapUnit);
+  const rawTime = Math.max(0, coord.px / pixelsPerBeat);
+  const startTime = snapEnabled ? snapToGrid(rawTime, snapUnit) : rawTime;
   const pitch = Math.max(0, Math.min(127, pixelsToPitch(coord.py, maxPitch)));
   const newNote: PianoNote = {
     id: generateNoteId(),
-    startTime: Math.max(0, snappedTime),
+    startTime,
     pitch,
-    duration: snapUnit,
+    // Durée initiale : un cran de grille en mode snap, une noire en mode libre
+    // (ajustable immédiatement au drag).
+    duration: snapEnabled ? snapUnit : 0.25,
     velocity: 100,
   };
 
@@ -164,6 +171,7 @@ export function updateInteraction(
   pixelsPerBeat: number,
   maxPitch: number,
   snapUnit: number = SNAP_UNIT,
+  snapEnabled: boolean = true,
 ): { note?: Partial<PianoNote>; done?: boolean } {
   switch (ctx.state) {
     case 'IDLE':
@@ -171,7 +179,8 @@ export function updateInteraction(
       return {};
 
     case 'DRAGGING': {
-      const newStartTime = snapToGrid(Math.max(0, (coord.px - ctx.offsetX) / pixelsPerBeat), snapUnit);
+      const rawStart = Math.max(0, (coord.px - ctx.offsetX) / pixelsPerBeat);
+      const newStartTime = snapEnabled ? snapToGrid(rawStart, snapUnit) : rawStart;
       const rawPitch = pixelsToPitch(coord.py - ctx.offsetY, maxPitch);
       const newPitch = Math.max(0, Math.min(127, rawPitch));
       return {
@@ -181,8 +190,9 @@ export function updateInteraction(
 
     case 'RESIZING': {
       const edgeX = coord.px - ctx.offsetX;
-      const newEndTime = snapToGrid(Math.max(snapUnit, edgeX / pixelsPerBeat), snapUnit);
-      const newDuration = Math.max(snapUnit, newEndTime - ctx.startTime);
+      const rawEnd = Math.max(snapEnabled ? snapUnit : MIN_FREE_DURATION, edgeX / pixelsPerBeat);
+      const newEndTime = snapEnabled ? snapToGrid(rawEnd, snapUnit) : rawEnd;
+      const newDuration = Math.max(snapEnabled ? snapUnit : MIN_FREE_DURATION, newEndTime - ctx.startTime);
       return {
         note: { duration: newDuration },
       };
@@ -203,8 +213,9 @@ export function endInteraction(
   pixelsPerBeat: number,
   maxPitch: number,
   snapUnit: number = SNAP_UNIT,
+  snapEnabled: boolean = true,
 ): { ctx: InteractionContext; note?: Partial<PianoNote>; finishedNew?: PianoNote } {
-  const update = updateInteraction(ctx, coord, pixelsPerBeat, maxPitch, snapUnit);
+  const update = updateInteraction(ctx, coord, pixelsPerBeat, maxPitch, snapUnit, snapEnabled);
 
   const newCtx: InteractionContext = {
     state: 'IDLE',
