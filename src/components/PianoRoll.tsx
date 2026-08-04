@@ -129,6 +129,10 @@ export default function PianoRoll({
   const [creatingNote, setCreatingNote] = useState<PianoNote | null>(null);
   // Zoom / scroll
   const [scrollLeft, setScrollLeft] = useState(0);
+  /** Scroll horizontal « logique » (celui du dessin), mis à jour immédiatement
+   * pour que les gestes de zoom enchaînés restent centrés sur le point souris. */
+  const scrollLeftRef = useRef(0);
+  scrollLeftRef.current = scrollLeft;
   const [zoom, setZoom] = useState(1);
   const effectivePixelsPerBeat = pixelsPerBeat * zoom;
   // Largeur visible du conteneur : le canvas reste fixé à cette largeur,
@@ -653,6 +657,7 @@ export default function PianoRoll({
         const beatAtMid = (pinch.midX0 - rect.left + pinch.scroll0 - PIANO_KEYBOARD_WIDTH) / ppb0;
         const newScroll = Math.max(0, beatAtMid * ppb1 - (midX - rect.left) + PIANO_KEYBOARD_WIDTH);
         setZoom(newZoom);
+        scrollLeftRef.current = newScroll;
         setScrollLeft(newScroll);
         if (containerRef.current) containerRef.current.scrollLeft = newScroll;
         if (barRef.current) barRef.current.scrollLeft = newScroll;
@@ -1201,7 +1206,9 @@ export default function PianoRoll({
     if (e.shiftKey) {
       // Scroll horizontal avec Shift+molette
       e.preventDefault();
-      setScrollLeft(prev => Math.max(0, prev + e.deltaY));
+      const v = Math.max(0, scrollLeftRef.current + e.deltaY);
+      scrollLeftRef.current = v;
+      setScrollLeft(v);
     } else if (e.ctrlKey || e.metaKey) {
       // Zoom exponentiel nuancé, centré sur le point pointé par la souris
       e.preventDefault();
@@ -1212,6 +1219,7 @@ export default function PianoRoll({
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.target as HTMLDivElement;
     const pos = el.scrollLeft;
+    scrollLeftRef.current = pos;
     setScrollLeft(pos);
     // Synchroniser l'autre conteneur (canvas ↔ barre de défilement)
     if (el === containerRef.current && barRef.current) barRef.current.scrollLeft = pos;
@@ -1361,10 +1369,14 @@ export default function PianoRoll({
     const anchor = anchorX !== undefined
       ? Math.max(0, anchorX - rect.left - PIANO_KEYBOARD_WIDTH)
       : Math.max(0, (rect.width - PIANO_KEYBOARD_WIDTH) / 2);
-    const beat = (anchor + el.scrollLeft) / ppb0;
-    requestAnimationFrame(() => {
-      el.scrollLeft = Math.max(0, beat * ppb1 - anchor);
-    });
+    // Le beat sous le point d'ancrage reste fixe à l'écran
+    const beat = (anchor + scrollLeftRef.current) / ppb0;
+    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 - viewportW);
+    const newScroll = Math.min(maxScroll, Math.max(0, beat * ppb1 - anchor));
+    // Mise à jour IMMÉDIATE de la ref (les wheel events suivants du même
+    // geste enchaînent sans attendre le re-render → point souris stable)
+    scrollLeftRef.current = newScroll;
+    setScrollLeft(newScroll);
   };
   // Re-clamp quand la durée ou le viewport changent (grille chargée, resize)
   useEffect(() => {
