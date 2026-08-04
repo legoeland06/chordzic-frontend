@@ -246,6 +246,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="■ Stop" v="Arrête et remet la tête au début." />
             <Row k="⏮ Begin" v="Remet la tête de lecture au début." />
             <Row k="Ligne rouge verticale" v="Indique la position de lecture dans les pistes. Elle court pendant la lecture, se fige à la pause, et se déplace au <b>clic de souris</b> sur une piste (scrub — la lecture repart de l'endroit cliqué)." />
+            <Row k="Afficheurs" v="La barre de transport affiche en continu : <b>Mes.</b> (mesure courante · temps dans la mesure, ex. 003.1), <b>Temps</b> écoulé (m:ss.d), <b>Durée</b> totale, <b>BPM</b> et <b>Sig.</b> (signature). Une LED rouge clignote en lecture, ambre en pause." />
             <p className="text-xs text-gray-500">
               💡 Choisir le pattern <b>Reggae</b> applique automatiquement une configuration
               complète (orgue drawbar, piano électrique, basse acoustique, nappes piano, loop activé).

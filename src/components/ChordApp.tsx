@@ -731,6 +731,7 @@ export default function ChordApp() {
             onHelp={() => setShowHelp(true)}
             engine={engineRef.current}
             input={input}
+            sig={sig}
           />
         ) : (
           <>

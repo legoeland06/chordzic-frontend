@@ -13,6 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor } from 'lucide-react';
 import { AudioEngine, TrackConfig } from '../lib/audioEngine';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -49,6 +50,7 @@ interface DawViewProps {
   hasWav: boolean;
   tempo: number;
   loopOn: boolean;
+  sig: string;                          // signature rythmique (compteur de mesures)
   input: string;                        // signature du contenu (re-rendu si modifié)
   engine: AudioEngine;                  // lecture / pause / seek
   onPlay: () => void;                   // rend le WAV + joue depuis 0 (via ChordApp)
@@ -216,7 +218,7 @@ function TrackLane({
 // ─── Composant principal ───────────────────────────────────────────────
 
 export default function DawView({
-  tracks, pianoNotes, playing, hasWav, tempo, loopOn, input, engine,
+  tracks, pianoNotes, playing, hasWav, tempo, loopOn, sig, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport,
   onAddTrack, onRemoveTrack, onUpdateTrack, onOpenPianoRoll, onHelp,
@@ -230,7 +232,7 @@ export default function DawView({
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
   const renderSigRef = useRef('');
 
-  const sig = useMemo(
+  const contentSig = useMemo(
     () => JSON.stringify({
       input, tempo,
       notes: pianoNotes,
@@ -247,6 +249,23 @@ export default function DawView({
     }
     return Math.ceil(max);
   }, [pianoNotes]);
+
+  // ── Afficheurs (compteurs) ─────────────────────────────────────
+  const beatsPerBar = (() => {
+    const n = parseInt(sig.split('/')[0] ?? '', 10);
+    return Number.isFinite(n) && n > 0 ? n : 4;
+  })();
+  const measure = Math.floor(posBeats / beatsPerBar) + 1;
+  const beatInBar = Math.floor(posBeats % beatsPerBar) + 1;
+  const durSec = engine.getPianoRollDuration() || (totalBeats * 60) / Math.max(40, tempo);
+  const fmtTime = (sec: number) => {
+    if (!Number.isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const d = Math.floor((sec % 1) * 10);
+    return `${m}:${String(s).padStart(2, '0')}.${d}`;
+  };
+  const elapsedSec = (posBeats * 60) / Math.max(40, tempo);
 
   const doStop = useCallback(() => {
     engine.stop();
@@ -266,9 +285,9 @@ export default function DawView({
       setPlayState('playing');
       return;
     }
-    if (sig !== renderSigRef.current) {
+    if (contentSig !== renderSigRef.current) {
       // Contenu modifié → re-rendre le WAV (joue depuis 0)
-      renderSigRef.current = sig;
+      renderSigRef.current = contentSig;
       setPosBeats(0);
       onPlay();
     } else {
@@ -276,7 +295,7 @@ export default function DawView({
       engine.playNavigFrom((posBeats * 60) / tempo, loopOn);
     }
     setPlayState('playing');
-  }, [playState, sig, engine, onPlay, posBeats, tempo, loopOn]);
+  }, [playState, contentSig, engine, onPlay, posBeats, tempo, loopOn]);
 
   const doPause = useCallback(() => {
     engine.pausePianoRoll();
@@ -328,82 +347,101 @@ export default function DawView({
     });
   };
 
-  const btn = 'px-3 py-2 text-xs font-bold rounded-lg border transition-colors shrink-0';
+  // ── Styles transport (tons sobres / studio) ─────────────────────
+  const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
+  const tBtnPlay = 'w-9 h-9 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
+  const tSep = 'w-px h-6 bg-[#262a34] shrink-0';
+  const tLcd = 'flex flex-col items-center justify-center px-2 py-0.5 bg-[#0a0c10] border border-[#23272f] rounded-md min-w-[3.6rem] shrink-0';
+  const tLcdLabel = 'text-[8px] uppercase tracking-widest text-[#5c6472] leading-none';
+  const tLcdVal = 'font-mono text-[13px] text-[#d9b25f] leading-tight';
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3">
-      {/* ── Barre de transport (play / pause / stop / begin) ── */}
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3 pb-3 border-b border-gray-800">
+      {/* ── Barre de transport (compacte, style studio) ── */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3 py-1.5 px-2 bg-[#12141a] border border-[#262a34] rounded-lg">
+        {/* Transport : begin / play / stop / pause */}
+        <button onClick={doBegin} title="Revenir au début (Begin)" className={tBtn}><SkipBack className="w-3.5 h-3.5" /></button>
         <button
           onClick={doPlay}
           disabled={playState === 'playing'}
-          className={`${btn} ${playState === 'paused' ? 'bg-amber-800 hover:bg-amber-700 text-white' : 'bg-green-700 hover:bg-green-600 disabled:bg-gray-800 disabled:text-gray-600 text-white'}`}
-          title={playState === 'paused' ? 'Reprendre la lecture' : 'Lire depuis la tête de lecture'}
+          className={playState === 'paused' ? `${tBtn} bg-amber-800/70 border-amber-700 text-amber-100 hover:bg-amber-700` : tBtnPlay}
+          title={playState === 'paused' ? 'Reprendre la lecture' : 'Lire depuis la tête de lecture (Play)'}
         >
-          {playState === 'paused' ? '▶ Reprendre' : '▶ Play'}
+          <Play className="w-4 h-4" />
         </button>
-        <button
-          onClick={doPause}
-          disabled={playState !== 'playing'}
-          className={`${btn} bg-gray-800 text-yellow-300 hover:bg-gray-700 disabled:opacity-30`}
-          title="Pause (la tête de lecture se fige)"
-        >
-          ⏸ Pause
-        </button>
-        <button
-          onClick={doStop}
-          className={`${btn} bg-red-800 hover:bg-red-700 text-white`}
-          title="Arrêter et revenir au début"
-        >
-          ■ Stop
-        </button>
-        <button
-          onClick={doBegin}
-          className={`${btn} bg-gray-800 text-gray-300 hover:bg-gray-700`}
-          title="Revenir au début (tête de lecture à 0)"
-        >
-          ⏮ Begin
-        </button>
-        <button
-          onClick={onExtractWav}
-          disabled={!hasWav}
-          className={`${btn} bg-gray-800 text-amber-400 hover:bg-gray-700 disabled:opacity-30`}
-          title="Télécharge le dernier rendu WAV en fichier .wav"
-        >
-          ⬇ Extract Wav
-        </button>
-        <button
-          onClick={() => onSetLoop(!loopOn)}
-          disabled={playState === 'playing'}
-          className={`${btn} ${loopOn ? 'bg-purple-900/40 border-purple-500 text-purple-400' : 'bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300'}`}
-        >
-          🔁 Loop
-        </button>
-        <span className="text-xs text-gray-500">Tempo:</span>
+        <button onClick={doStop} title="Arrêter (Stop)" className={`${tBtn} hover:bg-[#8f3b3b] hover:border-[#a84a4a] hover:text-white`}><Square className="w-3 h-3" /></button>
+        <button onClick={doPause} disabled={playState !== 'playing'} title="Pause (la tête se fige)" className={tBtn}><Pause className="w-3.5 h-3.5" /></button>
+
+        <div className={tSep} />
+
+        {/* LED de statut */}
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${playState === 'playing' ? 'bg-red-500 animate-pulse' : playState === 'paused' ? 'bg-amber-400' : 'bg-gray-700'}`}
+          title={playState === 'playing' ? 'Lecture en cours' : playState === 'paused' ? 'En pause' : 'Arrêté'}
+        />
+
+        {/* Compteurs (afficheurs LCD) */}
+        <div className={tLcd} title="Mesure courante · temps dans la mesure">
+          <span className={tLcdLabel}>Mes.</span>
+          <span className={tLcdVal}>{String(measure).padStart(3, '0')}.{beatInBar}</span>
+        </div>
+        <div className={tLcd} title="Temps écoulé depuis le début">
+          <span className={tLcdLabel}>Temps</span>
+          <span className={tLcdVal}>{fmtTime(elapsedSec)}</span>
+        </div>
+        <div className={tLcd} title="Durée totale du morceau">
+          <span className={tLcdLabel}>Durée</span>
+          <span className={tLcdVal}>{fmtTime(durSec)}</span>
+        </div>
+        <div className={tLcd} title="Tempo (BPM)">
+          <span className={tLcdLabel}>BPM</span>
+          <span className={tLcdVal}>{tempo}</span>
+        </div>
+        <div className={tLcd} title="Signature rythmique">
+          <span className={tLcdLabel}>Sig.</span>
+          <span className={tLcdVal}>{sig}</span>
+        </div>
+
+        {/* Tempo (réglage) */}
         <input
           type="range" min={40} max={220} value={tempo}
           onChange={(e) => onTempoChange(parseInt(e.target.value))}
-          className="w-20 accent-blue-500"
+          className="w-16 accent-[#6ea8d8] shrink-0"
+          title="Tempo (40-220 BPM)"
         />
-        <input
-          type="number" value={tempo}
-          onChange={(e) => onTempoChange(parseInt(e.target.value))}
-          className="text-xs font-bold text-blue-400 w-10 bg-gray-800 rounded border border-gray-700 px-1 py-1"
-        />
-        <div className="w-px h-5 bg-gray-700 mx-1 shrink-0" />
-        <button onClick={onSave} className={`${btn} bg-gray-800 text-emerald-400 hover:bg-gray-700`}>💾 Save</button>
-        <button onClick={onLoad} className={`${btn} bg-gray-800 text-cyan-400 hover:bg-gray-700`}>📂 Load</button>
-        <button onClick={onExport} className={`${btn} bg-gray-800 text-orange-400 hover:bg-gray-700`} title="Exporter en JSON">📤</button>
-        <button onClick={onImport} className={`${btn} bg-gray-800 text-orange-400 hover:bg-gray-700`} title="Importer un JSON">📥</button>
+
+        <div className={tSep} />
+
+        {/* Boucle + extraction WAV */}
+        <button
+          onClick={() => onSetLoop(!loopOn)}
+          disabled={playState === 'playing'}
+          className={loopOn ? `${tBtn} bg-[#2f4a6e] border-[#3f5f8f] text-[#a8c8e8]` : tBtn}
+          title="Lecture en boucle"
+        >
+          <Repeat className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={onExtractWav} disabled={!hasWav} title="Extraire le dernier rendu WAV" className={tBtn}>
+          <Download className="w-3.5 h-3.5" />
+        </button>
+
+        <div className={tSep} />
+
+        {/* Fichiers */}
+        <button onClick={onSave} title="Sauvegarder la grille (Save)" className={tBtn}><Save className="w-3.5 h-3.5" /></button>
+        <button onClick={onLoad} title="Charger une grille (Load)" className={tBtn}><FolderOpen className="w-3.5 h-3.5" /></button>
+        <button onClick={onExport} title="Exporter en JSON" className={tBtn}><Upload className="w-3.5 h-3.5" /></button>
+        <button onClick={onImport} title="Importer un fichier JSON" className={tBtn}><Download className="w-3.5 h-3.5" /></button>
+
         <div className="ml-auto flex items-center gap-1.5">
           <button
             onClick={onSetLive}
-            className={`${btn} bg-blue-900/40 border-blue-600 text-blue-400 hover:bg-blue-800/40`}
+            className="px-2.5 h-8 flex items-center gap-1.5 rounded-md bg-[#223a5a] text-[#8fb8e8] border border-[#2f4a6e] hover:bg-[#2a4a70] text-[11px] font-semibold transition-colors shrink-0"
             title="Revenir au mode Live (MIDI temps réel)"
           >
-            🖥 Live
+            <Monitor className="w-3.5 h-3.5" /> Live
           </button>
-          <button onClick={onHelp} className={`${btn} bg-gray-800 text-gray-400 hover:text-yellow-300`} title="Aide">❓</button>
+          <button onClick={onHelp} title="Aide" className={tBtn}><HelpCircle className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 
