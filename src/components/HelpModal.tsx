@@ -290,7 +290,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers interne ; le collage se fait à l'endroit du dernier clic." />
             <Row k="⛓ Grouper / Dégrouper" v="Les notes groupées se sélectionnent et se déplacent ensemble (le bord droit reste individuel)." />
             <Row k="↩ Annuler / ↪ Rétablir" v="Historique de 100 gestes." />
-            <Row k="− / + (zoom)" v="Zoom horizontal 25–400 % (ou Ctrl+molette ; Shift+molette = défilement)." />
+            <Row k="− / + (zoom)" v="Zoom horizontal : du fit-to-width (dézoomer suffisamment affiche TOUTE la piste d'un coup) jusqu'à 400 % (ou Ctrl+molette ; Shift+molette = défilement)." />
             <Row k="Reg:" v="Registre visible (plage de notes affichée) ; s'étend automatiquement pour couvrir les notes." />
             <Row k="▶ Lecture" v="Écoute la piste seule (rendu WAV du canal) avec curseur rouge ; Espace = lecture/pause." />
             <p className="text-xs text-gray-500">
