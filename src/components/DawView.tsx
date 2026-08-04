@@ -316,8 +316,8 @@ export default function DawView({
       const contentW = Math.max(el.scrollWidth - TRACK_LABEL_W, 1);
       // Beat pointé par la souris
       const beat = ((xView + el.scrollLeft - TRACK_LABEL_W) * totalBeats) / contentW;
-      // Zoom asymétrique : sortie plus rapide (vue d'ensemble) qu'entrée
-      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.35;
+      // Zoom exponentiel nuancé : fin au geste doux, rapide au geste fort
+      const factor = Math.exp(-e.deltaY * 0.0015);
       const minPpb = minPpbFor(el);
       const newPpb = Math.min(LANE_ZOOM_MAX, Math.max(minPpb, oldPpb * factor));
       if (Math.abs(newPpb - oldPpb) < 0.01) return;

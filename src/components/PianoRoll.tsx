@@ -646,6 +646,7 @@ export default function PianoRoll({
       const rect = canvasRef.current?.getBoundingClientRect();
       if (rect) {
         const newZoom = clampZoom(pinch.zoom0 * (dist / pinch.dist0));
+        zoomRef.current = newZoom;
         const ppb0 = pixelsPerBeat * pinch.zoom0;
         const ppb1 = pixelsPerBeat * newZoom;
         // Le beat sous le milieu des doigts reste à la même position écran
@@ -1202,9 +1203,9 @@ export default function PianoRoll({
       e.preventDefault();
       setScrollLeft(prev => Math.max(0, prev + e.deltaY));
     } else if (e.ctrlKey || e.metaKey) {
-      // Zoom avec Ctrl+molette
+      // Zoom exponentiel nuancé, centré sur le point pointé par la souris
       e.preventDefault();
-      setZoom(prev => clampZoom(prev - e.deltaY * 0.001));
+      applyZoom(zoomRef.current * Math.exp(-e.deltaY * 0.0015), e.clientX);
     }
   };
 
@@ -1313,7 +1314,8 @@ export default function PianoRoll({
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
         e.preventDefault();
-        setZoom(z => clampZoom(k === 'g' ? z - 0.25 : z + 0.25));
+        // Zoom horizontal : G = arrière, H = avant (hors saisie), centré viewport
+        applyZoom(zoomRef.current * (k === 'g' ? 1 / 1.25 : 1.25));
       }
       else if (e.key === 'Escape') { stopPlayback(); onClose(); }
     };
@@ -1339,6 +1341,31 @@ export default function PianoRoll({
   fitZoomRef.current = fitZoom;
   /** Borne le zoom entre le fit-to-width (min) et 4× (max). */
   const clampZoom = (z: number) => Math.min(4, Math.max(fitZoomRef.current, z));
+  /** Zoom courant en ref (évite les valeurs périmées dans les handlers). */
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  /**
+   * Applique un zoom en gardant fixe le point d'ancrage : la souris si
+   * `anchorX` est fourni (molette), sinon le centre du viewport (boutons, G/H).
+   */
+  const applyZoom = (target: number, anchorX?: number) => {
+    const el = containerRef.current;
+    const rect = el?.getBoundingClientRect();
+    const oldZ = zoomRef.current;
+    const newZ = clampZoom(target);
+    if (newZ === oldZ || !el || !rect) return;
+    zoomRef.current = newZ;
+    setZoom(newZ);
+    const ppb0 = pixelsPerBeat * oldZ;
+    const ppb1 = pixelsPerBeat * newZ;
+    const anchor = anchorX !== undefined
+      ? Math.max(0, anchorX - rect.left - PIANO_KEYBOARD_WIDTH)
+      : Math.max(0, (rect.width - PIANO_KEYBOARD_WIDTH) / 2);
+    const beat = (anchor + el.scrollLeft) / ppb0;
+    requestAnimationFrame(() => {
+      el.scrollLeft = Math.max(0, beat * ppb1 - anchor);
+    });
+  };
   // Re-clamp quand la durée ou le viewport changent (grille chargée, resize)
   useEffect(() => {
     setZoom(z => (z < fitZoomRef.current ? fitZoomRef.current : z));
@@ -1374,7 +1401,7 @@ export default function PianoRoll({
           <div className="flex items-center gap-1.5">
             {/* Zoom controls */}
             <button
-              onClick={() => setZoom(z => clampZoom(z - 0.25))}
+              onClick={() => applyZoom(zoomRef.current / 1.25)}
               className="px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700 active:bg-gray-600"
               title="Zoom arrière"
             >
@@ -1382,7 +1409,7 @@ export default function PianoRoll({
             </button>
             <span className="text-[10px] text-gray-500 w-8 text-center">{Math.round(zoom * 100)}%</span>
             <button
-              onClick={() => setZoom(z => clampZoom(z + 0.25))}
+              onClick={() => applyZoom(zoomRef.current * 1.25)}
               className="px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded border border-gray-700 hover:bg-gray-700 active:bg-gray-600"
               title="Zoom avant"
             >
