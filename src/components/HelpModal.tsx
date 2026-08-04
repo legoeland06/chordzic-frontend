@@ -1,6 +1,12 @@
 /**
  * HelpModal — documentation utilisateur de chordZIC V2.
  *
+ * ⚠️ RÈGLE DE RELEASE : ce composant DOIT être mis à jour à CHAQUE release
+ * (nouvelles fonctionnalités, boutons, raccourcis, changements de
+ * comportement visibles). C'est la documentation utilisateur intégrée,
+ * accessible via le bouton ❓ du header. Ne jamais livrer une release
+ * dont l'aide ne reflète pas l'état réel de l'application.
+ *
  * Modal plein écran avec sommaire cliquable et sections détaillées :
  * démarrage rapide, format des accords, barre de contrôle, pistes,
  * piano roll, sauvegarde, extraction WAV, boucles drums et dépannage.
