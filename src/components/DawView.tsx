@@ -247,7 +247,9 @@ function TrackLane({
     return { minPitch: Math.max(0, mn - 2), maxPitch: Math.min(127, mx + 2) };
   }, [notes]);
 
-  const laneHeight = laneHeightFor(notes, compact);
+  // laneHeightFor attend `detailed` : on lui passe l'inverse de `compact`
+  // (compact=true → aperçu → hauteur réduite ; compact=false → détail complet).
+  const laneHeight = laneHeightFor(notes, !compact);
 
   useEffect(() => {
     const canvas = canvasRef.current;
