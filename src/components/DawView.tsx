@@ -148,7 +148,7 @@ function FaderVU({ volume, level, onVolume }: {
     onVolume(Math.max(1, Math.min(127, Math.round(frac * 127))));
   }, [onVolume]);
   return (
-    <div className="flex flex-col items-center gap-1 select-none">
+    <div className="flex flex-col items-center gap-1 select-none h-full">
       <div
         ref={trackRef}
         className="relative w-7 flex-1 min-h-0 rounded-md bg-[#0a0c10] border border-[#23272f] overflow-hidden cursor-pointer touch-none"
@@ -201,10 +201,12 @@ function MiniVU({ level }: { level: number }) {
 // ─── Lane : une piste horizontale avec ses notes (canvas) ─────────────
 
 /** Hauteur d'une lane selon son état (partagée entre le panneau des
- * labels et le panneau des canvas pour un alignement parfait). */
-function laneHeightFor(notes: PianoNote[], compact: boolean): number {
-  if (compact) return LANE_COMPACT_H;
-  if (notes.length === 0) return Math.max(48, (96 - 36 + 1) * PITCH_PX);
+ * labels et le panneau des canvas pour un alignement parfait).
+ * Mode détail (défaut) : hauteur proportionnelle au registre des notes ;
+ * piste vide = hauteur minimale. */
+function laneHeightFor(notes: PianoNote[], detailed: boolean): number {
+  if (!detailed) return LANE_COMPACT_H;
+  if (notes.length === 0) return 48;
   let mn = 127, mx = 0;
   for (const n of notes) { if (n.pitch < mn) mn = n.pitch; if (n.pitch > mx) mx = n.pitch; }
   return Math.max(48, (Math.min(127, mx + 2) - Math.max(0, mn - 2) + 1) * PITCH_PX);
@@ -367,8 +369,9 @@ export default function DawView({
   type PlayState = 'idle' | 'playing' | 'paused';
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [posBeats, setPosBeats] = useState(0);
-  /** Canaux dont la lane est agrandie (défaut : fines). */
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  /** Canaux dont la lane est RÉDUITE (mode fin). Par défaut, chaque piste
+   * s'ouvre en mode DÉTAIL (hauteur = notes) — le chevron réduit/agrandit. */
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -573,8 +576,8 @@ export default function DawView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
-  const toggleExpanded = (ch: number) => {
-    setExpanded(prev => {
+  const toggleCollapsed = (ch: number) => {
+    setCollapsed(prev => {
       const next = new Set(prev);
       if (next.has(ch)) next.delete(ch); else next.add(ch);
       return next;
@@ -712,7 +715,7 @@ export default function DawView({
               </div>
 
               {/* Fader-vumètre pleine hauteur, entouré des potards FX */}
-              <div className="flex-1 min-h-0 flex items-center justify-center gap-1 py-2 bg-black/10">
+              <div className="flex-1 min-h-0 flex items-stretch justify-center gap-1 py-2 bg-black/10">
                 <div className="flex flex-col items-center justify-center gap-1">
                   <Knob label="Rv" value={t.fx?.reverb ?? 0} onChange={(v) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), reverb: v } })} />
                   <Knob label="Ch" value={t.fx?.chorus ?? 0} onChange={(v) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), chorus: v } })} />
@@ -770,8 +773,8 @@ export default function DawView({
           {/* Panneau GAUCHE fixe : chevron + nom + mini-vumètre (jamais déplacé par le zoom) */}
           <div className="shrink-0 w-[168px] border-r border-gray-800/80">
             {tracks.map((t, i) => {
-              const isExpanded = expanded.has(t.channel);
-              const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
+              const isDetailed = !collapsed.has(t.channel);
+              const h = laneHeightFor(pianoNotes[t.channel] ?? [], isDetailed);
               const isDragging = dragTrackIdx === i;
               return (
                 <div
@@ -793,13 +796,13 @@ export default function DawView({
                   onDragEnd={() => setDragTrackIdx(null)}
                   title="Glisser pour réordonner la piste (table de mixage et pistes synchronisées)"
                 >
-                  {/* Chevron agrandir/rétrécir */}
+                  {/* Chevron réduire/agrandir */}
                   <button
-                    onClick={() => toggleExpanded(t.channel)}
+                    onClick={() => toggleCollapsed(t.channel)}
                     className="w-5 h-5 shrink-0 text-[10px] text-gray-500 hover:text-yellow-300 rounded"
-                    title={isExpanded ? 'Rétrécir la piste' : 'Agrandir la piste'}
+                    title={isDetailed ? 'Réduire la piste (mode fin)' : 'Agrandir la piste (mode détail)'}
                   >
-                    {isExpanded ? '▼' : '▶'}
+                    {isDetailed ? '▼' : '▶'}
                   </button>
                   {/* Nom + mini-vumètre (clic sur le nom = Piano Roll) */}
                   <div
@@ -830,8 +833,8 @@ export default function DawView({
           <div ref={lanesScrollRef} className="overflow-x-auto flex-1 min-w-0">
             <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
               {tracks.map(t => {
-                const isExpanded = expanded.has(t.channel);
-                const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
+                const isDetailed = !collapsed.has(t.channel);
+                const h = laneHeightFor(pianoNotes[t.channel] ?? [], isDetailed);
                 return (
                   <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
                     <TrackLane
@@ -839,7 +842,7 @@ export default function DawView({
                       notes={pianoNotes[t.channel] ?? []}
                       totalBeats={totalBeats}
                       posBeats={posBeats}
-                      compact={!isExpanded}
+                      compact={!isDetailed}
                       onScrub={doScrub}
                     />
                   </div>
