@@ -349,6 +349,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               pistes, pattern, 432 Hz et notes du piano roll).
             </p>
             <p>
+              Le <b className="text-white">nom du projet courant</b> (grille chargée, sauvegardée ou importée,
+              sans extension) s'affiche à côté du titre : <b className="text-white">chordZic — MonProjet</b>.
+            </p>
+            <p>
               <b className="text-white">📤 Export</b> télécharge un fichier <code className="text-gray-400">.json</code>
               autonome ; <b className="text-white">📥 Import</b> le relit (les anciens formats sont convertis automatiquement).
             </p>

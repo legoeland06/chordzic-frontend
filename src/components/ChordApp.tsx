@@ -266,6 +266,9 @@ export default function ChordApp() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  /** Nom du projet courant (grille chargée/sauvegardée, sans extension) —
+   * affiché à côté du titre. null = aucun projet nommé. */
+  const [projectName, setProjectName] = useState<string | null>(null);
   /** Documentation utilisateur (bouton ❓ du header). */
   const [showHelp, setShowHelp] = useState(false);
   const [savedGrilles, setSavedGrilles] = useState<GrilleEntry[]>([]);
@@ -315,6 +318,7 @@ export default function ChordApp() {
       if (data.loopName !== undefined) setLoopName(data.loopName);
       if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
       setLastAutosaveAt(data.savedAt ? new Date(data.savedAt).getTime() : Date.now());
+      setProjectName(typeof data.projectName === 'string' && data.projectName ? data.projectName : null);
       setStatus('♻️ Session restaurée (sauvegarde automatique locale)');
       setStatusColor('text-green-400');
       setTimeout(() => {
@@ -611,6 +615,7 @@ export default function ChordApp() {
       tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
       loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume,
+      projectName,
       ...(hasPianoNotes ? { pianoNotes } : {}),
       ...extra,
     };
@@ -627,6 +632,7 @@ export default function ChordApp() {
       if (!res.ok) throw new Error('échec serveur');
       await refreshGrilles();
       setShowSaveModal(false);
+      setProjectName(name);
       setStatus(`💾 Grille « ${name} » sauvegardée (fichier JSON)`); setStatusColor('text-green-400');
     } catch {
       setStatus('❌ Sauvegarde impossible (serveur injoignable)'); setStatusColor('text-red-400');
@@ -651,6 +657,7 @@ export default function ChordApp() {
     if (entry.loopOffset !== undefined) { setLoopOffset(entry.loopOffset); engineRef.current?.setLoopOffset(entry.loopOffset); }
     if (entry.loopName !== undefined) setLoopName(entry.loopName);
     if (entry.loopVolume !== undefined) { setLoopVolume(entry.loopVolume); engineRef.current?.setLoopVolume(entry.loopVolume); }
+    setProjectName(entry.name || null);
     setShowLoadModal(false);
     setStatus(`📂 Grille « ${entry.name} » chargée`); setStatusColor('text-blue-400');
     setTimeout(() => {
@@ -733,6 +740,7 @@ export default function ChordApp() {
             setPianoNotes({});
           }
           setStatus(`📥 Grille importée depuis ${file.name}`); setStatusColor('text-green-400');
+          setProjectName(file.name.replace(/\.json$/i, '').trim() || null);
           setTimeout(() => { try { const grille = parseGrille(data.input, data.tempo || 120); setChords(grille.chords); } catch {} }, 50);
         } else { setStatus('❌ Format de fichier invalide'); setStatusColor('text-red-400'); }
       } catch { setStatus('❌ Fichier JSON invalide'); setStatusColor('text-red-400'); }
@@ -836,7 +844,9 @@ export default function ChordApp() {
               <Music className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">chordZic</h1>
+              <h1 className="text-xl font-bold text-white">
+                chordZic{projectName ? <span className="text-gray-400 font-normal"> — {projectName}</span> : null}
+              </h1>
               <p className="text-xs text-gray-500">Moteur Harmonique - by Legoeland</p>
             </div>
           </div>
