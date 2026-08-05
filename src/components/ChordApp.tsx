@@ -157,6 +157,18 @@ export default function ChordApp() {
     setPendingDeleteTrack(t);
   };
 
+  /** Réordonne les pistes (drag & drop des lanes). L'ordre est partagé :
+   * table de mixage, lanes et mode Live lisent tous le même tableau. */
+  const reorderTracks = (from: number, to: number) => {
+    setLocalTracks(prev => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
   /** Supprime réellement la piste (appelé après confirmation).
    * UI, moteur, notes du piano roll, backend. */
   const confirmRemoveTrack = () => {
@@ -894,6 +906,7 @@ export default function ChordApp() {
             onAddTrack={() => setShowAddTrack(true)}
             onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
+            onReorderTracks={reorderTracks}
             onOpenPianoRoll={setOpenPianoRoll}
             onHelp={() => setShowHelp(true)}
             engine={engineRef.current}

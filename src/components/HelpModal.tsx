@@ -249,8 +249,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p className="font-bold text-white mt-2">Modules d'effets (FX) par piste</p>
             <p>
-              Chaque piste possède 4 <b className="text-white">potentiomètres circulaires</b> (<b>Rv</b> reverb,
-              <b>Ch</b> chorus, <b>Dl</b> delay, <b>Dr</b> overdrive, 0-100) :{' '}
+              Chaque piste possède 4 <b className="text-white">potentiomètres circulaires</b> disposés{' '}
+              <b className="text-white">autour du fader-vumètre</b> (2 à gauche : <b>Rv</b> reverb, <b>Ch</b> chorus ;
+              2 à droite : <b>Dl</b> delay, <b>Dr</b> overdrive, 0-100) :{' '}
               <b className="text-white">drag vertical</b> pour régler (vers le haut = +). Ils sont appliqués{' '}
               <b className="text-white">avant le mixage final</b> : chaque piste est rendue séparément, passe dans sa chaîne d'effets
               (overdrive → delay → chorus → reverb), puis les pistes sont mixées. Réglés à 0 (défaut),
@@ -268,6 +269,12 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               Un <b className="text-white">clic sur le nom</b> d'une piste ouvre son Piano Roll pour l'éditer en détail.
               À <b className="text-white">droite du nom</b> de chaque piste, un <b className="text-white">mini-vumètre</b>
               (4 petits tirets vert/jaune/rouge) indique l'activité de la piste pendant la lecture.
+            </p>
+            <p>
+              Les noms des pistes sont dans un <b className="text-white">panneau fixe à gauche</b> : la molette
+              (zoom) et le défilement horizontal ne concernent que <b className="text-white">le contenu</b> des pistes.
+              Pour <b className="text-white">réordonner les pistes</b>, glissez-déposez le nom d'une piste
+              (le nouvel ordre s'applique partout : table de mixage, pistes et mode Live).
               Les pistes sont <b>pré-remplies automatiquement</b> avec l'arrangement classique ; vos
               modifications ne sont jamais écrasées.
             </p>
