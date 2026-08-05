@@ -72,6 +72,8 @@ interface PianoRollProps {
   trackLabel: string;
   /** Canal MIDI de la piste (pour le titre et la couleur). */
   channel: number;
+  /** Piste percussion (kit drums) : registre GM percussion affiché. */
+  isDrum?: boolean;
   /** Couleur de thème (optionnel, déduite du canal si omis). */
   accentColor?: string;
   /** Pitch minimum affiché (défaut : plage selon le canal, voir CHANNEL_RANGES). */
@@ -99,6 +101,7 @@ export default function PianoRoll({
   onNotesChange,
   trackLabel,
   channel,
+  isDrum = false,
   accentColor,
   minPitch,
   maxPitch,
@@ -121,7 +124,9 @@ export default function PianoRoll({
     4: [36, 84],   // Accent  : C2 → C6
     9: [35, 81],   // Drums   : plage GM (kick/snare/hihat/cymbales/toms)
   };
-  const [defaultMin, defaultMax] = CHANNEL_RANGES[channel] ?? [36, 96];
+  const [defaultMin, defaultMax] = isDrum
+    ? [35, 81] as const  // Piste percussion (canal quelconque) : plage GM
+    : CHANNEL_RANGES[channel] ?? [36, 96];
   // Registre visible : réglable par l'utilisateur (sliders dans la toolbar),
   // initialisé sur la plage du canal (ou les props explicites du parent).
   const [userMinPitch, setUserMinPitch] = useState(minPitch ?? defaultMin);

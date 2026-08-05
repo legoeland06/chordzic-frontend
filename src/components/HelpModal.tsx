@@ -187,8 +187,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           <Section id="pistes" icon="🎚️" title="Pistes & réglages">
             <p>
               <b className="text-white">Pistes dynamiques</b> : 5 pistes par défaut, mais vous pouvez{' '}
-              <b className="text-white">ajouter</b> (carte <b>➕ Ajouter une piste</b>, canal MIDI libre) ou{' '}
-              <b className="text-white">supprimer</b> (bouton 🗑) des pistes. La suppression demande{' '}
+              <b className="text-white">ajouter</b> ou <b className="text-white">supprimer</b> (bouton 🗑) des pistes.
+              Au clic sur <b>➕ Piste</b>, choisissez le type :
+              <b className="text-white"> 🎹 Piste instrument</b> (128 instruments GM au choix) ou{' '}
+              <b className="text-white">🥁 Piste drums / percussion</b> (kit de percussion GM, canal 9 s'il est
+              libre, sinon un canal libre — le kit sonne sur n'importe quel canal). Les pistes drums ont un
+              sélecteur d'instrument désactivé (« Kit drums ») et une plage de notes percussion dans leur piano roll.
+              La suppression demande{' '}
               <b className="text-white">toujours une confirmation</b> (la piste et ses notes du piano roll
               sont alors définitivement supprimées — il n'y a pas d'annulation possible). Le{' '}
               <b className="text-white">nom</b> de

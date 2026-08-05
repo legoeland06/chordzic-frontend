@@ -26,6 +26,9 @@ export interface TrackConfig {
   program: number;    // Instrument GM (0-127)
   volume: number;     // Volume (0-127)
   mute: boolean;      // Mute
+  /** Piste percussion (kit drums) sur un canal ≠ 9 : banque percussion GM2
+   * (bank 128) + kit Standard. Sélecteur d'instrument désactivé. */
+  drums?: boolean;
   /** Effets de piste (0-100 chacun), appliqués au rendu WAV (mode Navig). */
   fx?: TrackFx;
 }
@@ -170,6 +173,7 @@ export class AudioEngine {
       body: JSON.stringify({
         tracks: this.tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false,
           effects: t.fx ?? FX_ZERO,
         })),
         pattern: this.drumPattern,
@@ -221,7 +225,8 @@ export class AudioEngine {
         sig: this.sig,
         master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
-          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
         })),
       });
     } else {
@@ -235,7 +240,8 @@ export class AudioEngine {
             sequence, tempo: this.tempo, sig: this.sig,
             pattern: this.drumPattern, walking: this.walking, loop_enabled: true,
             tracks: this.tracks.map(t => ({
-              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
             })),
           }),
         });
@@ -275,7 +281,9 @@ export class AudioEngine {
         tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
         master_vol: this.masterVol,
         tracks: this.tracks.map(t => ({
-          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false,
+          effects: t.fx ?? FX_ZERO,
         })),
         customNotes,
         customChannels,
@@ -292,7 +300,9 @@ export class AudioEngine {
             sequence, tempo: this.tempo, sig: this.sig,
             pattern: this.drumPattern, walking: this.walking, loop_enabled: loop || false,
             tracks: this.tracks.map(t => ({
-              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+              channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false,
+              effects: t.fx ?? FX_ZERO,
             })),
             custom_notes: customNotes || [],
           }),
@@ -357,7 +367,9 @@ export class AudioEngine {
     return this.browserSynth.getPianoNotes(sequence, this.tempo, {
       tempo: this.tempo, pattern: this.drumPattern, walking: this.walking, sig: this.sig,
       tracks: this.tracks.map(t => ({
-        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false,
+        effects: t.fx ?? FX_ZERO,
       })),
     });
   }
@@ -383,7 +395,9 @@ export class AudioEngine {
       pattern: this.drumPattern, walking: this.walking, sig: this.sig,
       master_vol: this.masterVol,
       tracks: this.tracks.map(t => ({
-        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, effects: t.fx ?? FX_ZERO,
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+            drums: t.drums ?? false,
+        effects: t.fx ?? FX_ZERO,
       })),
     });
   }

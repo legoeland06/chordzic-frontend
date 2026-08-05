@@ -254,8 +254,8 @@ export default function TrackPanel({
               </div>
             </div>
 
-            {/* Sélecteur d'instrument (sauf pour drums — kit fixe) */}
-            {t.channel !== 9 ? (
+            {/* Sélecteur d'instrument (sauf drums — kit fixe) */}
+            {t.channel !== 9 && !t.drums ? (
               <select
                 value={t.program}
                 onChange={e => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
@@ -267,7 +267,9 @@ export default function TrackPanel({
                 ))}
               </select>
             ) : (
-              <div className="h-6" />
+              <div className="h-6 mb-1.5 flex items-center justify-center rounded border border-gray-800 bg-gray-900/40 text-[10px] text-gray-500 font-mono">
+                🥁 Kit drums
+              </div>
             )}
 
             {/* Volume de la piste */}

@@ -47,7 +47,7 @@ interface GrilleEntry {
   sig: string;
   date?: number | string;     // timestamp UNIX (serveur) ou date locale (ancien format)
   pianoNotes?: Record<number, PianoNote[]>;
-  tracks?: Array<{ channel: number; program: number; volume: number; mute: boolean }>;
+  tracks?: Array<{ channel: number; program: number; volume: number; mute: boolean; drums?: boolean }>;
   pattern?: string;
   use432Hz?: boolean;
   loopOn?: boolean;
@@ -114,21 +114,39 @@ export default function ChordApp() {
   const suppressAutoConfigRef = useRef(false);
 
   // ── Pistes dynamiques : ajout / suppression ────────────────────────
-  /** Canaux MIDI proposés pour une nouvelle piste (le 9 est réservé aux drums). */
+  /** Canaux MIDI proposés pour une nouvelle piste instrument (le 9 est réservé aux drums). */
   const AVAILABLE_CHANNELS = [1, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+  /** Choix affiché à l'ajout de piste (null = modale fermée). */
+  const [showAddTrack, setShowAddTrack] = useState(false);
 
-  /** Ajoute une nouvelle piste instrument sur le premier canal libre. */
-  const addTrack = () => {
+  /** Ajoute une nouvelle piste — l'utilisateur choisit le type :
+   * 'inst'  = instrument mélodique (canaux 1, 5-8, 10-15)
+   * 'drums' = percussion / kit drums (canal 9 s'il est libre, sinon canaux
+   *           libres — le backend programme la banque percussion GM2). */
+  const addTrack = (kind: 'inst' | 'drums') => {
     const used = new Set(tracks.map(t => t.channel));
-    const ch = AVAILABLE_CHANNELS.find(c => !used.has(c));
+    let ch: number | undefined;
+    if (kind === 'drums') {
+      // Canal drums GM (9) prioritaire s'il est libre, sinon canal libre
+      ch = !used.has(9) ? 9 : AVAILABLE_CHANNELS.find(c => !used.has(c));
+    } else {
+      ch = AVAILABLE_CHANNELS.find(c => !used.has(c));
+    }
     if (ch === undefined) {
       setStatus('❌ Tous les canaux MIDI sont utilisés'); setStatusColor('text-red-400');
+      setShowAddTrack(false);
       return;
     }
-    const newTrack = createTrack(ch);
+    const isDrum = kind === 'drums';
+    const newTrack = createTrack(ch, {
+      drums: isDrum,
+      label: isDrum ? `Drums ${ch}` : `Piste ${ch}`,
+    });
     setLocalTracks(prev => [...prev, newTrack]);
     engineRef.current?.addTrack(newTrack);
-    setStatus(`➕ Piste « ${newTrack.label} » ajoutée (canal ${ch})`); setStatusColor('text-blue-400');
+    setShowAddTrack(false);
+    setStatus(`➕ Piste « ${newTrack.label} » ajoutée (canal ${ch}, ${isDrum ? 'drums' : 'instrument'})`);
+    setStatusColor('text-blue-400');
   };
 
   /** DEMANDE la suppression d'une piste : ouvre une confirmation (jamais
@@ -590,7 +608,7 @@ export default function ChordApp() {
       Object.values(pianoNotes).some(notes => notes.length > 0);
     return {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
-      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, fx: t.fx ?? FX_ZERO })),
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
       loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume,
       ...(hasPianoNotes ? { pianoNotes } : {}),
@@ -863,7 +881,7 @@ export default function ChordApp() {
             onLoad={() => setShowLoadModal(true)}
             onExport={handleExport}
             onImport={() => fileInputRef.current?.click()}
-            onAddTrack={addTrack}
+            onAddTrack={() => setShowAddTrack(true)}
             onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
             onOpenPianoRoll={setOpenPianoRoll}
@@ -900,7 +918,7 @@ export default function ChordApp() {
             onSetLoop={setLoopOn} onSetWalkingBass={setWalkingBass}
             onSetDrumPattern={setDrumPattern} onSetSig={setSig} onSetTempo={setTempo}
             onUpdateTrack={updateTrack}
-            onAddTrack={addTrack}
+            onAddTrack={() => setShowAddTrack(true)}
             onRemoveTrack={requestRemoveTrack}
             useLoops={useLoops} loopOffset={loopOffset} loopName={loopName}
             availableSamples={availableSamples} loopVolume={loopVolume}
@@ -958,6 +976,48 @@ export default function ChordApp() {
           onLoad={handleLoad}
           onDelete={handleDeleteSave}
         />
+
+        {/* Choix du type de piste à ajouter : instrument ou drums */}
+        {showAddTrack && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+            <div className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl max-w-md w-full mx-4 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xl">➕</span>
+                <h3 className="text-white font-bold">Ajouter une piste</h3>
+              </div>
+              <div className="grid gap-2 mb-4">
+                <button
+                  onClick={() => addTrack('inst')}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 hover:border-blue-500 hover:bg-gray-750 text-left transition-colors"
+                >
+                  <span className="text-2xl">🎹</span>
+                  <span>
+                    <span className="block text-white text-sm font-bold">Piste instrument</span>
+                    <span className="block text-xs text-gray-500">Instrument GM au choix (128), notes mélodiques</span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => addTrack('drums')}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 hover:bg-gray-750 text-left transition-colors"
+                >
+                  <span className="text-2xl">🥁</span>
+                  <span>
+                    <span className="block text-white text-sm font-bold">Piste drums / percussion</span>
+                    <span className="block text-xs text-gray-500">Kit de percussion GM — canal 9 s'il est libre, sinon canal libre (banque percussion)</span>
+                  </span>
+                </button>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowAddTrack(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-sm"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Confirmation de suppression de piste (jamais de suppression directe) */}
         {pendingDeleteTrack && (() => {
@@ -1022,6 +1082,7 @@ export default function ChordApp() {
               onNotesChange={(notes) => handlePianoRollChange(openPianoRoll, notes)}
               trackLabel={track?.label ?? `Canal ${openPianoRoll}`}
               channel={openPianoRoll}
+              isDrum={track?.drums ?? false}
               onClose={() => setOpenPianoRoll(null)}
               onPreviewNote={(pitch) => { engineRef.current?.playPreviewNote(openPianoRoll, pitch); }}
               tempo={tempo}

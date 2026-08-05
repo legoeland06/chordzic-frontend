@@ -607,9 +607,9 @@ export default function DawView({
               <select
                 value={t.program}
                 onChange={(e) => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
-                disabled={t.channel === 9}
+                disabled={t.channel === 9 || !!t.drums}
                 className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300 disabled:opacity-40"
-                title={t.channel === 9 ? 'Kit drums fixe' : 'Instrument GM'}
+                title={t.channel === 9 || t.drums ? 'Kit drums fixe' : 'Instrument GM'}
               >
                 {AudioEngine.INSTRUMENTS.map((name, i) => (
                   <option key={i} value={i}>{name}</option>
