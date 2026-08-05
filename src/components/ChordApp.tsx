@@ -92,6 +92,23 @@ export default function ChordApp() {
     engineRef.current?.setTrack(channel, cfg);
   };
 
+  /** REMPLACE la liste des pistes par celle d'une grille chargée (Load /
+   * Import / restauration autosave) : les pistes du projet courant absentes
+   * de la grille sont retirées (plus de pistes orphelines vides), et le
+   * moteur AudioEngine est synchronisé (canaux retirés + pistes appliquées). */
+  const applyLoadedTracks = (loaded: Array<Partial<TrackConfig> & { channel: number }>) => {
+    const nextTracks = loaded.map(tc => createTrack(tc.channel, tc));
+    const nextChannels = new Set(nextTracks.map(t => t.channel));
+    // Retirer du moteur les canaux qui ne sont plus dans la grille
+    for (const t of tracks) {
+      if (!nextChannels.has(t.channel)) engineRef.current?.removeTrack(t.channel);
+    }
+    setLocalTracks(nextTracks);
+    for (const t of nextTracks) engineRef.current?.setTrack(t.channel, t);
+    // Fermer le piano roll s'il visait une piste supprimée par le chargement
+    setOpenPianoRoll(prev => (prev !== null && !nextChannels.has(prev) ? null : prev));
+  };
+
   /** Vrai pendant un chargement de grille : l'auto-config Reggae est suspendue
    * (elle écraserait les instruments sauvegardés — bug « Load 2 fois »). */
   const suppressAutoConfigRef = useRef(false);
@@ -270,7 +287,7 @@ export default function ChordApp() {
       if (data.sig) setSig(data.sig);
       setInput(data.input);
       setPianoNotes(data.pianoNotes ?? {});
-      if (data.tracks) data.tracks.forEach((tc: any) => updateTrack(tc.channel, tc));
+      if (data.tracks && data.tracks.length > 0) applyLoadedTracks(data.tracks);
       if (data.pattern) setDrumPattern(data.pattern);
       if (data.use432Hz !== undefined) setUse432(data.use432Hz);
       if (data.loopOn !== undefined) setLoopOn(data.loopOn);
@@ -605,7 +622,9 @@ export default function ChordApp() {
     // Restaurer les notes du PianoRoll (ancien format sans le champ → aucune)
     setPianoNotes(entry.pianoNotes ?? {});
     // v3 : restaurer aussi les réglages (tracks, pattern, 432Hz)
-    if (entry.tracks) entry.tracks.forEach(tc => updateTrack(tc.channel, tc));
+    // Les pistes de la grille REMPLACENT celles du projet courant (les
+    // pistes orphelines de la session précédente sont retirées).
+    if (entry.tracks && entry.tracks.length > 0) applyLoadedTracks(entry.tracks);
     if (entry.pattern) setDrumPattern(entry.pattern);
     if (entry.use432Hz !== undefined) setUse432(entry.use432Hz);
     if (entry.loopOn !== undefined) setLoopOn(entry.loopOn);
@@ -674,7 +693,7 @@ export default function ChordApp() {
           suppressAutoConfigRef.current = true;
           setInput(data.input); setTempo(data.tempo || 120);
           if (data.sig) setSig(data.sig);
-          if (data.tracks) data.tracks.forEach((tc: any) => updateTrack(tc.channel, tc));
+          if (data.tracks && data.tracks.length > 0) applyLoadedTracks(data.tracks);
           else {
             if (data.drums !== undefined) updateTrack(9, { mute: !data.drums });
             if (data.bass !== undefined) updateTrack(2, { mute: !data.bass });
