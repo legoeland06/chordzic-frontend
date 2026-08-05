@@ -237,14 +237,22 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="font-bold text-white mt-3">Vue DAW (mode 📱 Navig.)</p>
             <p>
               La <b className="text-white">table de mixage</b> (en haut, à la place du champ texte) : une colonne
-              par piste avec <b>nom modifiable</b>, <b>instrument</b>, <b>fader de volume</b> et <b>MUTE</b> —
+              par piste avec <b>nom modifiable</b>, <b>instrument</b>, <b>MUTE</b> —
               plus la carte <b>➕ Piste</b> pour ajouter un instrument.
+            </p>
+            <p className="font-bold text-white mt-2">Fader-vumètre fusionné</p>
+            <p>
+              Le <b className="text-white">fader de volume</b> occupe toute la hauteur du cadre et sert{' '}
+              <b className="text-white">aussi de vumètre</b> : pendant la lecture, sa course s'allume
+              (vert → jaune → rouge) selon l'activité de la piste, le curseur doré indiquant le volume.
+              Clic ou drag n'importe où sur la course = régler le volume.
             </p>
             <p className="font-bold text-white mt-2">Modules d'effets (FX) par piste</p>
             <p>
-              Chaque piste possède 4 potards d'effets (<b>Rv</b> reverb, <b>Ch</b> chorus, <b>Dl</b> delay,
-              <b>Dr</b> overdrive, 0-100). Ils sont appliqués <b className="text-white">avant le mixage final</b> :
-              chaque piste est rendue séparément, passe dans sa chaîne d'effets
+              Chaque piste possède 4 <b className="text-white">potentiomètres circulaires</b> (<b>Rv</b> reverb,
+              <b>Ch</b> chorus, <b>Dl</b> delay, <b>Dr</b> overdrive, 0-100) :{' '}
+              <b className="text-white">drag vertical</b> pour régler (vers le haut = +). Ils sont appliqués{' '}
+              <b className="text-white">avant le mixage final</b> : chaque piste est rendue séparément, passe dans sa chaîne d'effets
               (overdrive → delay → chorus → reverb), puis les pistes sont mixées. Réglés à 0 (défaut),
               le rendu reste le rendu classique rapide. Sauvegardés avec la grille (Save).
             </p>
@@ -258,6 +266,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               Les pistes sont <b className="text-white">fines par défaut</b> ; le <b className="text-white">chevron ▶/▼</b> à gauche
               les agrandit (hauteur = notes, comme un piano roll) ou les rétrécit.
               Un <b className="text-white">clic sur le nom</b> d'une piste ouvre son Piano Roll pour l'éditer en détail.
+              À <b className="text-white">droite du nom</b> de chaque piste, un <b className="text-white">mini-vumètre</b>
+              (4 petits tirets vert/jaune/rouge) indique l'activité de la piste pendant la lecture.
               Les pistes sont <b>pré-remplies automatiquement</b> avec l'arrangement classique ; vos
               modifications ne sont jamais écrasées.
             </p>

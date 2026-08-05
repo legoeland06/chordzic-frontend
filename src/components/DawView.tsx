@@ -75,27 +75,124 @@ interface DawViewProps {
   onHelp: () => void;
 }
 
-/** Vumètre à segments (LED) : 10 segments, vert → jaune → rouge. */
-function VUMeter({ level, height = 64 }: { level: number; height?: number }) {
-  const segs = 10;
-  const lit = Math.max(0, Math.min(segs, Math.round(level * segs)));
+/** Coordonnées d'un point sur un cercle (pour les arcs de knob). */
+function polar(cx: number, cy: number, r: number, angleDeg: number): [number, number] {
+  const a = (angleDeg * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+/** Chemin SVG d'un arc de cercle (pour la course d'un knob). */
+function arcPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
+  const [x0, y0] = polar(cx, cy, r, a0);
+  const [x1, y1] = polar(cx, cy, r, a1);
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+  const sweep = a1 > a0 ? 1 : 0;
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} ${sweep} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+/** Potentiomètre circulaire (drag vertical pour régler, 0-100). */
+function Knob({ label, value, onChange }: {
+  label: string; value: number; onChange: (v: number) => void;
+}) {
+  const valRef = useRef(value);
+  valRef.current = value;
+  const dragRef = useRef<{ y: number; v0: number } | null>(null);
+  const angle = -135 + (valRef.current / 100) * 270;
+  const [ix, iy] = polar(18, 18, 11, angle);
   return (
-    <div className="flex flex-col-reverse gap-[2px] shrink-0" style={{ height }}>
-      {Array.from({ length: segs }).map((_, i) => {
-        const on = i < lit;
-        const color = i / segs < 0.6 ? '#4ade80' : i / segs < 0.85 ? '#facc15' : '#f87171';
-        return (
-          <div
-            key={i}
-            className="w-1.5 rounded-sm"
-            style={{
-              height: (height - 2 * (segs - 1)) / segs,
-              backgroundColor: on ? color : '#262a34',
-              transition: 'background-color 45ms linear',
-            }}
-          />
-        );
-      })}
+    <div className="flex flex-col items-center gap-0.5 select-none" title={`${label} — appliqué au rendu WAV (mode Navig)`}>
+      <svg
+        width={36} height={36} viewBox="0 0 36 36"
+        className="cursor-ns-resize touch-none"
+        onPointerDown={(e) => {
+          (e.target as Element).setPointerCapture?.(e.pointerId);
+          dragRef.current = { y: e.clientY, v0: valRef.current };
+        }}
+        onPointerMove={(e) => {
+          const d = dragRef.current;
+          if (!d) return;
+          const dv = (d.y - e.clientY) * (100 / 110);
+          onChange(Math.max(0, Math.min(100, Math.round(d.v0 + dv))));
+        }}
+        onPointerUp={() => { dragRef.current = null; }}
+      >
+        <circle cx={18} cy={18} r={15} fill="#101319" stroke="#2a2f3b" strokeWidth={1.5} />
+        {/* Course (fond) */}
+        <path d={arcPath(18, 18, 11, -135, 135)} stroke="#262b36" strokeWidth={3} fill="none" strokeLinecap="round" />
+        {/* Course (valeur) */}
+        <path d={arcPath(18, 18, 11, -135, angle)} stroke="#b8954f" strokeWidth={3} fill="none" strokeLinecap="round" />
+        {/* Repère */}
+        <line x1={18} y1={18} x2={ix} y2={iy} stroke="#e0b96a" strokeWidth={2} strokeLinecap="round" />
+        <circle cx={18} cy={18} r={2.5} fill="#0c0e12" stroke="#8f7a4a" strokeWidth={1} />
+      </svg>
+      <span className="text-[8px] text-gray-500 font-mono leading-none">{label}</span>
+      <span className="text-[8px] text-gray-400 font-mono leading-none">{value}</span>
+    </div>
+  );
+}
+
+/** Fader de volume FUSIONNÉ avec le vumètre : la course du fader est le
+ * vumètre de la piste (remplissage coloré selon l'activité), le curseur
+ * indique le volume. Clic/drag n'importe où sur la course = régler le volume. */
+function FaderVU({ volume, level, onVolume }: {
+  volume: number; level: number; onVolume: (v: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<number | null>(null);
+  const setFromY = useCallback((clientY: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const frac = 1 - Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+    onVolume(Math.max(1, Math.min(127, Math.round(frac * 127))));
+  }, [onVolume]);
+  return (
+    <div className="flex flex-col items-center gap-1 select-none">
+      <div
+        ref={trackRef}
+        className="relative w-7 flex-1 min-h-0 rounded-md bg-[#0a0c10] border border-[#23272f] overflow-hidden cursor-pointer touch-none"
+        title="Volume — la course sert aussi de vumètre (activité pendant la lecture)"
+        onPointerDown={(e) => {
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+          dragRef.current = e.clientY;
+          setFromY(e.clientY);
+        }}
+        onPointerMove={(e) => { if (dragRef.current !== null) setFromY(e.clientY); }}
+        onPointerUp={() => { dragRef.current = null; }}
+      >
+        {/* Vumètre : remplissage depuis le bas (vert → jaune → rouge) */}
+        <div
+          className="absolute inset-x-0 bottom-0 transition-[height] duration-75"
+          style={{
+            height: `${Math.round(level * 100)}%`,
+            background: 'linear-gradient(to top, rgba(74,222,128,0.85), rgba(250,204,21,0.85) 60%, rgba(248,113,113,0.9) 85%)',
+          }}
+        />
+        {/* Graduations fines (repères de niveau) */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-40"
+          style={{ background: 'repeating-linear-gradient(to top, transparent 0 9px, #1b2029 9px 10px)' }}
+        />
+        {/* Curseur de volume */}
+        <div className="absolute inset-x-0 pointer-events-none" style={{ bottom: `${(volume / 127) * 100}%` }}>
+          <div className="h-[5px] w-full bg-[#e0b96a] rounded-[2px] shadow-[0_0_4px_rgba(224,185,106,0.6)]" />
+        </div>
+      </div>
+      <span className="text-[9px] text-gray-400 font-mono leading-none">{volume}</span>
+    </div>
+  );
+}
+
+/** Mini-vumètre (4 tirets superposés) pour les lanes de pistes. */
+function MiniVU({ level }: { level: number }) {
+  const lit = Math.round(Math.max(0, Math.min(1, level)) * 4);
+  const color = (i: number) =>
+    i < lit ? (i < 2 ? '#4ade80' : i < 3 ? '#facc15' : '#f87171') : '#262a34';
+  return (
+    <div className="flex flex-col justify-end gap-[2px] w-[7px] shrink-0" title="Activité de la piste">
+      {[0, 1, 2, 3].map(i => (
+        <div key={i} className="h-[3px] w-full rounded-[1px]" style={{ backgroundColor: color(i), transition: 'background-color 60ms linear' }} />
+      ))}
     </div>
   );
 }
@@ -103,13 +200,15 @@ function VUMeter({ level, height = 64 }: { level: number; height?: number }) {
 // ─── Lane : une piste horizontale avec ses notes (canvas) ─────────────
 
 function TrackLane({
-  track, notes, totalBeats, posBeats, compact, onScrub, onOpenPianoRoll,
+  track, notes, totalBeats, posBeats, compact, level, onScrub, onOpenPianoRoll,
 }: {
   track: TrackConfig;
   notes: PianoNote[];
   totalBeats: number;
   posBeats: number;
   compact: boolean;
+  /** Niveau d'activité (0-1) pour le mini-vumètre, pendant la lecture. */
+  level: number;
   onScrub: (beats: number) => void;
   onOpenPianoRoll: (channel: number) => void;
 }) {
@@ -235,15 +334,18 @@ function TrackLane({
 
   return (
     <div className="flex items-stretch gap-2 py-0.5 group">
-      {/* Étiquette piste (clic → Piano Roll) */}
+      {/* Étiquette piste (clic → Piano Roll) + mini-vumètre à droite du nom */}
       <div
         className="w-32 shrink-0 flex flex-col justify-center pl-1 cursor-pointer hover:opacity-80"
         onClick={() => onOpenPianoRoll(track.channel)}
         title={`Ouvrir le Piano Roll de ${track.label}`}
       >
-        <span className="text-xs font-bold truncate" style={{ color }}>
-          {trackIcon(track.channel)} {track.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold truncate flex-1" style={{ color }}>
+            {trackIcon(track.channel)} {track.label}
+          </span>
+          <MiniVU level={level} />
+        </div>
         <span className="text-[9px] text-gray-600">
           {notes.length} note{notes.length > 1 ? 's' : ''} · {track.mute ? 'MUTE' : 'On'}
         </span>
@@ -588,84 +690,79 @@ export default function DawView({
       {/* ── Table de mixage ── */}
       <div className="mb-3 pb-3 border-b border-gray-800">
         <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">🎚 Table de mixage</div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-1 items-stretch">
           {tracks.map(t => (
             <div
               key={t.channel}
-              className={`shrink-0 w-32 rounded-lg border px-2 pt-2 pb-2 flex flex-col items-center gap-1.5 ${t.mute ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-gray-700 bg-gray-800/50'}`}
+              className={`shrink-0 w-40 h-[320px] rounded-xl border flex flex-col overflow-hidden ${t.mute ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-gray-700/80 bg-gradient-to-b from-gray-800/70 to-gray-900/80'}`}
             >
-              {/* Nom éditable */}
-              <input
-                value={t.label}
-                onChange={(e) => onUpdateTrack(t.channel, { label: e.target.value })}
-                className="w-full bg-transparent text-center text-xs font-bold outline-none border-b border-transparent focus:border-gray-500 truncate"
-                style={{ color: trackColor(t.channel) }}
-                title="Renommer la piste"
-                spellCheck={false}
-              />
-              {/* Instrument */}
-              <select
-                value={t.program}
-                onChange={(e) => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
-                disabled={t.channel === 9 || !!t.drums}
-                className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300 disabled:opacity-40"
-                title={t.channel === 9 || t.drums ? 'Kit drums fixe' : 'Instrument GM'}
-              >
-                {AudioEngine.INSTRUMENTS.map((name, i) => (
-                  <option key={i} value={i}>{name}</option>
-                ))}
-              </select>
-              {/* Fader de volume (vertical) + vumètre */}
-              <div className="flex items-center gap-1.5">
+              {/* En-tête : nom + instrument */}
+              <div className="px-2 pt-2 pb-1.5 border-b border-gray-800/80 flex flex-col gap-1.5 bg-black/20">
                 <input
-                  type="range" min={1} max={127} value={t.volume}
-                  onChange={(e) => onUpdateTrack(t.channel, { volume: parseInt(e.target.value) })}
-                  className="h-16 accent-blue-500"
-                  style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-                  title="Volume de la piste"
+                  value={t.label}
+                  onChange={(e) => onUpdateTrack(t.channel, { label: e.target.value })}
+                  className="w-full bg-transparent text-center text-xs font-bold outline-none border-b border-transparent focus:border-gray-500 truncate"
+                  style={{ color: trackColor(t.channel) }}
+                  title="Renommer la piste"
+                  spellCheck={false}
                 />
-                {/* Vumètre : activité des notes à la position de lecture */}
-                <VUMeter level={levels[t.channel] ?? 0} height={64} />
-                <span className="text-[10px] text-gray-500 w-5 text-center">{t.volume}</span>
-              </div>
-              {/* Mute + supprimer */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
-                  className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.mute ? 'bg-red-900/40 text-red-400' : 'bg-gray-700 text-gray-400'}`}
+                <select
+                  value={t.program}
+                  onChange={(e) => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
+                  disabled={t.channel === 9 || !!t.drums}
+                  className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300 disabled:opacity-40"
+                  title={t.channel === 9 || t.drums ? 'Kit drums fixe' : 'Instrument GM'}
                 >
-                  {t.mute ? 'MUTE' : 'On'}
-                </button>
-                <button
-                  onClick={() => onRemoveTrack(t.channel)}
-                  className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-800 text-gray-500 hover:bg-red-900/30 hover:text-red-400"
-                  title="Supprimer cette piste"
-                >
-                  🗑
-                </button>
+                  {AudioEngine.INSTRUMENTS.map((name, i) => (
+                    <option key={i} value={i}>{name}</option>
+                  ))}
+                </select>
               </div>
-              {/* Modules d'effets (appliqués avant le rendu WAV) */}
-              <div className="w-full flex flex-col gap-0.5 mt-1 pt-1.5 border-t border-gray-800">
-                <span className="text-[8px] text-gray-600 uppercase tracking-widest text-center">FX</span>
-                {([['Rv', 'reverb'], ['Ch', 'chorus'], ['Dl', 'delay'], ['Dr', 'drive']] as const).map(([label, key]) => (
-                  <div key={key} className="flex items-center gap-1 min-w-0">
-                    <span className="text-[8px] text-gray-500 w-4 shrink-0 font-mono">{label}</span>
-                    <input
-                      type="range" min={0} max={100} value={t.fx?.[key] ?? 0}
-                      onChange={(e) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), [key]: parseInt(e.target.value) } })}
-                      className="flex-1 min-w-0 h-1 accent-[#8f7a4a]"
-                      title={`${label} — appliqué au rendu WAV (mode Navig)`}
+
+              {/* Fader-vumètre : toute la hauteur du cadre */}
+              <div className="flex-1 min-h-0 flex justify-center py-2 bg-black/10">
+                <FaderVU
+                  volume={t.volume}
+                  level={levels[t.channel] ?? 0}
+                  onVolume={(v) => onUpdateTrack(t.channel, { volume: v })}
+                />
+              </div>
+
+              {/* Bas : mute / supprimer + potards FX */}
+              <div className="px-2 pb-2 pt-1.5 border-t border-gray-800/80 bg-black/20 flex flex-col gap-1.5">
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
+                    className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.mute ? 'bg-red-900/40 text-red-400' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    {t.mute ? 'MUTE' : 'On'}
+                  </button>
+                  <button
+                    onClick={() => onRemoveTrack(t.channel)}
+                    className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-gray-800 text-gray-500 hover:bg-red-900/30 hover:text-red-400"
+                    title="Supprimer cette piste"
+                  >
+                    🗑
+                  </button>
+                </div>
+                {/* Potards circulaires d'effets (appliqués avant le rendu WAV) */}
+                <div className="flex items-center justify-center gap-0.5 pt-1 border-t border-gray-800/60">
+                  {([['Rv', 'reverb'], ['Ch', 'chorus'], ['Dl', 'delay'], ['Dr', 'drive']] as const).map(([label, key]) => (
+                    <Knob
+                      key={key}
+                      label={label}
+                      value={t.fx?.[key] ?? 0}
+                      onChange={(v) => onUpdateTrack(t.channel, { fx: { ...(t.fx ?? FX_ZERO), [key]: v } })}
                     />
-                    <span className="text-[8px] text-gray-500 w-4 shrink-0 text-right font-mono">{t.fx?.[key] ?? 0}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           ))}
           {/* Ajouter une piste */}
           <button
             onClick={onAddTrack}
-            className="shrink-0 w-24 rounded-lg border border-dashed border-gray-700 hover:border-gray-500 hover:bg-gray-800/40 text-gray-500 hover:text-gray-300 text-xs font-bold flex flex-col items-center justify-center gap-1"
+            className="shrink-0 w-24 h-[320px] rounded-xl border border-dashed border-gray-700 hover:border-gray-500 hover:bg-gray-800/40 text-gray-500 hover:text-gray-300 text-xs font-bold flex flex-col items-center justify-center gap-1"
             title="Ajouter une piste instrument (canal MIDI libre)"
           >
             <span className="text-lg">➕</span>
@@ -701,6 +798,7 @@ export default function DawView({
                       totalBeats={totalBeats}
                       posBeats={posBeats}
                       compact={!isExpanded}
+                      level={levels[t.channel] ?? 0}
                       onScrub={doScrub}
                       onOpenPianoRoll={onOpenPianoRoll}
                     />
