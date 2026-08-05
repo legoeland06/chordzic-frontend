@@ -30,6 +30,11 @@ const EMPTY_NOTES: PianoNote[] = [];
 // Clé localStorage des ANCIENNES grilles (migration unique vers le serveur)
 const STORAGE_KEY = 'chordjava_saved_grilles';
 
+/** Clé localStorage de l'AUTO-SAUVEGARDE locale (anti-perte à l'actualisation). */
+const AUTOSAVE_KEY = 'chordzic_autosave_v1';
+/** Délai (ms) avant écriture de l'auto-sauvegarde après un changement. */
+const AUTOSAVE_DEBOUNCE_MS = 800;
+
 /** URL du backend (serveur Rust) — même origine en standalone, localhost:4000 en dev. */
 const API_BASE = 'http://localhost:4000';
 
@@ -45,6 +50,12 @@ interface GrilleEntry {
   tracks?: Array<{ channel: number; program: number; volume: number; mute: boolean }>;
   pattern?: string;
   use432Hz?: boolean;
+  loopOn?: boolean;
+  walkingBass?: boolean;
+  useLoops?: boolean;
+  loopOffset?: number;
+  loopName?: string;
+  loopVolume?: number;
 }
 
 export default function ChordApp() {
@@ -103,9 +114,20 @@ export default function ChordApp() {
     setStatus(`➕ Piste « ${newTrack.label} » ajoutée (canal ${ch})`); setStatusColor('text-blue-400');
   };
 
-  /** Supprime une piste (UI, moteur, notes du piano roll, backend). */
-  const removeTrack = (channel: number) => {
+  /** DEMANDE la suppression d'une piste : ouvre une confirmation (jamais
+   * de suppression directe — trop brutale). */
+  const requestRemoveTrack = (channel: number) => {
     const t = tracks.find(tc => tc.channel === channel);
+    if (!t) return;
+    setPendingDeleteTrack(t);
+  };
+
+  /** Supprime réellement la piste (appelé après confirmation).
+   * UI, moteur, notes du piano roll, backend. */
+  const confirmRemoveTrack = () => {
+    if (!pendingDeleteTrack) return;
+    const channel = pendingDeleteTrack.channel;
+    const t = pendingDeleteTrack;
     setLocalTracks(prev => prev.filter(tc => tc.channel !== channel));
     engineRef.current?.removeTrack(channel);
     setPianoNotes(prev => {
@@ -114,6 +136,7 @@ export default function ChordApp() {
       return next;
     });
     if (openPianoRoll === channel) setOpenPianoRoll(null);
+    setPendingDeleteTrack(null);
     setStatus(`🗑 Piste « ${t?.label ?? channel} » supprimée`); setStatusColor('text-blue-400');
   };
 
@@ -130,6 +153,16 @@ export default function ChordApp() {
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
+
+  // ── Auto-sauvegarde locale (anti-perte à l'actualisation) ──────────
+  /** Horodatage (ms) du dernier autosave effectif — affiché dans le header. */
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null);
+  /** Dernier payload sérialisé — écrit SYNCHRONEMENT au beforeunload. */
+  const autosavePayloadRef = useRef<string | null>(null);
+
+  // ── Suppression de piste : confirmation avant action ────────────────
+  /** Piste en attente de confirmation de suppression (null = aucune). */
+  const [pendingDeleteTrack, setPendingDeleteTrack] = useState<TrackConfig | null>(null);
 
   // ── État : piano roll (notes personnalisées par piste) ───────────
   const [pianoNotes, setPianoNotes] = useState<Record<number, PianoNote[]>>({});
@@ -220,6 +253,71 @@ export default function ChordApp() {
     for (const t of tracks) engineRef.current.setTrack(t.channel, t);
     engineRef.current?.set432Hz(use432);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── RESTAURATION automatique de la session (anti-perte à l'actualisation) ──
+  // Au démarrage, si une auto-sauvegarde locale existe (même projet, même
+  // navigateur), elle est restaurée : grille, tempo, mesure, pistes, notes
+  // des piano rolls, pattern, 432 Hz. Plus rien n'est perdu en appuyant F5.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data || data.type !== 'chordJAVA-grille' || !data.input) return;
+      suppressAutoConfigRef.current = true;
+      if (data.tempo) setTempo(data.tempo);
+      if (data.sig) setSig(data.sig);
+      setInput(data.input);
+      setPianoNotes(data.pianoNotes ?? {});
+      if (data.tracks) data.tracks.forEach((tc: any) => updateTrack(tc.channel, tc));
+      if (data.pattern) setDrumPattern(data.pattern);
+      if (data.use432Hz !== undefined) setUse432(data.use432Hz);
+      if (data.loopOn !== undefined) setLoopOn(data.loopOn);
+      if (data.walkingBass !== undefined) setWalkingBass(data.walkingBass);
+      if (data.useLoops !== undefined) { setUseLoops(data.useLoops); engineRef.current?.setUseLoops(data.useLoops); }
+      if (data.loopOffset !== undefined) { setLoopOffset(data.loopOffset); engineRef.current?.setLoopOffset(data.loopOffset); }
+      if (data.loopName !== undefined) setLoopName(data.loopName);
+      if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
+      setLastAutosaveAt(data.savedAt ? new Date(data.savedAt).getTime() : Date.now());
+      setStatus('♻️ Session restaurée (sauvegarde automatique locale)');
+      setStatusColor('text-green-400');
+      setTimeout(() => {
+        try { const grille = parseGrille(data.input, data.tempo || 120); setChords(grille.chords); } catch {}
+      }, 50);
+    } catch {
+      // Auto-sauvegarde absente ou corrompue → démarrage normal
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── AUTO-SAUVEGARDE locale : debounce après chaque changement d'état ──
+  // Toute modification (grille, tempo, pistes, notes, réglages) est écrite
+  // dans localStorage quelques centaines de ms après le dernier changement.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const payload = JSON.stringify(buildGrilleObject({ savedAt: new Date().toISOString(), autosave: true }));
+        localStorage.setItem(AUTOSAVE_KEY, payload);
+        autosavePayloadRef.current = payload;
+        setLastAutosaveAt(Date.now());
+      } catch { /* localStorage plein/indisponible : on continue sans autosave */ }
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, tempo, sig, tracks, pianoNotes, drumPattern, use432, loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume]);
+
+  // ── FLUSH SYNCHRONE à la fermeture/actualisation : même si le debounce
+  // n'a pas encore écrit, le dernier état connu est sauvegardé d'un coup. ──
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const payload = autosavePayloadRef.current;
+        if (payload) localStorage.setItem(AUTOSAVE_KEY, payload);
+      } catch {}
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
   // ── Sauvegarde serveur : chargement + migration localStorage ─────
@@ -477,6 +575,7 @@ export default function ChordApp() {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
       tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
+      loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume,
       ...(hasPianoNotes ? { pianoNotes } : {}),
       ...extra,
     };
@@ -509,6 +608,12 @@ export default function ChordApp() {
     if (entry.tracks) entry.tracks.forEach(tc => updateTrack(tc.channel, tc));
     if (entry.pattern) setDrumPattern(entry.pattern);
     if (entry.use432Hz !== undefined) setUse432(entry.use432Hz);
+    if (entry.loopOn !== undefined) setLoopOn(entry.loopOn);
+    if (entry.walkingBass !== undefined) setWalkingBass(entry.walkingBass);
+    if (entry.useLoops !== undefined) { setUseLoops(entry.useLoops); engineRef.current?.setUseLoops(entry.useLoops); }
+    if (entry.loopOffset !== undefined) { setLoopOffset(entry.loopOffset); engineRef.current?.setLoopOffset(entry.loopOffset); }
+    if (entry.loopName !== undefined) setLoopName(entry.loopName);
+    if (entry.loopVolume !== undefined) { setLoopVolume(entry.loopVolume); engineRef.current?.setLoopVolume(entry.loopVolume); }
     setShowLoadModal(false);
     setStatus(`📂 Grille « ${entry.name} » chargée`); setStatusColor('text-blue-400');
     setTimeout(() => {
@@ -579,6 +684,12 @@ export default function ChordApp() {
           }
           if (data.pattern) setDrumPattern(data.pattern);
           if (data.use432Hz !== undefined) setUse432(data.use432Hz);
+          if (data.loopOn !== undefined) setLoopOn(data.loopOn);
+          if (data.walkingBass !== undefined) setWalkingBass(data.walkingBass);
+          if (data.useLoops !== undefined) { setUseLoops(data.useLoops); engineRef.current?.setUseLoops(data.useLoops); }
+          if (data.loopOffset !== undefined) { setLoopOffset(data.loopOffset); engineRef.current?.setLoopOffset(data.loopOffset); }
+          if (data.loopName !== undefined) setLoopName(data.loopName);
+          if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
           if (data.version >= 3 && data.pianoNotes) {
             setPianoNotes(data.pianoNotes);
           } else {
@@ -694,6 +805,15 @@ export default function ChordApp() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-xs font-mono ${statusColor}`}>{status}</span>
+            {/* Indicateur d'auto-sauvegarde locale : rien n'est perdu à l'actualisation */}
+            {lastAutosaveAt !== null && (
+              <span
+                className="text-[10px] text-emerald-500/90 font-mono shrink-0"
+                title="Auto-sauvegarde locale active : la session est restaurée automatiquement en cas d'actualisation ou de fermeture (localStorage)."
+              >
+                💾 {new Date(lastAutosaveAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
             {/* Bouton aide : documentation utilisateur intégrée */}
             <button
               onClick={() => setShowHelp(true)}
@@ -725,7 +845,7 @@ export default function ChordApp() {
             onExport={handleExport}
             onImport={() => fileInputRef.current?.click()}
             onAddTrack={addTrack}
-            onRemoveTrack={removeTrack}
+            onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
             onOpenPianoRoll={setOpenPianoRoll}
             onHelp={() => setShowHelp(true)}
@@ -762,7 +882,7 @@ export default function ChordApp() {
             onSetDrumPattern={setDrumPattern} onSetSig={setSig} onSetTempo={setTempo}
             onUpdateTrack={updateTrack}
             onAddTrack={addTrack}
-            onRemoveTrack={removeTrack}
+            onRemoveTrack={requestRemoveTrack}
             useLoops={useLoops} loopOffset={loopOffset} loopName={loopName}
             availableSamples={availableSamples} loopVolume={loopVolume}
             onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}
@@ -819,6 +939,43 @@ export default function ChordApp() {
           onLoad={handleLoad}
           onDelete={handleDeleteSave}
         />
+
+        {/* Confirmation de suppression de piste (jamais de suppression directe) */}
+        {pendingDeleteTrack && (() => {
+          const t = pendingDeleteTrack;
+          const noteCount = (pianoNotes[t.channel] ?? []).length;
+          return (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+              <div className="bg-gray-900 rounded-xl border border-red-800/70 shadow-2xl max-w-md w-full mx-4 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">{'\ud83d\uddd1\ufe0f'}</span>
+                  <h3 className="text-white font-bold">Supprimer la piste « {t.label} » ?</h3>
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed mb-4">
+                  Canal <b className="text-white">{t.channel}</b>
+                  {noteCount > 0 && (
+                    <> — <b className="text-red-400">{noteCount} note{noteCount > 1 ? 's' : ''}</b> dans son piano roll</>
+                  )}
+                  {' '}seront définitivement supprimés. Cette action est irréversible.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setPendingDeleteTrack(null)}
+                    className="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-sm"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={confirmRemoveTrack}
+                    className="px-4 py-2 rounded-lg bg-red-700 text-white hover:bg-red-600 text-sm font-bold"
+                  >
+                    {'\ud83d\uddd1\ufe0f'} Supprimer
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <ChordDetailModal
           chords={chords} chord={selectedChord} chordIdx={selectedChordIdx}

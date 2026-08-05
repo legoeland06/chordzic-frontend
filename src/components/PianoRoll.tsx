@@ -46,6 +46,12 @@ import {
   MouseCoord,
 } from '../lib/pianoRollEngine';
 import type { AudioEngine } from '../lib/audioEngine';
+import {
+  getProjectClipboard,
+  setProjectClipboard,
+  subscribeProjectClipboard,
+  ProjectClipboard,
+} from '../lib/projectClipboard';
 
 // ─── Constantes ─────────────────────────────────────────────────────────
 
@@ -145,7 +151,13 @@ export default function PianoRoll({
   const [marquee, setMarquee] = useState<{x0:number;y0:number;x1:number;y1:number}|null>(null);
   const marqueeRef = useRef<{x0:number;y0:number;x1:number;y1:number}|null>(null);
   const dragSelRef = useRef<{startPx:number; startPy:number; orig:PianoNote[]} | null>(null);
-  const clipboardRef = useRef<PianoNote[] | null>(null);
+  /** Version du presse-papiers global (force le re-render des boutons). */
+  const [clipVersion, setClipVersion] = useState(0);
+  /** Confirmation demandée pour un collage « miroir » sur une piste non vide. */
+  const [confirmPaste, setConfirmPaste] = useState<{
+    clip: ProjectClipboard;
+    noteCount: number;
+  } | null>(null);
   /** Position (en beats) où coller : dernier endroit cliqué dans le piano roll. */
   const pasteAnchorRef = useRef<number | null>(null);
   const [velValue, setVelValue] = useState(100);
@@ -237,6 +249,11 @@ export default function PianoRoll({
   useEffect(() => {
     localNotesRef.current = notes;
   }, [notes]);
+
+  // ── Presse-papiers global : re-render à chaque changement ────────────
+  useEffect(() => {
+    return subscribeProjectClipboard(() => setClipVersion(v => v + 1));
+  }, []);
 
   // ── Dessin du canvas ────────────────────────────────────────────────
   const draw = useCallback(() => {
@@ -1053,13 +1070,105 @@ export default function PianoRoll({
     });
   };
 
+  /** Copie dans le presse-papiers GLOBAL du projet : la sélection si
+   * présente, sinon TOUTE la piste. Les notes gardent leurs positions
+   * ABSOLUES (startTime/pitch/duration/velocity) → collage possible dans
+   * une autre piste aux mêmes emplacements. */
   const copySelection = () => {
     const sel = localNotesRef.current.filter(n => selectedIdsRef.current.has(n.id));
-    if (sel.length === 0) return;
-    const minStart = Math.min(...sel.map(n => n.startTime));
-    // Copie avec positions relatives au début de la sélection
-    clipboardRef.current = sel.map(n => ({ ...n, startTime: Math.round((n.startTime - minStart) * 1000) / 1000 }));
+    const whole = sel.length === 0;
+    const src = whole ? localNotesRef.current : sel;
+    if (src.length === 0) return;
+    const minStart = Math.min(...src.map(n => n.startTime));
+    setProjectClipboard({
+      notes: src.map(n => ({ ...n })),
+      minStart,
+      sourceChannel: channel,
+      sourceLabel: trackLabel,
+      wholeTrack: whole,
+      copiedAt: Date.now(),
+    });
   };
+
+  /** Crée les notes du collage (nouveaux IDs, groupes détachés) et les insère. */
+  const buildPastedNotes = (clip: ProjectClipboard, offset: number): PianoNote[] => {
+    const stamp = Date.now();
+    // Nouveaux IDs de groupe pour la copie : les groupes internes sont
+    // préservés, mais détachés des groupes d'origine (pas de fusion).
+    const gidMap = new Map<string, string>();
+    return clip.notes.map((n, i) => {
+      let gid: string | undefined;
+      if (n.groupId) {
+        if (!gidMap.has(n.groupId)) gidMap.set(n.groupId, `grp_${stamp}_${gidMap.size}`);
+        gid = gidMap.get(n.groupId);
+      }
+      return {
+        ...n,
+        id: `pasted-${stamp}-${i}`,
+        groupId: gid,
+        startTime: Math.round((n.startTime + offset) * 1000) / 1000,
+        edited: true,
+      };
+    });
+  };
+
+  /** Insère `newNotes` dans la piste (undo + sélection + commit). */
+  const insertNotes = (newNotes: PianoNote[]) => {
+    pushHistory(localNotesRef.current);
+    const merged = [...localNotesRef.current, ...newNotes];
+    localNotesRef.current = merged;
+    setSelectedIds(new Set(newNotes.map(n => n.id)));
+    commitNotes(merged);
+    draw();
+  };
+
+  /** Collage MIROIR : même piste de destination, mêmes emplacements et
+   * valeurs que la piste source. REMPLACE le contenu existant (le libellé
+   * de confirmation dit « Remplacer ») ; l'état précédent reste dans
+   * l'historique undo (Ctrl+Z). */
+  const pasteMirror = (clip: ProjectClipboard) => {
+    const newNotes = buildPastedNotes(clip, 0);
+    pushHistory(localNotesRef.current);
+    localNotesRef.current = newNotes;
+    setSelectedIds(new Set(newNotes.map(n => n.id)));
+    commitNotes(newNotes);
+    draw();
+    setConfirmPaste(null);
+  };
+
+  /** Collage RELATIF (piste source == piste courante) : à l'endroit du
+   * dernier clic, comme avant (comportement historique). */
+  const pasteRelative = (clip: ProjectClipboard) => {
+    // Coller à l'endroit cliqué (ancre mémorisée), sinon début de la zone visible
+    const base = pasteAnchorRef.current !== null
+      ? pasteAnchorRef.current
+      : Math.max(0, snapTime(scrollLeft / effectivePixelsPerBeat));
+    // Le presse-papiers stocke des positions absolues → recalculer le décalage
+    const offset = base - clip.minStart;
+    const newNotes = buildPastedNotes(clip, offset);
+    insertNotes(newNotes);
+  };
+
+  const pasteClipboard = () => {
+    const clip = getProjectClipboard();
+    if (!clip || clip.notes.length === 0) return;
+    // Même piste → collage relatif à l'ancre (comportement historique).
+    if (clip.sourceChannel === channel) {
+      pasteRelative(clip);
+      return;
+    }
+    // Autre piste → collage MIROIR aux mêmes emplacements. Si la piste
+    // contient déjà des notes, demander confirmation de remplacement.
+    const existing = localNotesRef.current;
+    if (existing.length > 0) {
+      setConfirmPaste({ clip, noteCount: existing.length });
+      return;
+    }
+    pasteMirror(clip);
+  };
+
+  /** Vide le presse-papiers global. */
+  const clearClipboard = () => setProjectClipboard(null);
 
   const deleteSelection = () => {
     const ids = selectedIdsRef.current;
@@ -1080,38 +1189,6 @@ export default function PianoRoll({
     localNotesRef.current = newNotes;
     setSelectedIds(new Set());
     commitNotes(newNotes);
-    draw();
-  };
-
-  const pasteClipboard = () => {
-    const clip = clipboardRef.current;
-    if (!clip || clip.length === 0) return;
-    // Coller à l'endroit cliqué (ancre mémorisée), sinon début de la zone visible
-    const base = pasteAnchorRef.current !== null
-      ? pasteAnchorRef.current
-      : Math.max(0, snapTime(scrollLeft / effectivePixelsPerBeat));
-    const stamp = Date.now();
-    // Nouveaux IDs de groupe pour la copie : les groupes internes sont
-    // préservés, mais détachés des groupes d'origine (pas de fusion).
-    const gidMap = new Map<string, string>();
-    const newNotes = clip.map((n, i) => {
-      let gid: string | undefined;
-      if (n.groupId) {
-        if (!gidMap.has(n.groupId)) gidMap.set(n.groupId, `grp_${stamp}_${gidMap.size}`);
-        gid = gidMap.get(n.groupId);
-      }
-      return {
-        ...n,
-        id: `pasted-${stamp}-${i}`,
-        groupId: gid,
-        startTime: base + n.startTime,
-      };
-    });
-    pushHistory(localNotesRef.current);
-    const merged = [...localNotesRef.current, ...newNotes];
-    localNotesRef.current = merged;
-    setSelectedIds(new Set(newNotes.map(n => n.id)));
-    commitNotes(merged);
     draw();
   };
 
@@ -1335,6 +1412,10 @@ export default function PianoRoll({
   // Nom de la première note sélectionnée (affiché dans la barre d'outils)
   const firstSelected = notes.find(n => selectedIds.has(n.id));
 
+  // Presse-papiers global (lu à chaque render — clipVersion force le refresh)
+  const clip = getProjectClipboard();
+  void clipVersion;
+
   // Nombre de groupes distincts (badge du header)
   const groupCount = new Set(notes.filter(n => n.groupId).map(n => n.groupId)).size;
 
@@ -1500,15 +1581,30 @@ export default function PianoRoll({
             >
               {firstSelected ? `🎵 ${pitchLabel(firstSelected.pitch)}` : ''}
             </span>
-            <button onClick={copySelection} disabled={selectedIds.size === 0}
+            <button onClick={copySelection} disabled={notes.length === 0}
               className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Copier (Ctrl+C)">{'\ud83d\udccb'} Copier</button>
+              title="Copier la sélection — ou TOUTE la piste si rien n'est sélectionné (Ctrl+C). Les notes sont copiées à leurs positions exactes : un Ctrl+V dans une autre piste les colle aux mêmes emplacements.">{'\ud83d\udccb'} Copier</button>
             <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
               className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Couper (Ctrl+X)">{'\u2702'} Couper</button>
-            <button onClick={pasteClipboard} disabled={!clipboardRef.current}
+              title="Couper la sélection (Ctrl+X)">{'\u2702'} Couper</button>
+            <button onClick={pasteClipboard} disabled={!clip}
               className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Coller (Ctrl+V)">{'\ud83d\udccc'} Coller</button>
+              title={clip
+                ? `Coller ${clip.notes.length} note(s) de « ${clip.sourceLabel} » — même piste : à l'endroit du clic ; autre piste : aux mêmes emplacements (Ctrl+V)`
+                : 'Coller (Ctrl+V) — copiez d\'abord une sélection ou une piste (Ctrl+C)'}>{'\ud83d\udccc'} Coller</button>
+            {clip && (
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-300 text-[10px] font-mono"
+                title={`Presse-papiers : ${clip.wholeTrack ? 'toute la piste' : 'sélection'} de « ${clip.sourceLabel} » (${clip.notes.length} note(s)) — collable dans une autre piste aux mêmes emplacements`}
+              >
+                {'\ud83d\udccb'} {clip.sourceLabel} · {clip.notes.length}
+                <button
+                  onClick={clearClipboard}
+                  className="ml-0.5 text-yellow-500 hover:text-white"
+                  title="Vider le presse-papiers"
+                >✕</button>
+              </span>
+            )}
             <button
               onClick={deleteSelection}
               disabled={selectedIds.size === 0}
@@ -1684,6 +1780,39 @@ export default function PianoRoll({
             <div style={{ width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW), height: '100%' }} />
           </div>
         </div>
+
+        {/* Confirmation : collage miroir sur une piste déjà remplie */}
+        {confirmPaste && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+            <div className="bg-gray-900 rounded-xl border border-yellow-700/60 shadow-2xl max-w-md w-full mx-4 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">{'\ud83d\udccc'}</span>
+                <h3 className="text-white font-bold">Remplacer le contenu de la piste ?</h3>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed mb-4">
+                La piste <b className="text-white">{trackLabel}</b> contient déjà{' '}
+                <b className="text-yellow-300">{confirmPaste.noteCount} note{confirmPaste.noteCount > 1 ? 's' : ''}</b>.
+                Coller les <b className="text-yellow-300">{confirmPaste.clip.notes.length} note(s)</b> de{' '}
+                <b className="text-white">« {confirmPaste.clip.sourceLabel} »</b> aux mêmes emplacements{' '}
+                <b className="text-white">remplacera</b> ce contenu (annulable avec Ctrl+Z).
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmPaste(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 text-sm"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => pasteMirror(confirmPaste.clip)}
+                  className="px-4 py-2 rounded-lg bg-yellow-700 text-white hover:bg-yellow-600 text-sm font-bold"
+                >
+                  {'\ud83d\udccc'} Remplacer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tooltip : nom de la note survolée, à côté du curseur */}
         {hoverInfo && (

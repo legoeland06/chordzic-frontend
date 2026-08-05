@@ -67,7 +67,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
     { id: 'pianoroll', icon: '🎹', title: 'Piano Roll', keys: 'note édition sélection créer déplacer redimensionner snap libre quantiser vélocité durée grouper zoom' },
     { id: 'raccourcis', icon: '⌨️', title: 'Raccourcis clavier', keys: 'ctrl z y c x v a suppr espace escape annuler copier coller' },
-    { id: 'sauvegarde', icon: '💾', title: 'Sauvegarde & fichiers', keys: 'save load export import json grilles' },
+    { id: 'sauvegarde', icon: '💾', title: 'Sauvegarde & fichiers', keys: 'save load export import json grilles auto restauration actualisation perte' },
+    { id: 'copiercoller', icon: '📋', title: 'Copier / coller entre pistes', keys: 'copier coller piste presse-papiers miroir emplacements valeurs' },
     { id: 'boucles', icon: '🔁', title: 'Boucles WAV drums', keys: 'boucle échantillon sample offset drums' },
     { id: 'depannage', icon: '🛠️', title: 'Dépannage', keys: 'pas de son fluidsynth midi muet erreur' },
   ];
@@ -187,7 +188,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               <b className="text-white">Pistes dynamiques</b> : 5 pistes par défaut, mais vous pouvez{' '}
               <b className="text-white">ajouter</b> (carte <b>➕ Ajouter une piste</b>, canal MIDI libre) ou{' '}
-              <b className="text-white">supprimer</b> (bouton 🗑) des pistes. Le <b className="text-white">nom</b> de
+              <b className="text-white">supprimer</b> (bouton 🗑) des pistes. La suppression demande{' '}
+              <b className="text-white">toujours une confirmation</b> (la piste et ses notes du piano roll
+              sont alors définitivement supprimées — il n'y a pas d'annulation possible). Le{' '}
+              <b className="text-white">nom</b> de
               chaque piste est <b className="text-white">modifiable</b> (cliquez dessus, Entrée valide, Esc annule)
               et est sauvegardé avec la grille (Save).
             </p>
@@ -287,7 +291,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="🎯 Quantiser" v="Aligne début ET fin des notes sélectionnées (ou toutes) sur la grille." />
             <Row k="Vel:" v="Vélocité (1–127) des notes sélectionnées." />
             <Row k="Dur:" v="Durée en subdivisions de grille des notes sélectionnées." />
-            <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers interne ; le collage se fait à l'endroit du dernier clic." />
+            <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers du PROJET : Copier prend la sélection — ou TOUTE la piste si rien n'est sélectionné. Coller dans la même piste se fait à l'endroit du dernier clic ; coller dans une AUTRE piste place les notes aux mêmes emplacements et valeurs (voir la section « Copier / coller entre pistes »)." />
             <Row k="⛓ Grouper / Dégrouper" v="Les notes groupées se sélectionnent et se déplacent ensemble (le bord droit reste individuel)." />
             <Row k="↩ Annuler / ↪ Rétablir" v="Historique de 100 gestes." />
             <Row k="− / + (zoom)" v="Zoom horizontal : du fit-to-width (dézoomer suffisamment affiche TOUTE la piste d'un coup) jusqu'à 400 % (ou Ctrl+molette ; Shift+molette = défilement)." />
@@ -295,6 +299,25 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="▶ Lecture" v="Écoute la piste seule (rendu WAV du canal) avec curseur rouge ; Espace = lecture/pause." />
             <p className="text-xs text-gray-500">
               📱 Tactile : pincer pour zoomer, double-tap sur une note = supprimer, barre de défilement en bas.
+            </p>
+          </Section>
+
+          {/* ── Copier / coller entre pistes ── */}
+          <Section id="copiercoller" icon="📋" title="Copier / coller entre pistes">
+            <p>
+              Le presse-papiers est <b className="text-white">partagé entre tous les piano rolls</b> du projet :
+              vous pouvez recopier les notes d'une piste (positions, durées, hauteurs, vélocités) dans une
+              autre piste, <b className="text-white">aux mêmes emplacements et valeurs</b>.
+            </p>
+            <p className="font-bold text-white mt-3">Copier</p>
+            <Row k="📋 Copier / Ctrl+C" v="Copie la sélection. Sans sélection, copie TOUTE la piste (le plus courant : dupliquer un pattern vers un autre instrument)." />
+            <p className="font-bold text-white mt-3">Coller</p>
+            <Row k="📌 Coller / Ctrl+V — même piste" v="Colle à l'endroit du dernier clic (comportement historique, décalé)." />
+            <Row k="📌 Coller / Ctrl+V — autre piste" v="Colle les notes aux mêmes emplacements et valeurs que la piste d'origine (collage « miroir »). Si la piste de destination contient déjà des notes, une confirmation demande si vous voulez les remplacer (annulable avec Ctrl+Z)." />
+            <p className="text-xs text-gray-500">
+              💡 Le badge <b className="text-yellow-300">📋 Source · N</b> dans la barre d'outils indique
+              le contenu du presse-papiers (piste d'origine + nombre de notes) ; le ✕ le vide.
+              Les groupes ⛓ sont préservés, mais détachés des groupes d'origine.
             </p>
           </Section>
 
@@ -327,6 +350,21 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               <b className="text-white">Extract Wav</b> : en mode <b className="text-purple-400">📱 Navig.</b>, lancez une
               lecture puis cliquez — le WAV rendu est téléchargé (nom = début de grille + horodatage).
+            </p>
+            <p className="font-bold text-white mt-3">Auto-sauvegarde locale (anti-perte) 💾</p>
+            <p>
+              Depuis la v2.5, le projet est <b className="text-white">auto-sauvegardé automatiquement</b> dans
+              le navigateur (localStorage) quelques centaines de ms après chaque modification : grille, tempo,
+              mesure, pistes, notes des piano rolls, pattern, 432 Hz… L'indicateur{' '}
+              <b className="text-emerald-400">💾 HH:MM</b> (à côté du statut) montre l'heure du dernier
+              enregistrement. En cas d'<b className="text-white">actualisation (F5)</b> ou de fermeture
+              accidentelle, la session est <b className="text-white">restaurée automatiquement</b> au
+              prochain chargement (« ♻️ Session restaurée ») : plus rien n'est perdu.
+            </p>
+            <p className="text-xs text-gray-500">
+              💡 L'auto-sauvegarde est locale au navigateur : elle ne remplace pas Save/Load (qui stockent
+              la grille sur le serveur, pour la retrouver sur un autre appareil). Pensez à faire un
+              <b> Save</b> pour archiver une version importante.
             </p>
           </Section>
 
