@@ -313,7 +313,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="📋 Copier / Ctrl+C" v="Copie la sélection. Sans sélection, copie TOUTE la piste (le plus courant : dupliquer un pattern vers un autre instrument)." />
             <p className="font-bold text-white mt-3">Coller</p>
             <Row k="📌 Coller / Ctrl+V — même piste" v="Colle à l'endroit du dernier clic (comportement historique, décalé)." />
-            <Row k="📌 Coller / Ctrl+V — autre piste" v="Colle les notes aux mêmes emplacements et valeurs que la piste d'origine (collage « miroir »). Si la piste de destination contient déjà des notes, une confirmation demande si vous voulez les remplacer (annulable avec Ctrl+Z)." />
+            <Row k="📌 Coller / Ctrl+V — autre piste" v="Colle les notes aux mêmes emplacements et valeurs que la piste d'origine (collage « miroir »). Si la piste de destination contient déjà des notes, une confirmation demande si vous voulez les fusionner (les notes copiées s'ajoutent aux notes existantes — annulable avec Ctrl+Z)." />
             <p className="text-xs text-gray-500">
               💡 Le badge <b className="text-yellow-300">📋 Source · N</b> dans la barre d'outils indique
               le contenu du presse-papiers (piste d'origine + nombre de notes) ; le ✕ le vide.

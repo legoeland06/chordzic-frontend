@@ -1123,15 +1123,16 @@ export default function PianoRoll({
   };
 
   /** Collage MIROIR : même piste de destination, mêmes emplacements et
-   * valeurs que la piste source. REMPLACE le contenu existant (le libellé
-   * de confirmation dit « Remplacer ») ; l'état précédent reste dans
-   * l'historique undo (Ctrl+Z). */
+   * valeurs que la piste source. FUSIONNE avec le contenu existant (les
+   * notes copiées s'ajoutent aux notes déjà présentes) ; l'état précédent
+   * reste dans l'historique undo (Ctrl+Z). */
   const pasteMirror = (clip: ProjectClipboard) => {
     const newNotes = buildPastedNotes(clip, 0);
     pushHistory(localNotesRef.current);
-    localNotesRef.current = newNotes;
+    const merged = [...localNotesRef.current, ...newNotes];
+    localNotesRef.current = merged;
     setSelectedIds(new Set(newNotes.map(n => n.id)));
-    commitNotes(newNotes);
+    commitNotes(merged);
     draw();
     setConfirmPaste(null);
   };
@@ -1158,7 +1159,7 @@ export default function PianoRoll({
       return;
     }
     // Autre piste → collage MIROIR aux mêmes emplacements. Si la piste
-    // contient déjà des notes, demander confirmation de remplacement.
+    // contient déjà des notes, demander confirmation de fusion.
     const existing = localNotesRef.current;
     if (existing.length > 0) {
       setConfirmPaste({ clip, noteCount: existing.length });
@@ -1787,14 +1788,14 @@ export default function PianoRoll({
             <div className="bg-gray-900 rounded-xl border border-yellow-700/60 shadow-2xl max-w-md w-full mx-4 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xl">{'\ud83d\udccc'}</span>
-                <h3 className="text-white font-bold">Remplacer le contenu de la piste ?</h3>
+                <h3 className="text-white font-bold">Fusionner avec le contenu de la piste ?</h3>
               </div>
               <p className="text-gray-300 text-sm leading-relaxed mb-4">
                 La piste <b className="text-white">{trackLabel}</b> contient déjà{' '}
                 <b className="text-yellow-300">{confirmPaste.noteCount} note{confirmPaste.noteCount > 1 ? 's' : ''}</b>.
                 Coller les <b className="text-yellow-300">{confirmPaste.clip.notes.length} note(s)</b> de{' '}
                 <b className="text-white">« {confirmPaste.clip.sourceLabel} »</b> aux mêmes emplacements{' '}
-                <b className="text-white">remplacera</b> ce contenu (annulable avec Ctrl+Z).
+                <b className="text-white">fusionnera</b> les deux contenus (annulable avec Ctrl+Z).
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -1807,7 +1808,7 @@ export default function PianoRoll({
                   onClick={() => pasteMirror(confirmPaste.clip)}
                   className="px-4 py-2 rounded-lg bg-yellow-700 text-white hover:bg-yellow-600 text-sm font-bold"
                 >
-                  {'\ud83d\udccc'} Remplacer
+                  {'\ud83d\udccc'} Fusionner
                 </button>
               </div>
             </div>
