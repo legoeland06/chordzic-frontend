@@ -264,9 +264,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               En dessous, chaque piste est affichée <b className="text-white">horizontalement</b> (une ligne par
               piste, comme dans un DAW) avec ses notes en petits rectangles (position, durée, hauteur = note).
-              Les pistes s'ouvrent <b className="text-white">en mode détail</b> (hauteur = hauteur des notes,
-              numéros de mesure visibles) ; le <b className="text-white">chevron ▼</b> à gauche les réduit en
-              mode fin (bandes compactes), <b className="text-white">▶</b> les agrandit à nouveau.
+              À l'ouverture, les pistes sont en <b className="text-white">mode aperçu</b> (petite hauteur) ; le{' '}
+              <b className="text-white">chevron ▶</b> à gauche les agrandit en <b className="text-white">mode détail</b>{' '}
+              (hauteur complète, non tronquée, numéros de mesure visibles), <b className="text-white">▼</b> les réduit.
               Un <b className="text-white">clic sur le nom</b> d'une piste ouvre son Piano Roll pour l'éditer en détail.
               À <b className="text-white">droite du nom</b> de chaque piste, un <b className="text-white">mini-vumètre</b>
               (4 petits tirets vert/jaune/rouge) indique l'activité de la piste pendant la lecture.

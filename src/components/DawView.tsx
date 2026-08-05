@@ -369,9 +369,9 @@ export default function DawView({
   type PlayState = 'idle' | 'playing' | 'paused';
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [posBeats, setPosBeats] = useState(0);
-  /** Canaux dont la lane est RÉDUITE (mode fin). Par défaut, chaque piste
-   * s'ouvre en mode DÉTAIL (hauteur = notes) — le chevron réduit/agrandit. */
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  /** Canaux dont la lane est AGRANDIE (mode détail : hauteur = notes,
+   * non tronquée). Par défaut : mode APERÇU (petite hauteur). */
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -576,8 +576,8 @@ export default function DawView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
-  const toggleCollapsed = (ch: number) => {
-    setCollapsed(prev => {
+  const toggleExpanded = (ch: number) => {
+    setExpanded(prev => {
       const next = new Set(prev);
       if (next.has(ch)) next.delete(ch); else next.add(ch);
       return next;
@@ -773,8 +773,8 @@ export default function DawView({
           {/* Panneau GAUCHE fixe : chevron + nom + mini-vumètre (jamais déplacé par le zoom) */}
           <div className="shrink-0 w-[168px] border-r border-gray-800/80">
             {tracks.map((t, i) => {
-              const isDetailed = !collapsed.has(t.channel);
-              const h = laneHeightFor(pianoNotes[t.channel] ?? [], isDetailed);
+              const isExpanded = expanded.has(t.channel);
+              const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
               const isDragging = dragTrackIdx === i;
               return (
                 <div
@@ -796,13 +796,13 @@ export default function DawView({
                   onDragEnd={() => setDragTrackIdx(null)}
                   title="Glisser pour réordonner la piste (table de mixage et pistes synchronisées)"
                 >
-                  {/* Chevron réduire/agrandir */}
+                  {/* Chevron agrandir/réduire */}
                   <button
-                    onClick={() => toggleCollapsed(t.channel)}
+                    onClick={() => toggleExpanded(t.channel)}
                     className="w-5 h-5 shrink-0 text-[10px] text-gray-500 hover:text-yellow-300 rounded"
-                    title={isDetailed ? 'Réduire la piste (mode fin)' : 'Agrandir la piste (mode détail)'}
+                    title={isExpanded ? 'Réduire la piste (mode aperçu)' : 'Agrandir la piste (mode détail, hauteur complète)'}
                   >
-                    {isDetailed ? '▼' : '▶'}
+                    {isExpanded ? '▼' : '▶'}
                   </button>
                   {/* Nom + mini-vumètre (clic sur le nom = Piano Roll) */}
                   <div
@@ -833,8 +833,8 @@ export default function DawView({
           <div ref={lanesScrollRef} className="overflow-x-auto flex-1 min-w-0">
             <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
               {tracks.map(t => {
-                const isDetailed = !collapsed.has(t.channel);
-                const h = laneHeightFor(pianoNotes[t.channel] ?? [], isDetailed);
+                const isExpanded = expanded.has(t.channel);
+                const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
                 return (
                   <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
                     <TrackLane
@@ -842,7 +842,7 @@ export default function DawView({
                       notes={pianoNotes[t.channel] ?? []}
                       totalBeats={totalBeats}
                       posBeats={posBeats}
-                      compact={!isDetailed}
+                      compact={!isExpanded}
                       onScrub={doScrub}
                     />
                   </div>
