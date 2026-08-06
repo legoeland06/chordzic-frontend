@@ -23,6 +23,10 @@ import { SaveModal, LoadModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
 import HelpModal from './HelpModal';
 import DawView from './DawView';
+import PostProdView from './PostProdView';
+import { PostProdEngine } from '../lib/postProdEngine';
+import { PostProdSession, PostProdTrack, createFullClip, trackColorForChannel } from '../lib/postProdTypes';
+import { chordToNoteNames } from '../lib/chordUtils';
 
 /** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
 const EMPTY_NOTES: PianoNote[] = [];
@@ -73,6 +77,12 @@ export default function ChordApp() {
   const [browserAudio, setBrowserAudio] = useState(false);
   /** Vrai dès qu'un WAV a été rendu en mode Navig (bouton Extract actif). */
   const [hasWav, setHasWav] = useState(false);
+  /** Session audio du mode PostProd (bounce multitrack) — null tant qu'aucun bounce. */
+  const [postProdSession, setPostProdSession] = useState<PostProdSession | null>(null);
+  /** Vrai quand la vue PostProd est affichée (bascule depuis Navig). */
+  const [showPostProd, setShowPostProd] = useState(false);
+  /** Vrai pendant le bounce multitrack (bouton PostProd désactivé). */
+  const [bouncing, setBouncing] = useState(false);
   const [tracks, setLocalTracks] = useState<TrackConfig[]>([
     { channel: 0, label: 'Lead',    program: 51, volume: 60, mute: false },
     { channel: 2, label: 'Bass',    program: 33, volume: 70, mute: false },
@@ -288,6 +298,8 @@ export default function ChordApp() {
 
   // ── AudioEngine (instance unique) ─────────────────────────────────
   const engineRef = useRef<AudioEngine>(new AudioEngine());
+  // ── PostProdEngine (instance unique — mode PostProd) ──────────────
+  const ppEngineRef = useRef<PostProdEngine>(new PostProdEngine());
 
   const getEngine = useCallback(async () => {
     if (!audioStarted) {
@@ -718,6 +730,84 @@ export default function ChordApp() {
     setStatus(`📥 WAV extrait (${(blob.size / 1048576).toFixed(1)} Mo)`); setStatusColor('text-green-400');
   };
 
+  /** Bounce multitrack → mode PostProd.
+   * Rend chaque piste en WAV (avec ses effets MIDI) via /render-tracks, décode
+   * les buffers et construit la session d'édition audio (1 clip plein par piste). */
+  const bounceToPostProd = async () => {
+    if (chords.length === 0) {
+      setStatus('❌ Rien à bouncer — grille vide'); setStatusColor('text-red-400');
+      return;
+    }
+    stop();
+    setBouncing(true);
+    setStatus('⏳ Bounce multitrack…'); setStatusColor('text-blue-400');
+    try {
+      const sequence = chords.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time }));
+      const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
+        (notes as PianoNote[]).map(n => ({
+          channel: parseInt(ch), start_time: n.startTime, pitch: n.pitch,
+          duration: n.duration, velocity: n.velocity,
+        }))
+      );
+      const customChannels = Object.keys(pianoNotes).map(Number);
+      const body: Record<string, unknown> = {
+        sequence, tempo, pattern: drumPattern, walking: walkingBass, sig,
+        tracks: tracks.map(t => ({
+          channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+          drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
+        })),
+        master_vol: volume,
+        custom_notes: customNotes.length > 0 ? customNotes : undefined,
+        custom_channels: customChannels.length > 0 ? customChannels : undefined,
+      };
+      const resp = await fetch(`${API_BASE}/render-tracks`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error(`render-tracks ${resp.status}`);
+      const data = await resp.json();
+
+      // Construire la session dans l'ORDRE des pistes du projet (non mutées)
+      const sessionTracks: PostProdTrack[] = [];
+      const bounced = (data.tracks ?? []) as Array<{ channel: number; program: number; url: string }>;
+      for (const t of tracks) {
+        const ft = bounced.find(x => x.channel === t.channel);
+        if (!ft) continue; // piste mutée → absente du bounce
+        const buffer = await ppEngineRef.current.decodeWav(ft.url);
+        const duration = Math.min(buffer.duration, data.duration_sec);
+        sessionTracks.push({
+          channel: ft.channel,
+          label: t.label,
+          program: ft.program,
+          color: trackColorForChannel(ft.channel),
+          buffer,
+          volume: 1.0, // fader neutre : le masterGain reproduit le niveau Navig
+          pan: 0,
+          mute: false,
+          solo: false,
+          clips: [createFullClip(ft.channel, duration)],
+        });
+      }
+      const session: PostProdSession = {
+        projectName: projectName ?? 'projet',
+        tempo: data.tempo,
+        sig: data.sig,
+        durationSec: data.duration_sec,
+        masterGain: data.master_gain,
+        tracks: sessionTracks,
+      };
+      ppEngineRef.current.loadSession(session);
+      setPostProdSession(session);
+      setShowPostProd(true);
+      setStatus(`✅ Bounce → PostProd : ${sessionTracks.length} piste${sessionTracks.length > 1 ? 's' : ''} audio`);
+      setStatusColor('text-green-400');
+    } catch (e) {
+      setStatus(`❌ Bounce impossible : ${(e as Error).message}`); setStatusColor('text-red-400');
+    } finally {
+      setBouncing(false);
+    }
+  };
+
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -884,8 +974,17 @@ export default function ChordApp() {
           </div>
         </div>
 
-        {/* Mode Navigateur : vue DAW (table de mixage + pistes horizontales) */}
-        {browserAudio ? (
+        {/* Mode PostProd : édition audio multipiste (bounce du Navig) */}
+        {postProdSession && showPostProd ? (
+          <PostProdView
+            session={postProdSession}
+            engine={ppEngineRef.current}
+            projectName={projectName}
+            onBackToNavig={() => setShowPostProd(false)}
+            onSessionChange={setPostProdSession}
+            onStatus={(msg, color = 'text-gray-400') => { setStatus(msg); setStatusColor(color); }}
+          />
+        ) : browserAudio ? (
           <DawView
             tracks={tracks}
             pianoNotes={pianoNotes}
@@ -912,6 +1011,8 @@ export default function ChordApp() {
             engine={engineRef.current}
             input={input}
             sig={sig}
+            onPostProd={bounceToPostProd}
+            bouncing={bouncing}
           />
         ) : (
           <>

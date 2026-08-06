@@ -74,6 +74,10 @@ interface DawViewProps {
   onReorderTracks: (from: number, to: number) => void;
   onOpenPianoRoll: (channel: number) => void;
   onHelp: () => void;
+  /** Bounce multitrack → ouvre le mode PostProd. */
+  onPostProd: () => void;
+  /** Vrai pendant le bounce (le bouton est désactivé). */
+  bouncing: boolean;
 }
 
 /** Coordonnées d'un point sur un cercle (pour les arcs de knob). */
@@ -366,6 +370,7 @@ export default function DawView({
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onOpenPianoRoll, onHelp,
+  onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
   type PlayState = 'idle' | 'playing' | 'paused';
@@ -673,6 +678,14 @@ export default function DawView({
         <button onClick={onImport} title="Importer un fichier JSON" className={tBtn}><Download className="w-3.5 h-3.5" /></button>
 
         <div className="ml-auto flex items-center gap-1.5">
+          <button
+            onClick={onPostProd}
+            disabled={bouncing}
+            className="px-2.5 h-8 flex items-center gap-1.5 rounded-md bg-[#1d2118] text-[#c9a45c] border border-[#c9a45c]/40 hover:bg-[#2a2a1e] text-[11px] font-semibold transition-colors shrink-0 disabled:opacity-50"
+            title="Bouncer les pistes MIDI en audio (WAV, avec leurs effets) et ouvrir le mode PostProd"
+          >
+            {bouncing ? '⏳ Bounce…' : '🎚 PostProd'}
+          </button>
           <button
             onClick={onSetLive}
             className="px-2.5 h-8 flex items-center gap-1.5 rounded-md bg-[#223a5a] text-[#8fb8e8] border border-[#2f4a6e] hover:bg-[#2a4a70] text-[11px] font-semibold transition-colors shrink-0"

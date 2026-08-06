@@ -261,6 +261,34 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               💡 Reverb/Chorus sont aussi audibles en mode Live (envoyés au synthé via CC91/93) ;
               delay et overdrive ne s'entendent qu'au rendu WAV (mode 📱 Navig.).
             </p>
+            <p className="font-bold text-white mt-4">Mode 🎚 PostProd (post-traitement audio)</p>
+            <p>
+              Quand le travail MIDI est terminé en mode 📱 Navig., le bouton{' '}
+              <b className="text-amber-400">🎚 PostProd</b> (barre de transport) <b>bounce</b> chaque piste
+              en WAV (avec ses effets MIDI) et ouvre l'<b>éditeur audio multipiste</b> : les pistes sont
+              figées en audio, on n'édite plus de notes mais des <b>clips</b> (waveforms).
+            </p>
+            <p className="font-bold text-white mt-2">Outils (rail de gauche)</p>
+            <p>
+              <b className="text-white">V Sélecteur</b> : clic = sélectionner un clip, glisser = le déplacer,
+              glisser sur le fond = sélection de région (plusieurs clips), poignées de fade aux coins du clip
+              sélectionné. <b className="text-white">B Ciseaux</b> : couper au point cliqué. <b className="text-white">E Gomme</b> :
+              supprimer. <b className="text-white">G Main</b> : déplacer. <b className="text-white">T Trimmer</b> : étirer
+              par les bords. <b className="text-white">S</b> : snap mesures (1/16). <b className="text-white">↑↓</b> :
+              gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> : annuler. <b className="text-white">Delete</b> : effacer.
+              <b className="text-white"> Espace</b> : lecture. Molette : zoom temporel centré curseur.
+            </p>
+            <p className="font-bold text-white mt-2">Mixage et export</p>
+            <p>
+              Le <b className="text-white">mixer</b> (colonne de droite) : fader-vumètre par piste, pan L/R,
+              Mute/Solo (solo prioritaire). Le bouton <b className="text-amber-400">Exporter WAV</b> rend le mix
+              complet (clips, fades, gains, faders, pan) en WAV stéréo via un rendu hors-ligne —
+              le fichier exporté est <b>exactement</b> ce qu'on entend. Retour au MIDI : bouton{' '}
+              <b className="text-blue-400">↩ Navig</b>. Le bounce reste valide tant que la grille ne change pas.
+            </p>
+            <p className="text-xs text-gray-500">
+              💡 Édition non destructive : couper/déplacer/effacer ne modifie jamais les WAV d'origine.
+            </p>
             <p>
               En dessous, chaque piste est affichée <b className="text-white">horizontalement</b> (une ligne par
               piste, comme dans un DAW) avec ses notes en petits rectangles (position, durée, hauteur = note).
