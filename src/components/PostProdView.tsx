@@ -2,21 +2,25 @@
  * PostProdView — mode PostProd : éditeur audio multipiste (type DAW).
  *
  * Design sérieux et épuré, aligné sur les conventions Pro Tools / Logic /
- * Studio One : transport en haut, outils à gauche (sélecteur, ciseaux,
- * gomme, main, trimmer), règle de mesures, lanes de waveform, mixer à
- * droite. Édition NON destructive : les clips sont des régions sur les
- * buffers du bounce multitrack (split / déplacement / fades / gain).
+ * Studio One. Layout : transport (avec sélecteur de SNAP identique au mode
+ * Navig) → table de mixage horizontale (ouvrable/fermable, même ordre que
+ * les pistes) → rail d'outils + timeline → barre de statut.
  *
- * Layout (comme DawView) : panneau gauche FIXE (en-tête + labels), panneau
- * droit SCROLLABLE (ruler + canvas des lanes, zoom molette commun).
+ * Édition NON destructive : les clips sont des régions sur les buffers du
+ * bounce multitrack (split / déplacement / fades / gain). Les pistes AUDIO
+ * importées (WAV/MP3/FLAC…) sont ajoutées comme blocs sur des pistes
+ * supplémentaires avec les mêmes fonctionnalités.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Play, Pause, Square, SkipBack, Repeat, Download,
   MousePointer2, Scissors, Eraser, Hand, MoveHorizontal, Magnet,
-  Undo2, ArrowLeft,
+  Undo2, ArrowLeft, ChevronUp, ChevronDown, FileUp,
 } from 'lucide-react';
-import { PostProdSession, PostProdTrack, PostProdClip, snapStepFor } from '../lib/postProdTypes';
+import {
+  PostProdSession, PostProdTrack, PostProdClip,
+  PP_SNAP_UNITS, PP_DEFAULT_SNAP_UNIT, snapValueFor, createImportedTrack,
+} from '../lib/postProdTypes';
 import { PostProdEngine } from '../lib/postProdEngine';
 import { PeakData, computePeaks } from '../lib/peaks';
 
@@ -29,6 +33,8 @@ const PPS_DEFAULT = 64;
 const BAR_COLOR = '#33384a';
 const BAR_SUB_COLOR = '#23262e';
 const SELECTED_COLOR = 'rgba(201,164,92,0.9)';
+/** Seuil (px) avant qu'un clic-glisser devienne un déplacement/sélection. */
+const DRAG_THRESHOLD = 4;
 
 type Tool = 'select' | 'split' | 'erase' | 'grab' | 'trim';
 type PlayState = 'idle' | 'playing' | 'paused';
@@ -62,9 +68,16 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
   const [tool, setTool] = useState<Tool>('select');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [snapOn, setSnapOn] = useState(true);
+  /** Subdivision de snap — MÊMES unités que le mode Navig (PianoRoll). */
+  const [snapUnit, setSnapUnit] = useState<number>(PP_DEFAULT_SNAP_UNIT);
   const [pps, setPps] = useState(PPS_DEFAULT);
   const [region, setRegion] = useState<[number, number] | null>(null);
   const [masterVol, setMasterVol] = useState(1);
+  const [mixerOpen, setMixerOpen] = useState(true);
+  /** Position de coupe fantôme (outil ciseaux, au survol). */
+  const [splitHover, setSplitHover] = useState<number | null>(null);
+  /** Clip survolé par la gomme (highlight rouge). */
+  const [eraseHover, setEraseHover] = useState<string | null>(null);
 
   const ppsRef = useRef(pps);
   ppsRef.current = pps;
@@ -74,10 +87,13 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
   const rulerRef = useRef<HTMLCanvasElement>(null);
   const laneRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const undoStackRef = useRef<TrackSnap[][]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{
     kind: 'move' | 'trimL' | 'trimR' | 'fadeIn' | 'fadeOut' | 'region';
     trackIdx: number; clipId: string; startX: number;
     origStart: number; origOffset: number; origDuration: number; origFade: number;
+    active: boolean;      // seuil franchi → le geste mute réellement
+    undone: boolean;      // pushUndo déjà fait pour ce geste
   } | null>(null);
 
   // ── Peaks (calculés une fois par buffer) ───────────────────────────
@@ -93,10 +109,20 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     return Number.isFinite(n) && n > 0 ? n : 4;
   })();
   const barSec = (beatsPerBar * 60) / Math.max(40, session.tempo);
-  const totalSec = Math.max(session.durationSec, barSec * 4);
+  // La timeline s'étend avec les clips (déplacement/étirement au-delà de la session)
+  const totalSec = useMemo(() => {
+    let max = Math.max(session.durationSec, barSec * 4);
+    for (const t of session.tracks) {
+      for (const c of t.clips) max = Math.max(max, c.start + c.duration);
+    }
+    return max;
+  }, [session, barSec]);
   const contentW = Math.max(totalSec * pps, 1);
-  const snapStep = snapStepFor(session.tempo, session.sig);
-  const snapValue = useCallback((x: number) => snapOn ? Math.round(x / snapStep) * snapStep : x, [snapOn, snapStep]);
+  const snapStep = snapValueFor(1, session.tempo, snapUnit, true) - snapValueFor(0, session.tempo, snapUnit, true);
+  const snapValue = useCallback(
+    (x: number) => snapValueFor(x, session.tempo, snapUnit, snapOn),
+    [session.tempo, snapUnit, snapOn],
+  );
 
   // ── Zoom molette (centré curseur) ─────────────────────────────────
   useEffect(() => {
@@ -201,7 +227,8 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     onStatus('↩ Annulé');
   }, [onSessionChange, onStatus]);
 
-  // ── Mutations (non destructives) ──────────────────────────────────
+  // ── Mutations (non destructives ; l'undo est poussé par le GESTE,
+  // jamais par la mutation elle-même — pas de pollution de l'historique) ──
   const applyTracks = useCallback((next: PostProdTrack[]) => {
     onSessionChange({ ...sessionRef.current, tracks: next });
   }, [onSessionChange]);
@@ -248,10 +275,11 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     const ci = t.clips.findIndex(c => c.id === clipId);
     if (ci < 0) return;
     const clip = t.clips[ci];
-    const s = Math.max(0, Math.min(snapValue(newStart), totalSec - clip.duration));
+    // Pas de limite haute par la durée du clip : la timeline s'étend (convention DAW)
+    const s = Math.max(0, snapValue(newStart));
     applyTracks(tracks.map((x, i) => i === trackIdx
       ? { ...x, clips: x.clips.map((c, j) => j === ci ? { ...c, start: s } : c) } : x));
-  }, [snapValue, applyTracks, totalSec]);
+  }, [snapValue, applyTracks]);
 
   const trimClip = useCallback((trackIdx: number, clipId: string, edge: 'L' | 'R', newVal: number) => {
     const tracks = sessionRef.current.tracks;
@@ -266,12 +294,12 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
       const dOff = s - clip.start;
       next = { ...clip, start: s, offset: clip.offset + dOff, duration: clip.duration - dOff };
     } else {
-      const end = Math.min(snapValue(newVal), totalSec);
+      const end = snapValue(newVal);
       next = { ...clip, duration: Math.max(0.1, end - clip.start) };
     }
     applyTracks(tracks.map((x, i) => i === trackIdx
       ? { ...x, clips: x.clips.map((c, j) => j === ci ? next : c) } : x));
-  }, [snapValue, applyTracks, totalSec]);
+  }, [snapValue, applyTracks]);
 
   const setClipGain = useCallback((ids: Set<string>, delta: number) => {
     if (ids.size === 0) return;
@@ -304,6 +332,52 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     return null;
   }, []);
 
+  // ── Pointer : survol (curseurs + fantômes) ────────────────────────
+  const onLanePointerMove = useCallback((e: React.PointerEvent, trackIdx: number) => {
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const scrollLeft = scrollRef.current?.scrollLeft ?? 0;
+    const xSec = (e.clientX - rect.left + scrollLeft) / ppsRef.current;
+    const t = sessionRef.current.tracks[trackIdx];
+    if (!t) return;
+    const clip = hitClip(t, xSec);
+    let cursor = 'crosshair';
+    if (tool === 'select') {
+      if (clip) {
+        cursor = 'move';
+        if (selected.has(clip.id)) {
+          const clipX = clip.start * ppsRef.current - scrollLeft + rect.left;
+          const clipW = clip.duration * ppsRef.current;
+          const relX = e.clientX - clipX;
+          if (relX < 12 || relX > clipW - 12) cursor = 'col-resize'; // poignées de fade
+        }
+      } else {
+        cursor = 'crosshair';
+      }
+    } else if (tool === 'split') {
+      cursor = 'copy';
+      setSplitHover(xSec);
+    } else if (tool === 'erase') {
+      cursor = clip ? 'pointer' : 'crosshair';
+      setEraseHover(clip ? clip.id : null);
+    } else if (tool === 'grab') {
+      cursor = clip ? 'grab' : 'crosshair';
+    } else if (tool === 'trim') {
+      if (clip) {
+        const clipX = clip.start * ppsRef.current - scrollLeft + rect.left;
+        const clipW = clip.duration * ppsRef.current;
+        const relX = e.clientX - clipX;
+        cursor = relX < 6 || relX > clipW - 6 ? 'ew-resize' : 'move';
+      }
+    }
+    canvas.style.cursor = cursor;
+  }, [tool, selected, hitClip]);
+
+  const onLanePointerLeave = useCallback(() => {
+    setSplitHover(null);
+    setEraseHover(null);
+  }, []);
+
   // ── Pointer : interactions des outils sur les lanes ───────────────
   const onLanePointerDown = useCallback((e: React.PointerEvent, trackIdx: number) => {
     const canvas = e.currentTarget as HTMLCanvasElement;
@@ -315,6 +389,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
 
     const clip = hitClip(t, xSec);
     const isSel = clip && selected.has(clip.id);
+    const base = { active: false, undone: false };
 
     if (tool === 'select' || tool === 'grab') {
       if (clip) {
@@ -323,15 +398,18 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
           const clipX = clip.start * ppsRef.current - scrollLeft + rect.left;
           const clipW = clip.duration * ppsRef.current;
           const relX = e.clientX - clipX;
-          if (relX < 9) {
-            dragRef.current = { kind: 'fadeIn', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: clip.fadeIn };
+          if (relX < 12) {
+            pushUndo();
+            dragRef.current = { kind: 'fadeIn', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: clip.fadeIn, ...base, active: true, undone: true };
             return;
           }
-          if (relX > clipW - 9) {
-            dragRef.current = { kind: 'fadeOut', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: clip.fadeOut };
+          if (relX > clipW - 12) {
+            pushUndo();
+            dragRef.current = { kind: 'fadeOut', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: clip.fadeOut, ...base, active: true, undone: true };
             return;
           }
         }
+        // Sélection (clic simple ou shift pour multi)
         if (!e.shiftKey) setSelected(new Set([clip.id]));
         else {
           setSelected(prev => {
@@ -340,14 +418,14 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
             return n;
           });
         }
+        // Déplacement (seuil avant d'agir — un clic ne bouge pas le clip)
         if (tool === 'select' || tool === 'grab') {
-          dragRef.current = { kind: 'move', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: 0 };
+          dragRef.current = { kind: 'move', trackIdx, clipId: clip.id, startX: e.clientX, origStart: clip.start, origOffset: clip.offset, origDuration: clip.duration, origFade: 0, ...base };
         }
       } else {
-        // Sélection de région sur le fond
+        // Sélection de région sur le fond (seuil avant d'afficher)
         setSelected(new Set());
-        dragRef.current = { kind: 'region', trackIdx, clipId: '', startX: e.clientX, origStart: xSec, origOffset: 0, origDuration: 0, origFade: 0 };
-        setRegion([xSec, xSec]);
+        dragRef.current = { kind: 'region', trackIdx, clipId: '', startX: e.clientX, origStart: xSec, origOffset: 0, origDuration: 0, origFade: 0, ...base };
       }
     } else if (tool === 'split') {
       if (clip) splitClip(trackIdx, clip.id, snapValue(xSec));
@@ -360,21 +438,26 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         const relX = e.clientX - clipX;
         const edge = relX < clipW / 2 ? 'L' : 'R';
         setSelected(new Set([clip.id]));
+        pushUndo();
         dragRef.current = {
           kind: edge === 'L' ? 'trimL' : 'trimR', trackIdx, clipId: clip.id,
           startX: e.clientX, origStart: clip.start, origOffset: clip.offset,
-          origDuration: clip.duration, origFade: 0,
+          origDuration: clip.duration, origFade: 0, ...base, active: true, undone: true,
         };
       }
     }
-  }, [tool, selected, hitClip, splitClip, deleteClips, snapValue]);
+  }, [tool, selected, hitClip, splitClip, deleteClips, snapValue, pushUndo]);
 
-  // Window pointermove/up (drag global)
+  // Window pointermove/up (drag global avec seuil + undo par geste)
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
+      const dxPx = e.clientX - d.startX;
+
       if (d.kind === 'region') {
+        if (!d.active && Math.abs(dxPx) < DRAG_THRESHOLD) return;
+        if (!d.active) { d.active = true; d.undone = true; }
         const canvas = laneRefs.current[d.trackIdx];
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
@@ -382,21 +465,23 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         setRegion([Math.min(d.origStart, xSec), Math.max(d.origStart, xSec)]);
         return;
       }
-      const dx = (e.clientX - d.startX) / ppsRef.current;
+
+      const dx = dxPx / ppsRef.current;
       if (d.kind === 'move') {
+        if (!d.active && Math.abs(dxPx) < DRAG_THRESHOLD) return;
+        if (!d.active) { d.active = true; pushUndo(); d.undone = true; }
         moveClip(d.trackIdx, d.clipId, d.origStart + dx);
       } else if (d.kind === 'trimL') {
         trimClip(d.trackIdx, d.clipId, 'L', d.origStart + dx);
       } else if (d.kind === 'trimR') {
         trimClip(d.trackIdx, d.clipId, 'R', d.origStart + d.origDuration + dx);
       } else if (d.kind === 'fadeIn' || d.kind === 'fadeOut') {
-        const dxSec = (e.clientX - d.startX) / ppsRef.current;
-        setFade(d.trackIdx, d.clipId, d.kind === 'fadeIn' ? 'in' : 'out', Math.max(0, d.origFade + dxSec));
+        setFade(d.trackIdx, d.clipId, d.kind === 'fadeIn' ? 'in' : 'out', Math.max(0, d.origFade + dx));
       }
     };
     const onUp = () => {
       const d = dragRef.current;
-      if (d?.kind === 'region') {
+      if (d?.kind === 'region' && d.active) {
         const r = regionRef.current;
         if (r) {
           const [a, b] = [Math.min(r[0], r[1]), Math.max(r[0], r[1])];
@@ -418,9 +503,9 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [moveClip, trimClip, setFade]);
+  }, [moveClip, trimClip, setFade, pushUndo]);
 
-  // Ref miroir de `region` pour le handler window (évite la dépendance)
+  // Ref miroir de `region` pour le handler window
   const regionRef = useRef(region);
   regionRef.current = region;
 
@@ -446,6 +531,33 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [playState, doPlay, doPause, doStop, deleteClips, doUndo, setClipGain, selected]);
+
+  // ── Import de fichiers audio ──────────────────────────────────────
+  const handleImportFiles = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    onStatus(`⏳ Import de ${files.length} fichier${files.length > 1 ? 's' : ''} audio…`);
+    try {
+      const s = sessionRef.current;
+      let tracks = [...s.tracks];
+      let dur = s.durationSec;
+      let importedCount = 0;
+      for (const f of files) {
+        const data = await f.arrayBuffer();
+        const buffer = await engine.decodeArrayBuffer(data);
+        const name = (f.name.replace(/\.[^.]+$/, '').slice(0, 24)) || 'Audio';
+        const idx = s.tracks.length + importedCount;
+        tracks = [...tracks, createImportedTrack(buffer, idx, name)];
+        dur = Math.max(dur, buffer.duration);
+        importedCount += 1;
+      }
+      onSessionChange({ ...s, durationSec: dur, tracks });
+      onStatus(`✅ ${importedCount} piste${importedCount > 1 ? 's' : ''} audio importée${importedCount > 1 ? 's' : ''}`, 'text-green-400');
+    } catch (err) {
+      onStatus(`❌ Import impossible : ${(err as Error).message}`, 'text-red-400');
+    }
+  }, [engine, onSessionChange, onStatus]);
 
   // ── Export WAV ────────────────────────────────────────────────────
   const doExport = useCallback(async () => {
@@ -475,6 +587,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
   };
   const measure = Math.floor(posSec / barSec) + 1;
   const beatInBar = Math.floor((posSec % barSec) / (barSec / beatsPerBar)) + 1;
+  const snapLabel = `1/${Math.round(1 / snapUnit)}`;
 
   // ── Styles transport (tons sobres / studio) ───────────────────────
   const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
@@ -558,10 +671,9 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
       const mid = LANE_H / 2;
 
       // Normalisation d'affichage : le pic du buffer remplit ~85 % de la lane
-      // (convention DAW), le clip gain étire ensuite (clampé au dessin).
       let pk = 0;
       if (peaks) {
-        for (let i = 0; i < peaks.max.length; i++) pk = Math.max(pk, Math.abs(peaks.max[i]), Math.abs(peaks.min[i]));
+        for (let k = 0; k < peaks.max.length; k++) pk = Math.max(pk, Math.abs(peaks.max[k]), Math.abs(peaks.min[k]));
       }
       if (pk < 1e-6) pk = 1; // buffer silencieux → échelle neutre
       const scale = (LANE_H / 2 - 7) / pk;
@@ -580,7 +692,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         if (x > contentW || x + w < 0) continue;
         const isSel = selected.has(c.id);
 
-        // Fond du clip : teinte de la piste (identifie la piste au premier coup d'œil)
+        // Fond du clip : teinte de la piste
         ctx.fillStyle = isSel ? 'rgba(201,164,92,0.10)' : `${t.color}14`;
         ctx.fillRect(x + 1, 1, w - 2, LANE_H - 2);
 
@@ -592,8 +704,8 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
           const x1 = Math.min(contentW, Math.ceil(x + w));
           ctx.fillStyle = t.color;
           for (let px = x0; px < x1; px++) {
-            const tClip = (px - x) / pps;             // temps dans le clip
-            const tBuf = c.offset + tClip;            // temps dans le buffer
+            const tClip = (px - x) / pps;
+            const tBuf = c.offset + tClip;
             const bk = Math.floor(tBuf * bps);
             if (bk < 0 || bk >= peaks.buckets) continue;
             const mn = peaks.min[bk] * amp;
@@ -629,7 +741,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
           ctx.stroke();
         }
 
-        // Ligne de gain si ≠ 1 (même échelle normalisée que la waveform)
+        // Ligne de gain si ≠ 1
         if (Math.abs(c.gain - 1) > 0.01) {
           const gy = Math.max(2, Math.min(LANE_H - 2, mid - scale * c.gain * (LANE_H / 2 - 7)));
           ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -641,13 +753,20 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
           ctx.setLineDash([]);
         }
 
+        // Highlight gomme (survol)
+        if (eraseHover === c.id) {
+          ctx.strokeStyle = 'rgba(248,113,113,0.9)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x + 0.5, 1.5, w - 1, LANE_H - 3);
+        }
+
         // Contour + poignées de fade du clip sélectionné
         if (isSel) {
           ctx.strokeStyle = SELECTED_COLOR;
           ctx.lineWidth = 1.2;
           ctx.strokeRect(x + 0.5, 1.5, w - 1, LANE_H - 3);
           ctx.fillStyle = SELECTED_COLOR;
-          const grip = 8;
+          const grip = 10;
           ctx.beginPath();
           ctx.moveTo(x, LANE_H - 1); ctx.lineTo(x + grip, LANE_H - 1); ctx.lineTo(x, LANE_H - 1 - grip);
           ctx.closePath(); ctx.fill();
@@ -661,7 +780,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         }
       }
     });
-  }, [session, contentW, totalSec, barSec, beatsPerBar, pps, selected, region, peaksMap]);
+  }, [session, contentW, totalSec, barSec, beatsPerBar, pps, selected, region, peaksMap, eraseHover]);
 
   // ── Rendu ─────────────────────────────────────────────────────────
   return (
@@ -689,6 +808,20 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         <button onClick={() => setLoopOn(v => !v)} className={loopOn ? `${tBtn} bg-[#2f4a6e] border-[#3f5f8f] text-[#a8c8e8]` : tBtn} title="Lecture en boucle"><Repeat className="w-3.5 h-3.5" /></button>
         <button onClick={doUndo} title="Annuler (Ctrl+Z)" className={tBtn}><Undo2 className="w-3.5 h-3.5" /></button>
 
+        {/* Subdivision du snap — identique au mode Navig (PianoRoll) */}
+        <div className="flex items-center gap-1 px-1.5 h-8 rounded-md bg-[#0a0c10] border border-[#23272f] shrink-0" title="Subdivision du snap : mêmes valeurs que le mode Navig. 1/12 = triolets de croches, 1/6 = triolets de noires, 1/24/1/18 = sextolets.">
+          <span className="text-[8px] uppercase tracking-widest text-[#5c6472]">Snap</span>
+          <select
+            value={snapUnit}
+            onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
+            className="bg-transparent text-[#d9b25f] font-mono text-[11px] outline-none cursor-pointer"
+          >
+            {PP_SNAP_UNITS.map(u => (
+              <option key={u} value={u} className="bg-[#171a21] text-[#c9cdd6]">1/{Math.round(1 / u)}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="ml-auto flex items-center gap-1.5">
           <button
             onClick={onBackToNavig}
@@ -707,7 +840,137 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
         </div>
       </div>
 
-      {/* ── Corps : outils + timeline + mixer ── */}
+      {/* ── Table de mixage horizontale (ouvrable/fermable, même ordre que les pistes) ── */}
+      <div className="border-b border-[#262a34] bg-[#12141a]">
+        <div className="flex items-center gap-2 px-2 py-1">
+          <button onClick={() => setMixerOpen(v => !v)} className={tBtn} title={mixerOpen ? 'Fermer la table de mixage' : 'Ouvrir la table de mixage'}>
+            {mixerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          <span className="text-[9px] uppercase tracking-widest text-[#4a4f63]">🎚 Table de mixage</span>
+          <span className="text-[9px] text-[#5c6472] font-mono">— même ordre que les pistes</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-2.5 h-7 flex items-center gap-1.5 rounded-md bg-[#171a21] text-[#9fb8d8] border border-[#2c3a4a] hover:bg-[#1f2b3a] text-[10.5px] font-semibold transition-colors"
+              title="Importer un fichier audio (WAV, MP3, FLAC, OGG…) : ajoute une piste avec les mêmes fonctionnalités"
+            >
+              <FileUp className="w-3.5 h-3.5" /> Importer audio
+            </button>
+            <input ref={fileInputRef} type="file" accept="audio/*" multiple className="hidden" onChange={handleImportFiles} />
+          </div>
+        </div>
+        {mixerOpen && (
+          <div className="flex gap-2 overflow-x-auto px-2 pb-2 items-stretch">
+            {session.tracks.map((t, i) => (
+              <div
+                key={t.channel}
+                className={`shrink-0 w-[118px] rounded-lg border flex flex-col overflow-hidden ${t.mute ? 'border-[#262a34] bg-[#0c0d11] opacity-60' : 'border-[#2c313d] bg-[#171a21]'}`}
+              >
+                {/* Nom */}
+                <div className="px-1.5 pt-1.5 pb-1 border-b border-[#262a34] bg-black/20">
+                  <div className="text-[10px] font-bold truncate text-center leading-tight" style={{ color: t.color }} title={t.label}>
+                    {t.source === 'import' ? '🎧 ' : ''}{t.label}
+                  </div>
+                </div>
+                {/* Pan */}
+                <div className="flex items-center gap-1 px-2 pt-1.5">
+                  <span className="text-[7px] text-[#4a4f63] font-mono">L</span>
+                  <input
+                    type="range" min={-1} max={1} step={0.05} value={t.pan}
+                    onPointerDown={() => pushUndo()}
+                    onChange={(e) => applyTracks(sessionRef.current.tracks.map((x, j) => j === i ? { ...x, pan: parseFloat(e.target.value) } : x))}
+                    className="flex-1 accent-[#6ea8d8] h-1 min-w-0"
+                    title="Pan"
+                  />
+                  <span className="text-[7px] text-[#4a4f63] font-mono">R</span>
+                </div>
+                {/* Fader-VU */}
+                <div
+                  className="relative w-full flex-1 min-h-[64px] mx-2 my-1.5 rounded-md bg-[#0a0c10] border border-[#23272f] overflow-hidden cursor-pointer touch-none"
+                  onPointerDown={(e) => {
+                    const el = e.currentTarget;
+                    el.setPointerCapture(e.pointerId);
+                    pushUndo();
+                    const setFromY = (y: number) => {
+                      const r = el.getBoundingClientRect();
+                      const frac = 1 - Math.max(0, Math.min(1, (y - r.top) / r.height));
+                      applyTracks(sessionRef.current.tracks.map((x, j) => j === i ? { ...x, volume: Math.max(0, Math.min(1.5, frac * 1.5)) } : x));
+                    };
+                    setFromY(e.clientY);
+                    const onMove = (ev: PointerEvent) => setFromY(ev.clientY);
+                    const onUp = () => {
+                      el.removeEventListener('pointermove', onMove);
+                      el.removeEventListener('pointerup', onUp);
+                    };
+                    el.addEventListener('pointermove', onMove);
+                    el.addEventListener('pointerup', onUp);
+                  }}
+                  title="Fader volume — la course sert aussi de vumètre"
+                >
+                  <div
+                    className="absolute inset-x-0 bottom-0"
+                    style={{
+                      height: `${Math.round((levels[t.channel] ?? 0) * 100)}%`,
+                      background: 'linear-gradient(to top, rgba(74,222,128,0.7), rgba(250,204,21,0.7) 60%, rgba(248,113,113,0.8) 85%)',
+                    }}
+                  />
+                  <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ background: 'repeating-linear-gradient(to top, transparent 0 9px, #1b2029 9px 10px)' }} />
+                  <div className="absolute inset-x-0 pointer-events-none" style={{ bottom: `${(t.volume / 1.5) * 100}%` }}>
+                    <div className="h-[4px] w-full bg-[#e0b96a] rounded-[2px] shadow-[0_0_4px_rgba(224,185,106,0.6)]" />
+                  </div>
+                </div>
+                {/* Mute / Solo / valeur */}
+                <div className="flex items-center justify-center gap-1 pb-1.5">
+                  <button
+                    onClick={() => { pushUndo(); applyTracks(sessionRef.current.tracks.map((x, j) => j === i ? { ...x, mute: !x.mute } : x)); }}
+                    className={`h-5 w-6 rounded text-[9px] font-bold border transition-colors ${t.mute ? 'bg-[#3a2320] border-[#6b3a36] text-[#ffb3a8]' : 'bg-[#0c0d11] border-[#262a34] text-[#5c6472] hover:text-[#ffb3a8]'}`}
+                  >M</button>
+                  <button
+                    onClick={() => { pushUndo(); applyTracks(sessionRef.current.tracks.map((x, j) => j === i ? { ...x, solo: !x.solo } : x)); }}
+                    className={`h-5 w-6 rounded text-[9px] font-bold border transition-colors ${t.solo ? 'bg-[#3a3220] border-[#6b5a2e] text-[#ffe9a8]' : 'bg-[#0c0d11] border-[#262a34] text-[#5c6472] hover:text-[#ffe9a8]'}`}
+                  >S</button>
+                  <span className="text-[8px] text-[#5c6472] font-mono ml-0.5">{(t.volume * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            ))}
+            {/* Master */}
+            <div className="shrink-0 w-[110px] rounded-lg border border-[#2c313d] bg-[#171a21] flex flex-col items-center gap-1 py-1.5 px-1.5">
+              <div className="text-[9px] uppercase tracking-widest text-[#4a4f63]">Master</div>
+              <div className="relative w-full h-5 rounded bg-[#0a0c10] border border-[#23272f] overflow-hidden">
+                <div className="absolute inset-0" style={{ width: `${Math.round(masterLevel * 100)}%`, background: 'linear-gradient(to right, rgba(74,222,128,0.5), rgba(250,204,21,0.5) 70%, rgba(248,113,113,0.65) 92%)' }} />
+                <div className="absolute inset-y-0 pointer-events-none" style={{ left: `${masterVol * 100}%` }}>
+                  <div className="w-[2.5px] h-full bg-[#e0b96a]" />
+                </div>
+              </div>
+              <div
+                className="relative w-full h-1.5 rounded bg-[#23272f] cursor-pointer touch-none"
+                onPointerDown={(e) => {
+                  const el = e.currentTarget;
+                  el.setPointerCapture(e.pointerId);
+                  const setFromX = (x: number) => {
+                    const r = el.getBoundingClientRect();
+                    const frac = Math.max(0, Math.min(1, (x - r.left) / r.width));
+                    setMasterVol(frac);
+                    engine.setMasterVolume(frac);
+                  };
+                  setFromX(e.clientX);
+                  const onMove = (ev: PointerEvent) => setFromX(ev.clientX);
+                  const onUp = () => {
+                    el.removeEventListener('pointermove', onMove);
+                    el.removeEventListener('pointerup', onUp);
+                  };
+                  el.addEventListener('pointermove', onMove);
+                  el.addEventListener('pointerup', onUp);
+                }}
+                title="Volume master"
+              />
+              <div className="text-[8px] text-[#5c6472] font-mono">{(masterVol * 100).toFixed(0)}%</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Corps : outils + timeline ── */}
       <div className="flex items-stretch">
         {/* Rail d'outils */}
         <div className="w-12 shrink-0 bg-[#12141a] border-r border-[#262a34] flex flex-col items-center gap-1 py-2">
@@ -722,15 +985,14 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
             className={`w-9 h-9 rounded-md border flex flex-col items-center justify-center gap-0.5 transition-colors ${snapOn
               ? 'bg-[#1d2118] border-[#c9a45c]/40 text-[#c9a45c]'
               : 'bg-[#171a21] border-[#262a34] text-[#5c6472]'}`}
-            title={`Snap aux mesures (S) — ${snapOn ? 'ON' : 'OFF'}`}
+            title={`Snap magnétique (S) — ${snapOn ? 'ON' : 'OFF'}`}
           >
             <Magnet className="w-4 h-4" />
             <span className="text-[7px] leading-none font-mono">S</span>
           </button>
         </div>
 
-        {/* Timeline : panneau gauche fixe (labels) + panneau droit scrollable
-             (ruler + lanes dans le MÊME conteneur → scroll synchronisé) */}
+        {/* Timeline : panneau gauche fixe (labels) + panneau droit scrollable */}
         <div className="flex-1 min-w-0 bg-[#0c0d11]">
           <div className="flex">
             {/* Labels fixes (header + une ligne par piste) */}
@@ -742,7 +1004,9 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
                 <div key={t.channel} className="flex items-center gap-2 px-2.5 border-b border-[#191c24]" style={{ height: LANE_H }}>
                   <div className="w-2 h-2 rounded-[2px] shrink-0" style={{ backgroundColor: t.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-semibold text-[#c9cdd6] truncate leading-tight">{t.label}</div>
+                    <div className="text-[11px] font-semibold text-[#c9cdd6] truncate leading-tight">
+                      {t.source === 'import' ? '🎧 ' : ''}{t.label}
+                    </div>
                     <div className="text-[9px] text-[#5c6472] font-mono leading-tight">
                       {t.clips.length} clip{t.clips.length > 1 ? 's' : ''} · vol {(t.volume * 100).toFixed(0)}%
                     </div>
@@ -762,7 +1026,7 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
                 </div>
               ))}
             </div>
-            {/* Contenu scrollable UNIQUE : ruler + canvas des lanes + playhead */}
+            {/* Contenu scrollable UNIQUE : ruler + canvas des lanes + overlays */}
             <div className="flex-1 min-w-0 overflow-hidden">
               <div ref={scrollRef} className="overflow-x-auto">
                 <div className="relative" style={{ width: contentW }}>
@@ -772,11 +1036,20 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
                       key={t.channel}
                       ref={(el) => { laneRefs.current[i] = el; }}
                       onPointerDown={(e) => onLanePointerDown(e, i)}
+                      onPointerMove={(e) => onLanePointerMove(e, i)}
+                      onPointerLeave={onLanePointerLeave}
                       style={{ display: 'block', width: contentW, height: LANE_H, cursor: 'crosshair', touchAction: 'none' }}
                       title="Clic : selon l'outil actif · Molette : zoom temporel"
                     />
                   ))}
-                  {/* Playhead : dans le contenu → suit le scroll naturellement */}
+                  {/* Ligne de coupe fantôme (ciseaux) */}
+                  {tool === 'split' && splitHover !== null && (
+                    <div
+                      className="absolute top-0 bottom-0 w-[1px] bg-[#c9a45c]/70 pointer-events-none z-10"
+                      style={{ left: splitHover * pps, top: RULER_H }}
+                    />
+                  )}
+                  {/* Playhead */}
                   <div
                     className="absolute w-[1.5px] bg-[#d9534f] pointer-events-none z-10 shadow-[0_0_6px_rgba(217,83,79,0.5)]"
                     style={{ left: posSec * pps, top: RULER_H, height: session.tracks.length * LANE_H }}
@@ -788,106 +1061,13 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
             </div>
           </div>
         </div>
-
-        {/* Mixer compact */}
-        <div className="w-[190px] shrink-0 bg-[#12141a] border-l border-[#262a34] flex flex-col overflow-y-auto max-h-[560px]">
-          <div className="text-[9px] uppercase tracking-widest text-[#4a4f63] text-center py-2 border-b border-[#262a34] shrink-0">Mixage</div>
-          {session.tracks.map((t, i) => (
-            <div key={t.channel} className="flex flex-col items-center py-2 px-2 border-b border-[#191c24] gap-1">
-              <div className="text-[9.5px] font-semibold truncate w-full text-center" style={{ color: t.color }}>{t.label}</div>
-              <div className="flex items-center gap-1.5 w-full px-1">
-                <span className="text-[8px] text-[#4a4f63] font-mono">L</span>
-                <input
-                  type="range" min={-1} max={1} step={0.05} value={t.pan}
-                  onChange={(e) => {
-                    pushUndo();
-                    applyTracks(session.tracks.map((x, j) => j === i ? { ...x, pan: parseFloat(e.target.value) } : x));
-                  }}
-                  className="flex-1 accent-[#6ea8d8] h-1"
-                  title="Pan"
-                />
-                <span className="text-[8px] text-[#4a4f63] font-mono">R</span>
-              </div>
-              <div
-                className="relative w-7 h-[92px] rounded-md bg-[#0a0c10] border border-[#23272f] overflow-hidden cursor-pointer touch-none"
-                onPointerDown={(e) => {
-                  const el = e.currentTarget;
-                  el.setPointerCapture(e.pointerId);
-                  const setFromY = (y: number) => {
-                    const r = el.getBoundingClientRect();
-                    const frac = 1 - Math.max(0, Math.min(1, (y - r.top) / r.height));
-                    pushUndo();
-                    applyTracks(sessionRef.current.tracks.map((x, j) => j === i ? { ...x, volume: Math.max(0, Math.min(1.5, frac * 1.5)) } : x));
-                  };
-                  setFromY(e.clientY);
-                  const onMove = (ev: PointerEvent) => setFromY(ev.clientY);
-                  const onUp = () => {
-                    el.removeEventListener('pointermove', onMove);
-                    el.removeEventListener('pointerup', onUp);
-                  };
-                  el.addEventListener('pointermove', onMove);
-                  el.addEventListener('pointerup', onUp);
-                }}
-                title="Fader volume — la course sert aussi de vumètre"
-              >
-                <div
-                  className="absolute inset-x-0 bottom-0"
-                  style={{
-                    height: `${Math.round((levels[t.channel] ?? 0) * 100)}%`,
-                    background: 'linear-gradient(to top, rgba(74,222,128,0.7), rgba(250,204,21,0.7) 60%, rgba(248,113,113,0.8) 85%)',
-                  }}
-                />
-                <div className="absolute inset-0 opacity-40 pointer-events-none" style={{ background: 'repeating-linear-gradient(to top, transparent 0 9px, #1b2029 9px 10px)' }} />
-                <div className="absolute inset-x-0 pointer-events-none" style={{ bottom: `${(t.volume / 1.5) * 100}%` }}>
-                  <div className="h-[5px] w-full bg-[#e0b96a] rounded-[2px] shadow-[0_0_4px_rgba(224,185,106,0.6)]" />
-                </div>
-              </div>
-              <div className="text-[8px] text-[#5c6472] font-mono">
-                {(t.volume * 100).toFixed(0)}%{t.pan !== 0 ? ` · pan ${t.pan > 0 ? '+' : ''}${(t.pan * 100).toFixed(0)}` : ''}
-              </div>
-            </div>
-          ))}
-          {/* Master */}
-          <div className="mt-auto border-t border-[#262a34] px-2 py-2 flex flex-col items-center gap-1 bg-[#171a21]">
-            <div className="text-[9px] uppercase tracking-widest text-[#4a4f63]">Master</div>
-            <div className="relative w-full h-6 rounded-md bg-[#0a0c10] border border-[#23272f] overflow-hidden">
-              <div className="absolute inset-0" style={{ width: `${Math.round(masterLevel * 100)}%`, background: 'linear-gradient(to right, rgba(74,222,128,0.5), rgba(250,204,21,0.5) 70%, rgba(248,113,113,0.65) 92%)' }} />
-              <div className="absolute inset-y-0 pointer-events-none" style={{ left: `${masterVol * 100}%` }}>
-                <div className="w-[3px] h-full bg-[#e0b96a]" />
-              </div>
-            </div>
-            <div
-              className="relative w-full h-1.5 rounded bg-[#23272f] cursor-pointer touch-none"
-              onPointerDown={(e) => {
-                const el = e.currentTarget;
-                el.setPointerCapture(e.pointerId);
-                const setFromX = (x: number) => {
-                  const r = el.getBoundingClientRect();
-                  const frac = Math.max(0, Math.min(1, (x - r.left) / r.width));
-                  setMasterVol(frac);
-                  engine.setMasterVolume(frac);
-                };
-                setFromX(e.clientX);
-                const onMove = (ev: PointerEvent) => setFromX(ev.clientX);
-                const onUp = () => {
-                  el.removeEventListener('pointermove', onMove);
-                  el.removeEventListener('pointerup', onUp);
-                };
-                el.addEventListener('pointermove', onMove);
-                el.addEventListener('pointerup', onUp);
-              }}
-              title="Volume master (multiplie la normalisation du bounce)"
-            />
-            <div className="text-[8px] text-[#5c6472] font-mono">{(masterVol * 100).toFixed(0)}%</div>
-          </div>
-        </div>
       </div>
 
       {/* ── Barre de statut ── */}
       <div className="flex items-center gap-4 px-3 h-6 bg-[#12141a] border-t border-[#262a34] text-[10px] font-mono text-[#5c6472]">
         <span>PostProd · <span className="text-[#c9a45c]">{Math.ceil(totalSec / barSec)} mesures</span> · {fmtTime(totalSec)}</span>
         <span className="text-[#2c313d]">|</span>
-        <span>Snap : <span className="text-[#c9a45c]">{snapOn ? `1/${beatsPerBar * 4}` : 'OFF'}</span></span>
+        <span>Snap : <span className="text-[#c9a45c]">{snapOn ? snapLabel : 'OFF'}</span></span>
         <span className="text-[#2c313d]">|</span>
         <span>Sélection : <span className="text-[#c9a45c]">{selected.size > 0 ? `${selected.size} clip${selected.size > 1 ? 's' : ''}` : '—'}</span></span>
         <span className="ml-auto hidden sm:block text-[#3f4551]">

@@ -788,13 +788,20 @@ export default function ChordApp() {
           clips: [createFullClip(ft.channel, duration)],
         });
       }
+      // Les pistes AUDIO importées de la session précédente sont conservées
+      // (le re-bounce ne remplace que les pistes MIDI) — même comportement
+      // que les DAW : le re-render des instruments ne touche pas à l'audio.
+      const imported = postProdSession?.tracks.filter(t => t.source === 'import') ?? [];
+      // La durée de la timeline couvre aussi les clips importés (jamais tronqués)
+      let totalDur = data.duration_sec;
+      for (const t of imported) for (const c of t.clips) totalDur = Math.max(totalDur, c.start + c.duration);
       const session: PostProdSession = {
         projectName: projectName ?? 'projet',
         tempo: data.tempo,
         sig: data.sig,
-        durationSec: data.duration_sec,
+        durationSec: totalDur,
         masterGain: data.master_gain,
-        tracks: sessionTracks,
+        tracks: [...sessionTracks, ...imported],
       };
       ppEngineRef.current.loadSession(session);
       setPostProdSession(session);

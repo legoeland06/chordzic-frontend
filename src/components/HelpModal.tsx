@@ -270,21 +270,36 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p className="font-bold text-white mt-2">Outils (rail de gauche)</p>
             <p>
-              <b className="text-white">V Sélecteur</b> : clic = sélectionner un clip, glisser = le déplacer,
-              glisser sur le fond = sélection de région (plusieurs clips), poignées de fade aux coins du clip
-              sélectionné. <b className="text-white">B Ciseaux</b> : couper au point cliqué. <b className="text-white">E Gomme</b> :
-              supprimer. <b className="text-white">G Main</b> : déplacer. <b className="text-white">T Trimmer</b> : étirer
-              par les bords. <b className="text-white">S</b> : snap mesures (1/16). <b className="text-white">↑↓</b> :
-              gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> : annuler. <b className="text-white">Delete</b> : effacer.
-              <b className="text-white"> Espace</b> : lecture. Molette : zoom temporel centré curseur.
+              <b className="text-white">V Sélecteur</b> : clic = sélectionner un clip, glisser = le déplacer
+              (la timeline s'étend si on pousse un clip au-delà de la fin), glisser sur le fond = sélection de
+              région (plusieurs clips), poignées de fade aux coins du clip sélectionné. <b className="text-white">B Ciseaux</b> :
+              couper au point cliqué (ligne de coupe au survol). <b className="text-white">E Gomme</b> : supprimer
+              (le clip survolé s'illumine en rouge). <b className="text-white">G Main</b> : déplacer.
+              <b className="text-white"> T Trimmer</b> : étirer par les bords. <b className="text-white">S</b> : snap
+              magnétique ON/OFF. Le <b className="text-white">sélecteur de snap</b> (barre de transport) propose les
+              <b> mêmes subdivisions que le Piano Roll</b> : 1/32 → 1/1, triolets (1/12, 1/6, 1/3) et sextolets
+              (1/24, 1/18). <b className="text-white">↑↓</b> : gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> :
+              annuler. <b className="text-white">Delete</b> : effacer. <b className="text-white"> Espace</b> : lecture.
+              Molette : zoom temporel centré curseur.
+            </p>
+            <p className="font-bold text-white mt-2">Table de mixage (au-dessus des pistes)</p>
+            <p>
+              Horizontale, dans le <b>même ordre que les pistes</b> : fader-vumètre, pan L/R, Mute/Solo par
+              piste, master à droite. Le chevron <b className="text-amber-400">▲/▼</b> ouvre/ferme la table.
+            </p>
+            <p className="font-bold text-white mt-2">Importer un fichier audio</p>
+            <p>
+              Le bouton <b className="text-amber-400">📁 Importer audio</b> ajoute une piste 🎧 (WAV, MP3, FLAC,
+              OGG…) avec <b>toutes les fonctionnalités des autres pistes</b> : clips, coupe, déplacement, fades,
+              gain, volume, pan, mute/solo. Les pistes importées sont <b>conservées</b> quand on re-bounce les
+              pistes MIDI depuis le mode Navig.
             </p>
             <p className="font-bold text-white mt-2">Mixage et export</p>
             <p>
-              Le <b className="text-white">mixer</b> (colonne de droite) : fader-vumètre par piste, pan L/R,
-              Mute/Solo (solo prioritaire). Le bouton <b className="text-amber-400">Exporter WAV</b> rend le mix
-              complet (clips, fades, gains, faders, pan) en WAV stéréo via un rendu hors-ligne —
-              le fichier exporté est <b>exactement</b> ce qu'on entend. Retour au MIDI : bouton{' '}
-              <b className="text-blue-400">↩ Navig</b>. Le bounce reste valide tant que la grille ne change pas.
+              Le bouton <b className="text-amber-400">Exporter WAV</b> rend le mix complet (clips, fades, gains,
+              faders, pan) en WAV stéréo via un rendu hors-ligne — le fichier exporté est <b>exactement</b> ce
+              qu'on entend. Retour au MIDI : bouton <b className="text-blue-400">↩ Navig</b>. Le bounce reste
+              valide tant que la grille ne change pas.
             </p>
             <p className="text-xs text-gray-500">
               💡 Édition non destructive : couper/déplacer/effacer ne modifie jamais les WAV d'origine.

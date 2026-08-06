@@ -60,6 +60,11 @@ export class PostProdEngine {
     const resp = await fetch(full);
     if (!resp.ok) throw new Error(`Téléchargement impossible : ${full} (${resp.status})`);
     const data = await resp.arrayBuffer();
+    return this.decodeArrayBuffer(data);
+  }
+
+  /** Décode des données audio brutes (fichier importé : WAV, MP3, FLAC…). */
+  async decodeArrayBuffer(data: ArrayBuffer): Promise<AudioBuffer> {
     const ctx = await this.getCtx();
     return ctx.decodeAudioData(data);
   }
@@ -111,13 +116,14 @@ export class PostProdEngine {
         if (clip.duration <= 0.001) continue;
         const clipEnd = clip.start + clip.duration;
         if (clipEnd <= startSec) continue;              // clip entièrement avant le départ
-        if (clip.start >= session.durationSec) continue;
+        const sessionDur = this.getDuration();
+        if (clip.start >= sessionDur) continue;
 
         const cutIn = Math.max(0, startSec - clip.start);
         const offset = clip.offset + cutIn;
         const remaining = clip.duration - cutIn;
         // Tronquer à la fin de la session
-        const maxDur = Math.max(0, session.durationSec - (clip.start + cutIn));
+        const maxDur = Math.max(0, sessionDur - (clip.start + cutIn));
         const finalDur = Math.min(remaining, maxDur || remaining);
         if (finalDur <= 0.001) continue;
 
@@ -224,8 +230,16 @@ export class PostProdEngine {
     return Math.max(0, Math.min(this._pos, dur));
   }
 
+  /** Durée totale effective : la session, OU la fin du dernier clip si un
+   * clip a été déplacé/étiré au-delà (la timeline s'étend, comme les DAW). */
   getDuration(): number {
-    return this.session?.durationSec ?? 0;
+    const s = this.session;
+    if (!s) return 0;
+    let dur = s.durationSec;
+    for (const t of s.tracks) {
+      for (const c of t.clips) dur = Math.max(dur, c.start + c.duration);
+    }
+    return dur;
   }
 
   /** Niveaux VU : 0..1 par piste audible + master (max). */
@@ -253,7 +267,7 @@ export class PostProdEngine {
     if (wasPlaying) this.pause();
 
     const sr = 44100;
-    const len = Math.max(1, Math.ceil(session.durationSec * sr));
+    const len = Math.max(1, Math.ceil(this.getDuration() * sr));
     const ctx = new OfflineAudioContext(2, len, sr);
     this._pos = 0;
     this.buildGraph(ctx, 0, 0, true);
