@@ -123,17 +123,44 @@ export default function ClickControl() {
         className="w-12 accent-amber-500"
       />
 
-      {/* Décalage du clic (compensation de latence, mode séparé) */}
+      {/* Décalage du clic (compensation de latence, mode séparé) — précis :
+          slider fin + champ numérique + calage ±1/±10 ms, applicable PENDANT
+          la lecture (le serveur décale le clic en direct). */}
       {separated && (
-        <>
+        <div className="flex items-center gap-1" title={`Décalage clic (${cfg.delay_ms} ms) — si le clic sort EN AVANCE (chemin USB direct vs PipeWire), augmentez jusqu'à ce qu'il tombe pile sur le temps. Modifiable pendant la lecture.`}>
+          <span className="text-[10px] text-gray-400">Décalage</span>
           <input
-            type="range" min={0} max={200} value={cfg.delay_ms}
+            type="range" min={0} max={200} step={1} value={cfg.delay_ms}
             onChange={(e) => apply({ delay_ms: parseInt(e.target.value) })}
-            title={`Décalage clic (${cfg.delay_ms} ms) — si le clic sort EN AVANCE (chemin USB direct vs PipeWire), augmentez jusqu'à ce qu'il tombe pile sur le temps.`}
-            className="w-12 accent-amber-500"
+            className="w-28 accent-amber-500"
           />
-          <span className="text-[10px] text-gray-500 w-8">{cfg.delay_ms}ms</span>
-        </>
+          <input
+            type="number" min={0} max={200} step={1} value={cfg.delay_ms}
+            onChange={(e) => apply({ delay_ms: Math.max(0, Math.min(200, parseInt(e.target.value) || 0)) })}
+            className="w-11 bg-gray-800 text-gray-200 text-xs rounded-md px-1 py-1 border border-gray-700 text-center"
+          />
+          <span className="text-[10px] text-gray-500">ms</span>
+          <button
+            onClick={() => apply({ delay_ms: Math.max(0, cfg.delay_ms - 10) })}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            title="−10 ms"
+          >−10</button>
+          <button
+            onClick={() => apply({ delay_ms: Math.max(0, cfg.delay_ms - 1) })}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            title="−1 ms"
+          >−1</button>
+          <button
+            onClick={() => apply({ delay_ms: Math.min(200, cfg.delay_ms + 1) })}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            title="+1 ms"
+          >+1</button>
+          <button
+            onClick={() => apply({ delay_ms: Math.min(200, cfg.delay_ms + 10) })}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            title="+10 ms"
+          >+10</button>
+        </div>
       )}
 
       {/* Accent 1er temps */}
