@@ -2,9 +2,9 @@
  * Contrôle de la piste de clic — MODE NAVIG (rendu WAV).
  * Deux modes au choix :
  *  - « Dans le rendu » : clic MÉLANGÉ au WAV → synchro échantillon-parfaite.
- *  - « Sortie » : le clic est joué SÉPARÉMENT par le serveur sur la sortie
- *    audio choisie (ex : hub USB-C) pendant que le navigateur joue le son
- *    principal. Calage fin via le slider Latence.
+ *  - « Sortie » : clic joué SÉPARÉMENT par le serveur sur un appareil
+ *    MULTICANAL (agrégat CoreAudio : sortie intégrée + hub) — main ch1-2,
+ *    clic ch3-4, UNE seule horloge → synchro échantillon-parfaite aussi.
  * L'état vit côté SERVEUR (/click) — source de vérité unique au moment du
  * rendu (plus aucun aller-retour de mode nécessaire).
  */
