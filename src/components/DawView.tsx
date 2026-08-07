@@ -14,6 +14,7 @@
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor } from 'lucide-react';
+import ClickControl from './ClickControl';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -653,6 +654,11 @@ export default function DawView({
           className="w-16 accent-[#6ea8d8] shrink-0"
           title="Tempo (40-220 BPM)"
         />
+
+        <div className={tSep} />
+
+        {/* Piste de clic (métronome + sortie dédiée + rendu) */}
+        <ClickControl />
 
         <div className={tSep} />
 
