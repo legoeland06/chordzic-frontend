@@ -64,6 +64,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'demarrage', icon: '🚀', title: 'Démarrage rapide', keys: 'démarrer jouer premier accord grille' },
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
+    { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
     { id: 'pianoroll', icon: '🎹', title: 'Piano Roll', keys: 'note édition sélection créer déplacer redimensionner snap libre quantiser vélocité durée grouper zoom' },
     { id: 'raccourcis', icon: '⌨️', title: 'Raccourcis clavier', keys: 'ctrl z y c x v a suppr espace escape annuler copier coller' },
@@ -181,6 +182,41 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="💾 Save / 📂 Load" v="Sauvegarde / charge une grille sur le serveur (fichier JSON)." />
             <Row k="📤 / 📥" v="Exporte la grille en fichier JSON / importe un fichier JSON." />
             <Row k="Tempo" v="Slider 40–220 BPM + champ numérique." />
+          </Section>
+
+          {/* ── Clic & sortie dédiée ── */}
+          <Section id="clic" icon="🥁" title="Clic & sortie dédiée">
+            <p>
+              Le <b className="text-amber-400">Clic</b> (barre de contrôle) est un{' '}
+              <b className="text-white">métronome intégré</b>, calé sur la même horloge que la musique :
+              un tick par temps, accentué sur le 1ᵉʳ temps de chaque mesure. Utile en répétition :
+              la musique part vers la table de mixage, le clic vers vos oreilles.
+            </p>
+            <Row k="Bouton Clic" v="Active / désactive le métronome. Il démarre et s'arrête avec la lecture (▶ / ■)." />
+            <Row k="Sortie" v={<>
+              Liste des <b className="text-white">sorties audio</b> détectées (casque, hub USB-C, interface…).
+              Choisissez la sortie <b className="text-white">dédiée au clic</b> — le clic ne sort QUE par là,
+              séparé du son principal qui, lui, sort par la sortie par défaut (ex : mini-jack → table de mixage).
+              « Sortie : défaut » = la sortie principale (le clic se mélange alors au son).
+            </>} />
+            <Row k="Volume" v="Puissance du clic (0–100)." />
+            <Row k="Latence (ms)" v={<>
+              Compensation de latence (0–100 ms) : les deux chemins audio (clic vs musique MIDI) n'ont pas
+              exactement la même latence. Ajustez pour que le clic tombe pile sur le temps :
+              si le clic est <b className="text-white">en retard</b>, augmentez la valeur ; s'il est{' '}
+              <b className="text-white">en avance</b>, diminuez-la. Valeur typique : 10–40 ms.
+            </>} />
+            <Row k="Accent" v="Cochez pour accentuer le 1ᵉʳ temps de chaque mesure (sinon ticks tous identiques)." />
+            <p className="pt-1">
+              <b className="text-white">Synchro parfaite :</b> le clic et la musique sont générés par la même
+              application sur la même horloge (aucune dérive). Sur Mac, pour une synchro au plus près entre
+              les deux sorties physiques, créez un <b className="text-white">Agrégat</b> dans « Configuration
+              Audio-MIDI » (sortie intégrée + hub USB-C, horloge maîtresse = sortie intégrée) puis
+              choisissez l'agrégat comme sortie du clic.
+            </p>
+            <p className="text-xs text-gray-500">
+              Les réglages du clic sont mémorisés automatiquement (localStorage) et envoyés au serveur.
+            </p>
           </Section>
 
           {/* ── Pistes & réglages ── */}
