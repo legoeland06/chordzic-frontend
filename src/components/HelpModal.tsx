@@ -185,44 +185,27 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Clic & sortie dédiée ── */}
-          <Section id="clic" icon="🥁" title="Clic & sortie dédiée">
+          <Section id="clic" icon="🥁" title="Clic (mode Navig)">
             <p>
               Le <b className="text-amber-400">Clic</b> (vue 📱 Navig, barre de transport) est un{' '}
-              <b className="text-white">métronome intégré</b>, calé sur la même horloge que la musique :
-              un tick par temps, accentué sur le 1ᵉʳ temps de chaque mesure. Utile en répétition :
-              la musique part vers la table de mixage, le clic vers vos oreilles.
+              <b className="text-white">métronome intégré au rendu WAV</b> : un tick par temps, accentué
+              sur le 1ᵉʳ temps de chaque mesure. Le clic est rendu séparément puis{' '}
+              <b className="text-white">mélangé au WAV principal</b> — synchronisation{' '}
+              <b className="text-white">échantillon-parfaite par construction</b> (même passe de rendu,
+              même tempo, aucun décalage possible).
             </p>
-            <Row k="Bouton Clic" v="Active / désactive le métronome. Il démarre et s'arrête avec la lecture (▶ / ■)." />
-            <Row k="Sortie" v={<>
-              Liste des <b className="text-white">sorties audio</b> détectées (casque, hub USB-C, interface…).
-              Choisissez la sortie <b className="text-white">dédiée au clic</b> — le clic ne sort QUE par là,
-              séparé du son principal qui, lui, sort par la sortie par défaut (ex : mini-jack → table de mixage).
-              « Sortie : défaut » = la sortie principale (le clic se mélange alors au son).
+            <Row k="Dans le rendu" v="Cochez pour intégrer le clic au WAV rendu. C'est le bouton principal : il n'y a PAS de clic en mode live (MIDI temps réel) — le clic n'existe que dans le rendu." />
+            <Row k="Son" v={<>
+              4 sons au choix : <b className="text-white">Métronome GM</b> (le son classique : clic + cloche
+              sur le 1ᵉʳ temps), <b className="text-white">Woodblock</b>, <b className="text-white">Agogo</b>{' '}
+              et <b className="text-white">Taiko</b>.
             </>} />
-            <Row k="Volume" v="Puissance du clic (0–100)." />
-            <Row k="Latence (ms)" v={<>
-              Compensation de latence (0–100 ms) : les deux chemins audio (clic vs musique MIDI) n'ont pas
-              exactement la même latence. Ajustez pour que le clic tombe pile sur le temps :
-              si le clic est <b className="text-white">en retard</b>, augmentez la valeur ; s'il est{' '}
-              <b className="text-white">en avance</b>, diminuez-la. Valeur typique : 10–40 ms.
-            </>} />
-            <Row k="Accent" v="Cochez pour accentuer le 1ᵉʳ temps de chaque mesure (sinon ticks tous identiques)." />
-            <Row k="Dans le rendu" v={<>
-              Cochez pour <b className="text-white">intégrer le clic au WAV</b> du mode 📱 Navig : le clic est
-              rendu séparément (woodblock) puis <b className="text-white">mélangé au rendu principal</b> —
-              synchronisation <b className="text-white">échantillon-parfaite</b> par construction (même passe,
-              même tempo, aucun décalage possible). Le clic sort alors avec le son principal
-              (table de mixage comprise).
-            </>} />
-            <p className="pt-1">
-              <b className="text-white">Synchro parfaite :</b> le clic et la musique sont générés par la même
-              application sur la même horloge (aucune dérive). Sur Mac, pour une synchro au plus près entre
-              les deux sorties physiques, créez un <b className="text-white">Agrégat</b> dans « Configuration
-              Audio-MIDI » (sortie intégrée + hub USB-C, horloge maîtresse = sortie intégrée) puis
-              choisissez l'agrégat comme sortie du clic.
-            </p>
+            <Row k="Volume" v="Puissance du clic dans le rendu (0–100)." />
+            <Row k="Accent" v="Cochez pour accentuer le 1ᵉʳ temps de chaque mesure (cloche/plus fort)." />
             <p className="text-xs text-gray-500">
-              Les réglages du clic sont mémorisés automatiquement (localStorage) et envoyés au serveur.
+              Le clic sort avec le son principal (table de mixage comprise) — c'est le prix de la
+              synchro parfaite. Réglages mémorisés par le serveur ; « Dans le rendu » est mémorisé
+              dans le navigateur.
             </p>
           </Section>
 
