@@ -47,6 +47,8 @@ export class BrowserSynth {
   private _playing = false;
   /** Sortie audio dédiée au clic séparé (mode Navig) — lue par le serveur. */
   private _clickDevice: string | null = null;
+  /** Résout la promesse de fin de lecture du mode séparé (au Stop). */
+  private _navPlayResolver: (() => void) | null = null;
   private _buffer: AudioBuffer | null = null;
   /** Dernier WAV brut reçu du backend (extraction par l'utilisateur). */
   private _lastWavBlob: Blob | null = null;
@@ -151,39 +153,41 @@ export class BrowserSynth {
     } catch { /* pas de clic */ }
   }
 
-  /** Appelle /render-wav puis décode et joue le buffer. Si la réponse est
-   * du JSON (clic SÉPARÉ) : joue le main et déclenche le clic serveur sur
-   * la sortie choisie, démarrage synchronisé (handshake start_in_ms). */
+  /** Appelle /render-wav puis décode et joue le buffer. Si le clic est en
+   * mode SÉPARÉ (sortie dédiée) : délègue au serveur (/navig-play) qui joue
+   * main (canaux 1-2) + clic (canaux 3-4) sur l'appareil multicanal → une
+   * seule horloge, synchro échantillon-parfaite entre les deux sorties. */
   private async _renderAndPlay(body: Record<string, unknown>, doLoop: boolean): Promise<void> {
+    // Mode séparé : le SERVEUR joue tout (double canaux).
+    if (body.click_separate) {
+      const resp = await fetch(`${backendUrl()}/navig-play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        throw new Error(msg.length > 200 ? msg.slice(0, 200) : msg);
+      }
+      const data = await resp.json();
+      console.log('[Navig séparé]', data);
+      // Pas de lecture locale : le serveur joue main + clic. On reste en
+      // attente jusqu'au stop (les compteurs de position ne bougent pas
+      // dans ce mode — limite assumée, le clic est dans les oreilles).
+      this._lastWavBlob = null;
+      this._playing = true;
+      await new Promise<void>((resolve) => {
+        this._navPlayResolver = resolve;
+      });
+      return;
+    }
+
     const resp = await fetch(`${backendUrl()}/render-wav`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
-
-    const ctype = resp.headers.get('content-type') || '';
-    if (ctype.includes('application/json')) {
-      // Mode SÉPARÉ : main + clic servis en 2 fichiers
-      const data = await resp.json();
-      const mainWav = await (await fetch(`${backendUrl()}${data.main_url}`)).arrayBuffer();
-      // Garder le WAV brut : permet l'extraction (téléchargement)
-      this._lastWavBlob = new Blob([mainWav], { type: 'audio/wav' });
-      const ctx = await this.getContext();
-      const buffer = await ctx.decodeAudioData(mainWav);
-      this._buffer = buffer;
-      // Handshake de démarrage : le serveur joue le clic dans LEAD ms,
-      // le navigateur démarre le main au même instant.
-      const LEAD = 300;
-      const clickFile = String(data.click_url).split('/').pop();
-      fetch(`${backendUrl()}/navig-click-start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file: clickFile, device: this._clickDevice, start_in_ms: LEAD }),
-      }).catch(() => {});
-      this.playBufferFrom(0, doLoop, LEAD / 1000);
-      return;
-    }
 
     const wavData = await resp.arrayBuffer();
     // Garder le WAV brut : permet l'extraction (téléchargement) par l'utilisateur
@@ -337,6 +341,12 @@ export class BrowserSynth {
 
   stop() {
     this._playing = false;
+    // Terminer la promesse du mode séparé (le serveur coupe le son)
+    if (this._navPlayResolver) {
+      const r = this._navPlayResolver;
+      this._navPlayResolver = null;
+      r();
+    }
     if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
     // Arrêter TOUTES les sources actives (boucle crossfade inclus)
     for (const s of this.sources) {

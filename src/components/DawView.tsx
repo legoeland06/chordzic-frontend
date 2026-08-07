@@ -16,6 +16,7 @@ import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react'
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor } from 'lucide-react';
 import ClickControl from './ClickControl';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
+import { getClickSig } from '../lib/clickPrefs';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
@@ -384,6 +385,8 @@ export default function DawView({
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
   const renderSigRef = useRef('');
+  /** Signature de la config du clic au moment du dernier rendu. */
+  const renderClickSigRef = useRef('');
 
   // ── Durée totale à afficher : la grille (input) + les notes, minimum 4 mesures
   const totalBeats = useMemo(() => {
@@ -526,9 +529,17 @@ export default function DawView({
       setPlayState('playing');
       return;
     }
-    if (contentSig !== renderSigRef.current) {
-      // Contenu modifié → re-rendre le WAV (joue depuis 0)
+    // Re-rendre si le CONTENU a changé OU si la config du clic a changé
+    // (la case « Dans le rendu », la sortie, le son, le volume…). Sans ça,
+    // Play rejouait l'ancien buffer (rendu avant l'activation du clic).
+    // En mode SÉPARÉ (sortie dédiée), on re-rend TOUJOURS : la lecture est
+    // serveur (double canaux), il n'y a pas de buffer local à rejouer.
+    const clickSig = getClickSig();
+    let clickSeparated = false;
+    try { clickSeparated = !!(JSON.parse(clickSig) as { out_device?: string | null }).out_device; } catch { /* ignore */ }
+    if (clickSeparated || contentSig !== renderSigRef.current || clickSig !== renderClickSigRef.current) {
       renderSigRef.current = contentSig;
+      renderClickSigRef.current = clickSig;
       setPosBeats(0);
       onPlay();
     } else {

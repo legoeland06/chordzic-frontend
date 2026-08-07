@@ -10,7 +10,7 @@
  */
 import { Metronome } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getClickInRender, setClickInRender } from '../lib/clickPrefs';
+import { setClickSig } from '../lib/clickPrefs';
 
 type ClickCfg = {
   volume: number;
@@ -18,7 +18,6 @@ type ClickCfg = {
   sound: number;
   in_render: boolean;
   out_device: string | null;
-  delay_ms: number;
 };
 
 export default function ClickControl() {
@@ -32,7 +31,7 @@ export default function ClickControl() {
       .then((d) => {
         setCfg({
           volume: d.volume, accent: d.accent, sound: d.sound,
-          in_render: d.in_render, out_device: d.out_device || null, delay_ms: d.delay_ms,
+          in_render: d.in_render, out_device: d.out_device || null,
         });
         setSounds(d.sounds || []);
       })
@@ -44,6 +43,7 @@ export default function ClickControl() {
   }, []);
 
   const save = (c: ClickCfg) => {
+    setClickSig(JSON.stringify(c)); // signature pour forcer le re-rendu au Play
     fetch('/click', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,7 +53,7 @@ export default function ClickControl() {
   const apply = (patch: Partial<ClickCfg>) => {
     setCfg((prev) => {
       const next = {
-        ...(prev || { volume: 80, accent: true, sound: 0, in_render: false, out_device: null, delay_ms: 0 }),
+        ...(prev || { volume: 80, accent: true, sound: 0, in_render: false, out_device: null }),
         ...patch,
       };
       save(next);
@@ -62,7 +62,6 @@ export default function ClickControl() {
   };
   const onRenderToggle = (v: boolean) => {
     apply({ in_render: v });
-    setClickInRender(v);
   };
   const onDeviceChange = (name: string) => {
     // Choisir une sortie = mode séparé → on décoche le mix
@@ -70,7 +69,6 @@ export default function ClickControl() {
   };
 
   if (!cfg) return null;
-  const separated = !!cfg.out_device;
 
   return (
     <div className="flex items-center gap-1.5 shrink-0 px-1 py-1 rounded-lg border border-gray-800 bg-gray-900/60">
@@ -122,19 +120,6 @@ export default function ClickControl() {
         title={`Volume du clic (${cfg.volume})`}
         className="w-12 accent-amber-500"
       />
-
-      {/* Latence (calage du mode séparé) */}
-      {separated && (
-        <>
-          <input
-            type="range" min={0} max={100} value={cfg.delay_ms}
-            onChange={(e) => apply({ delay_ms: parseInt(e.target.value) })}
-            title={`Calage du clic séparé (${cfg.delay_ms} ms) — si le clic est en retard, diminuez ; en avance, augmentez.`}
-            className="w-12 accent-amber-500"
-          />
-          <span className="text-[10px] text-gray-500 w-7">{cfg.delay_ms}ms</span>
-        </>
-      )}
 
       {/* Accent 1er temps */}
       <label title="Accent sur le 1er temps de chaque mesure" className="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer">

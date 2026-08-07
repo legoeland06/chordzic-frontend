@@ -200,10 +200,14 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </>} />
             <Row k="Sortie" v={<>
               Choisissez une <b className="text-white">sortie audio dédiée</b> (ex : la 2ᵉ sortie casque du
-              hub USB-C) : le clic est alors joué <b className="text-white">séparément par le serveur</b> sur
-              cette sortie, pendant que le navigateur joue le son principal sur la sortie par défaut.
-              Le démarrage est synchronisé (handshake ~300 ms) ; affinez le calage avec le slider{' '}
-              <b className="text-white">Latence</b> qui apparaît.
+              hub USB-C). Le clic est alors joué <b className="text-white">par le serveur</b> en{' '}
+              <b className="text-white">double canaux</b> : le son principal sur les canaux 1-2, le clic sur
+              les canaux 3-4 d'un <b className="text-white">appareil MULTICANAL</b> — UNE seule horloge →
+              <b className="text-white"> synchro échantillon-parfaite</b> entre les deux sorties.
+              Sur Mac : crée un <b className="text-white">Agrégat</b> dans « Configuration Audio-MIDI »
+              (sortie intégrée + hub USB-C, horloge maîtresse = sortie intégrée) et choisis-le ici.
+              Le navigateur ne joue plus dans ce mode (les compteurs de position restent figés — le
+              clic est dans vos oreilles, c'est lui qui compte).
             </>} />
             <Row k="Son" v={<>
               4 sons au choix : <b className="text-white">Métronome GM</b> (clic + cloche sur le 1ᵉʳ temps),
@@ -214,7 +218,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="text-xs text-gray-500">
               Le clic n'existe qu'en mode Navig (pas de clic live) — retiré car les deux horloges audio
               ne pouvaient pas rester synchronisées. « Dans le rendu » = synchro parfaite ; « Sortie » =
-              clic dans vos oreilles, calé à l'oreille via la latence.
+              clic dans vos oreilles via l'agrégat multicanal, également échantillon-parfait.
             </p>
           </Section>
 
