@@ -211,6 +211,22 @@ export default function ChordApp() {
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
 
+  // ── Mode réel du clic (mode séparé) : channels / mixed_fallback ──
+  useEffect(() => {
+    const onClickMode = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (d?.mode === 'mixed_fallback') {
+        setStatus(`🥁 ${d.reason ?? 'Clic mélangé au son principal (sortie non multicanal)'}`);
+        setStatusColor('text-amber-400');
+      } else if (d?.mode === 'channels') {
+        setStatus('🥁 Clic séparé : main canaux 1-2, clic 3-4 (synchro parfaite)');
+        setStatusColor('text-emerald-400');
+      }
+    };
+    window.addEventListener('chordzic:click-mode', onClickMode);
+    return () => window.removeEventListener('chordzic:click-mode', onClickMode);
+  }, []);
+
   // ── Auto-sauvegarde locale (anti-perte à l'actualisation) ──────────
   /** Horodatage (ms) du dernier autosave effectif — affiché dans le header. */
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null);

@@ -171,6 +171,8 @@ export class BrowserSynth {
       }
       const data = await resp.json();
       console.log('[Navig séparé]', data);
+      // Informer l'UI du mode réel (channels / mixed_fallback)
+      window.dispatchEvent(new CustomEvent('chordzic:click-mode', { detail: data }));
       // Pas de lecture locale : le serveur joue main + clic. On reste en
       // attente jusqu'au stop (les compteurs de position ne bougent pas
       // dans ce mode — limite assumée, le clic est dans les oreilles).
