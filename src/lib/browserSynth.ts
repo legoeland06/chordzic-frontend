@@ -7,7 +7,6 @@
  * Les conversions de notes et l'URL backend sont importés depuis
  * lib/chordUtils.ts (partagé avec audioEngine.ts).
  */
-import { getClickInRender } from './clickPrefs';
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 
@@ -46,6 +45,8 @@ export class BrowserSynth {
   private audioCtx: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
   private _playing = false;
+  /** Sortie audio dédiée au clic séparé (mode Navig) — lue par le serveur. */
+  private _clickDevice: string | null = null;
   private _buffer: AudioBuffer | null = null;
   /** Dernier WAV brut reçu du backend (extraction par l'utilisateur). */
   private _lastWavBlob: Blob | null = null;
@@ -103,7 +104,8 @@ export class BrowserSynth {
         body.custom_channels = opts.customChannels;
       }
     }
-    body.click_in_render = getClickInRender();
+    // Config du clic (source de vérité : le serveur) — mode Navig
+    await this._applyClickConfig(body);
     await this._renderAndPlay(body, doLoop);
   }
 
@@ -128,11 +130,30 @@ export class BrowserSynth {
       if (opts.tracks) body.tracks = opts.tracks;
       if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
     }
-    body.click_in_render = getClickInRender();
+    // Config du clic (source de vérité : le serveur) — mode Navig
+    await this._applyClickConfig(body);
     await this._renderAndPlay(body, false);
   }
 
-  /** Appelle /render-wav puis décode et joue le buffer. */
+  /** Applique la config du clic côté serveur à la requête de rendu :
+   * - sortie dédiée choisie (et pas de mix) → clic SÉPARÉ (2 WAV, réponse JSON)
+   * - sinon « Dans le rendu » → clic MIXÉ (synchro parfaite) */
+  private async _applyClickConfig(body: Record<string, unknown>): Promise<void> {
+    this._clickDevice = null;
+    try {
+      const cfg = await (await fetch(`${backendUrl()}/click`)).json();
+      if (cfg.out_device && !cfg.in_render) {
+        this._clickDevice = cfg.out_device;
+        body.click_separate = true;
+      } else {
+        body.click_in_render = !!cfg.in_render;
+      }
+    } catch { /* pas de clic */ }
+  }
+
+  /** Appelle /render-wav puis décode et joue le buffer. Si la réponse est
+   * du JSON (clic SÉPARÉ) : joue le main et déclenche le clic serveur sur
+   * la sortie choisie, démarrage synchronisé (handshake start_in_ms). */
   private async _renderAndPlay(body: Record<string, unknown>, doLoop: boolean): Promise<void> {
     const resp = await fetch(`${backendUrl()}/render-wav`, {
       method: 'POST',
@@ -140,6 +161,29 @@ export class BrowserSynth {
       body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
+
+    const ctype = resp.headers.get('content-type') || '';
+    if (ctype.includes('application/json')) {
+      // Mode SÉPARÉ : main + clic servis en 2 fichiers
+      const data = await resp.json();
+      const mainWav = await (await fetch(`${backendUrl()}${data.main_url}`)).arrayBuffer();
+      // Garder le WAV brut : permet l'extraction (téléchargement)
+      this._lastWavBlob = new Blob([mainWav], { type: 'audio/wav' });
+      const ctx = await this.getContext();
+      const buffer = await ctx.decodeAudioData(mainWav);
+      this._buffer = buffer;
+      // Handshake de démarrage : le serveur joue le clic dans LEAD ms,
+      // le navigateur démarre le main au même instant.
+      const LEAD = 300;
+      const clickFile = String(data.click_url).split('/').pop();
+      fetch(`${backendUrl()}/navig-click-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: clickFile, device: this._clickDevice, start_in_ms: LEAD }),
+      }).catch(() => {});
+      this.playBufferFrom(0, doLoop, LEAD / 1000);
+      return;
+    }
 
     const wavData = await resp.arrayBuffer();
     // Garder le WAV brut : permet l'extraction (téléchargement) par l'utilisateur
@@ -214,9 +258,11 @@ export class BrowserSynth {
   }
 
   /** Joue le buffer courant depuis une position (secondes).
+   * `whenSec` : démarrage différé (secondes dans le futur) — utilisé pour
+   * synchroniser avec le clic séparé joué par le serveur.
    * Reprend le contexte s'il était suspendu (pause précédente) : un source
    * créé sur un contexte suspendu ne produit aucun son. */
-  playBufferFrom(seconds: number, loop: boolean) {
+  playBufferFrom(seconds: number, loop: boolean, whenSec = 0) {
     if (!this._buffer || !this.audioCtx) return;
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume().catch(() => {});
@@ -230,8 +276,8 @@ export class BrowserSynth {
     source.buffer = this._buffer;
     source.loop = loop;
     source.connect(gainNode);
-    this.ctxTimeAtStart = ctx.currentTime - Math.max(0, seconds);
-    source.start(0, Math.max(0, seconds));
+    this.ctxTimeAtStart = ctx.currentTime + whenSec - Math.max(0, seconds);
+    source.start(whenSec, Math.max(0, seconds));
     this.source = source;
     this._playing = true;
     source.onended = () => {
@@ -303,5 +349,7 @@ export class BrowserSynth {
       this.source.disconnect();
       this.source = null;
     }
+    // Arrêter aussi le clic séparé joué par le serveur
+    fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
   }
 }
