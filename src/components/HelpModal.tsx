@@ -207,6 +207,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b className="text-white">en avance</b>, diminuez-la. Valeur typique : 10–40 ms.
             </>} />
             <Row k="Accent" v="Cochez pour accentuer le 1ᵉʳ temps de chaque mesure (sinon ticks tous identiques)." />
+            <Row k="Dans le rendu" v={<>
+              Cochez pour <b className="text-white">intégrer le clic au WAV</b> du mode 📱 Navig : le clic est
+              rendu séparément (woodblock) puis <b className="text-white">mélangé au rendu principal</b> —
+              synchronisation <b className="text-white">échantillon-parfaite</b> par construction (même passe,
+              même tempo, aucun décalage possible). Le clic sort alors avec le son principal
+              (table de mixage comprise).
+            </>} />
             <p className="pt-1">
               <b className="text-white">Synchro parfaite :</b> le clic et la musique sont générés par la même
               application sur la même horloge (aucune dérive). Sur Mac, pour une synchro au plus près entre

@@ -7,6 +7,7 @@
  * Les conversions de notes et l'URL backend sont importés depuis
  * lib/chordUtils.ts (partagé avec audioEngine.ts).
  */
+import { getClickInRender } from './clickPrefs';
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 
@@ -33,6 +34,8 @@ export interface RenderOptions {
   }>;
   /** Canaux en mode PianoRoll (même vides) — les autres jouent le mode classique. */
   customChannels?: number[];
+  /** Intégrer le clic (métronome) au WAV rendu — synchro parfaite. */
+  click_in_render?: boolean;
 }
 
 /**
@@ -100,6 +103,7 @@ export class BrowserSynth {
         body.custom_channels = opts.customChannels;
       }
     }
+    body.click_in_render = getClickInRender();
     await this._renderAndPlay(body, doLoop);
   }
 
@@ -124,6 +128,7 @@ export class BrowserSynth {
       if (opts.tracks) body.tracks = opts.tracks;
       if (opts.master_vol !== undefined) body.master_vol = opts.master_vol;
     }
+    body.click_in_render = getClickInRender();
     await this._renderAndPlay(body, false);
   }
 

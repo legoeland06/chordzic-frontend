@@ -7,6 +7,7 @@
  */
 import { Play, Square, Trash2, Gauge, Save, FolderOpen, Download, Metronome } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { getClickInRender, setClickInRender } from '../lib/clickPrefs';
 
 /**
  * Contrôle de la piste de clic (métronome) avec sortie audio DÉDIÉE.
@@ -17,6 +18,7 @@ function ClickControl() {
   type ClickCfg = { enabled: boolean; device: string | null; volume: number; delay_ms: number; accent: boolean };
   const [cfg, setCfg] = useState<ClickCfg | null>(null);
   const [devices, setDevices] = useState<{ name: string; channels: number }[]>([]);
+  const [inRender, setInRender] = useState<boolean>(getClickInRender());
 
   useEffect(() => {
     fetch('/audio-devices')
@@ -97,6 +99,17 @@ function ClickControl() {
           className="accent-amber-500"
         />
         Accent
+      </label>
+
+      {/* Clic dans le rendu (mode Navig) */}
+      <label title="Intègre le clic au WAV rendu (mode Navig) — synchronisation parfaite par construction. Le clic sort alors avec le son principal." className="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={inRender}
+          onChange={(e) => setInRender(e.target.checked)}
+          className="accent-amber-500"
+        />
+        Dans le rendu
       </label>
     </div>
   );
