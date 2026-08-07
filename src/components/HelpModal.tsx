@@ -187,7 +187,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           {/* ── Clic & sortie dédiée ── */}
           <Section id="clic" icon="🥁" title="Clic & sortie dédiée">
             <p>
-              Le <b className="text-amber-400">Clic</b> (barre de contrôle) est un{' '}
+              Le <b className="text-amber-400">Clic</b> (vue 📱 Navig, barre de transport) est un{' '}
               <b className="text-white">métronome intégré</b>, calé sur la même horloge que la musique :
               un tick par temps, accentué sur le 1ᵉʳ temps de chaque mesure. Utile en répétition :
               la musique part vers la table de mixage, le clic vers vos oreilles.
