@@ -206,6 +206,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b className="text-white"> synchro échantillon-parfaite</b> entre les deux sorties.
               Sur Mac : crée un <b className="text-white">Agrégat</b> dans « Configuration Audio-MIDI »
               (sortie intégrée + hub USB-C, horloge maîtresse = sortie intégrée) et choisis-le ici.
+              Sur Linux : crée un appareil <b className="text-white">« multi » ALSA</b> dans ~/.asoundrc
+              (2 sorties → 4 canaux, ex : sortie principale + Roland Piano) et choisis-le ici.
               Le navigateur ne joue plus dans ce mode (les compteurs de position restent figés — le
               clic est dans vos oreilles, c'est lui qui compte).
             </>} />
