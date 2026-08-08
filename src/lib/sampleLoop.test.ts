@@ -13,6 +13,7 @@ import {
   sampleBelongsToTempo,
   SAMPLE_OFFSET_MIN,
   SAMPLE_OFFSET_MAX,
+  DEFAULT_SAMPLE_VOLUME,
 } from './sampleLoop';
 
 /** Comparaison flottante avec tolérance (les calculs modulo sont en f64). */
@@ -79,6 +80,11 @@ test('clamp : valeurs non finies → 0', () => {
 test('bornes exportées cohérentes', () => {
   assert.equal(SAMPLE_OFFSET_MIN, -200);
   assert.equal(SAMPLE_OFFSET_MAX, 200);
+});
+
+test('volume par défaut DOUX (samples plus faibles que FluidSynth)', () => {
+  assert.equal(DEFAULT_SAMPLE_VOLUME, 55);
+  assert.ok(DEFAULT_SAMPLE_VOLUME > 0 && DEFAULT_SAMPLE_VOLUME <= 100);
 });
 
 // ─── sampleBelongsToTempo ──────────────────────────────────────────────

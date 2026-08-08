@@ -136,7 +136,10 @@ export class BrowserSynth {
     void (async () => {
       // Cache INVALIDÉ si le sample change (sinon l'ancien buffer resservait)
       if (!this._sampleBuffer || this._lastSampleName !== cfg.sample) {
-        this._sampleBuffer = await this._loadSample(cfg.sample);
+        try {
+          this._sampleBuffer = await this._loadSample(cfg.sample);
+        } catch (e) {
+        }
         this._lastSampleName = cfg.sample;
       }
       const buf = this._sampleBuffer;

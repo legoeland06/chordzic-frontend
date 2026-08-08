@@ -14,6 +14,7 @@ import { parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
+import { DEFAULT_SAMPLE_VOLUME } from '../lib/sampleLoop';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
@@ -212,7 +213,7 @@ export default function ChordApp() {
    * `offsetMs` décale la phase EN DIRECT (vérification à l'oreille).
    * Persisté avec le projet (buildGrilleObject / autosave / Load). */
   const [sampleLoop, setSampleLoopState] = useState<SampleLoopCfg>({
-    enabled: false, sample: '', volume: 80, offsetMs: 0,
+    enabled: false, sample: '', volume: DEFAULT_SAMPLE_VOLUME, offsetMs: 0,
   });
   /** Applique un changement de config (appliqué en direct au moteur Navig). */
   const updateSampleLoop = (patch: Partial<SampleLoopCfg>) => {
@@ -375,7 +376,7 @@ export default function ChordApp() {
         const sl: SampleLoopCfg = {
           enabled: raw.enabled ?? false,
           sample: raw.sample ?? '',
-          volume: raw.volume ?? 80,
+          volume: raw.volume ?? DEFAULT_SAMPLE_VOLUME,
           offsetMs: raw.offsetMs ?? 0,
         };
         setSampleLoopState(sl);
@@ -723,7 +724,7 @@ export default function ChordApp() {
       const sl: SampleLoopCfg = {
         enabled: raw.enabled ?? false,
         sample: raw.sample ?? '',
-        volume: raw.volume ?? 80,
+        volume: raw.volume ?? DEFAULT_SAMPLE_VOLUME,
         offsetMs: raw.offsetMs ?? 0,
       };
       setSampleLoopState(sl);
@@ -795,7 +796,7 @@ export default function ChordApp() {
     setLoopOn(false);
     setWalkingBass(false);
     // Boucle sample
-    setSampleLoopState({ enabled: false, sample: '', volume: 80, offsetMs: 0 });
+    setSampleLoopState({ enabled: false, sample: '', volume: DEFAULT_SAMPLE_VOLUME, offsetMs: 0 });
     engineRef.current?.setSampleLoop(null);
     // Modes & sessions
     setNavigMode(false);

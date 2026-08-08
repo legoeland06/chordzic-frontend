@@ -9,6 +9,11 @@
 export const SAMPLE_OFFSET_MIN = -200;
 export const SAMPLE_OFFSET_MAX = 200;
 
+/** Volume par défaut du sample (0-100) — volontairement DOUX (55 ≈ −3 dB
+ * vs 80) : les samples bruts sont souvent plus forts que le rendu
+ * FluidSynth. Le slider reste disponible en aval pour ajuster. */
+export const DEFAULT_SAMPLE_VOLUME = 55;
+
 /** Vrai si le sample (nom complet, ex. « snap5_160.wav ») appartient au
  * bucket de clés du tempo donné — utilisé pour rebasculer automatiquement
  * le sample quand on CHANGE de tempo. */
