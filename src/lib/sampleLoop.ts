@@ -1,0 +1,40 @@
+/**
+ * sampleLoop.ts — fonctions pures de la boucle sample (mode Navig).
+ *
+ * Séparées du moteur Web Audio pour être testables unitairement
+ * (notamment le calcul de phase avec décalage NÉGATIF).
+ */
+
+/** Borne du décalage de phase (ms) : −200..+200. */
+export const SAMPLE_OFFSET_MIN = -200;
+export const SAMPLE_OFFSET_MAX = 200;
+
+/** Borne une valeur de décalage dans [MIN, MAX]. */
+export function clampSampleOffset(ms: number): number {
+  if (!Number.isFinite(ms)) return 0;
+  return Math.max(SAMPLE_OFFSET_MIN, Math.min(SAMPLE_OFFSET_MAX, ms));
+}
+
+/**
+ * Position de lecture dans le sample (secondes) pour la position courante
+ * du morceau et un décalage de phase donné.
+ *
+ * `phase = (position_du_morceau + décalage) mod durée_du_sample`
+ * — le double modulo garantit un résultat dans [0, durée) même pour un
+ * décalage NÉGATIF (le sample est tiré en arrière dans le temps).
+ */
+export function computeSamplePhase(
+  positionSec: number,
+  offsetMs: number,
+  durationSec: number,
+): number {
+  if (!(durationSec > 0)) return 0;
+  const shifted = positionSec + offsetMs / 1000;
+  let phase = ((shifted % durationSec) + durationSec) % durationSec;
+  // Robustesse flottante : un résultat à ε près de la durée (ex. 3,9999…
+  // pour 4 s) est en réalité le DÉBUT du sample — le normaliser à 0 évite
+  // de jouer un échantillon quasi vide en fin de buffer.
+  const eps = durationSec * 1e-12;
+  if (phase < eps || phase > durationSec - eps) phase = 0;
+  return phase;
+}

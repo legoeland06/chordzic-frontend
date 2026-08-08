@@ -510,8 +510,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (barre de transport, à côté du clic) répète un sample de quelques mesures en boucle{' '}
               <b className="text-white">pendant la lecture</b>, joué par le navigateur en Web Audio en
               parallèle du WAV principal (synchro parfaite par construction). Sélecteur limité au tempo
-              courant, badge durée·mesures, volume et <b className="text-white">décalage ±1/±10 ms</b> réglable
-              à l'oreille PENDANT la lecture — voir la section du clic pour le principe.
+              courant, badge durée·mesures, volume et <b className="text-white">décalage −200…+200 ms</b>{' '}
+              (±1/±10 ms, slider + champ) réglable à l'oreille PENDANT la lecture : positif si le sample
+              tombe en AVANCE, négatif s'il tombe en RETARD — voir la section du clic pour le principe.
             </p>
             <p className="text-xs text-gray-500">
               Fichiers attendus : <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}

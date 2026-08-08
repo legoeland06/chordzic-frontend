@@ -137,31 +137,33 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
         />
       )}
 
-      {/* Décalage de phase — appliqué EN DIRECT pendant la lecture */}
+      {/* Décalage de phase — appliqué EN DIRECT pendant la lecture. Plage
+          −200..+200 ms : POSITIF si le sample tombe en AVANCE (le reculer),
+          NÉGATIF s'il tombe en RETARD (le tirer en arrière). */}
       {cfg.enabled && (
         <div
           className="flex items-center gap-1"
-          title={`Décalage du sample (${cfg.offsetMs} ms) — si le sample tombe EN AVANCE sur les temps, augmentez jusqu'à ce qu'il soit pile calé. Appliqué immédiatement, même pendant la lecture.`}
+          title={`Décalage du sample (${cfg.offsetMs} ms) — positif si le sample tombe EN AVANCE sur les temps (à reculer), négatif s'il tombe EN RETARD (à tirer en arrière). Appliqué immédiatement, même pendant la lecture.`}
         >
           <span className="text-[10px] text-gray-400">Décalage</span>
           <input
-            type="range" min={0} max={200} step={1} value={cfg.offsetMs}
+            type="range" min={-200} max={200} step={1} value={cfg.offsetMs}
             onChange={(e) => onChange({ offsetMs: parseInt(e.target.value) })}
             className="w-20 accent-emerald-500"
           />
           <input
-            type="number" min={0} max={200} step={1} value={cfg.offsetMs}
-            onChange={(e) => onChange({ offsetMs: Math.max(0, Math.min(200, parseInt(e.target.value) || 0)) })}
+            type="number" min={-200} max={200} step={1} value={cfg.offsetMs}
+            onChange={(e) => onChange({ offsetMs: Math.max(-200, Math.min(200, parseInt(e.target.value) || 0)) })}
             className="w-11 bg-gray-800 text-emerald-300 text-xs rounded-md px-1 py-1 border border-gray-700 text-center"
           />
           <span className="text-[10px] text-gray-500">ms</span>
           <button
-            onClick={() => onChange({ offsetMs: Math.max(0, cfg.offsetMs - 10) })}
+            onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 10) })}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
             title="−10 ms"
           >−10</button>
           <button
-            onClick={() => onChange({ offsetMs: Math.max(0, cfg.offsetMs - 1) })}
+            onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 1) })}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
             title="−1 ms"
           >−1</button>

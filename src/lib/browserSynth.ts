@@ -9,6 +9,7 @@
  */
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
+import { computeSamplePhase } from './sampleLoop';
 
 export interface TrackCfg {
   channel: number;
@@ -140,8 +141,9 @@ export class BrowserSynth {
       }
       const buf = this._sampleBuffer;
       if (!buf || !this._playing) return;
-      // Phase cible : position du morceau + offset (modulo durée du sample)
-      const startPos = ((pos + cfg.offsetMs / 1000) % buf.duration + buf.duration) % buf.duration;
+      // Phase cible : position du morceau + offset (modulo durée du sample) —
+      // les décalages NÉGATIFS sont gérés par computeSamplePhase (double modulo).
+      const startPos = computeSamplePhase(pos, cfg.offsetMs, buf.duration);
       this._stopSampleLoop();
       const gain = ctx.createGain();
       gain.gain.value = cfg.volume / 100;
