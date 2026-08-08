@@ -6,19 +6,23 @@
  * le navigateur en Web Audio en parallèle du WAV principal (même horloge →
  * synchro parfaite par construction).
  *
- * Ergonomie (mieux que la boucle du mode Live) :
+ * Ergonomie :
  *  - toggle clair avec état ●/○
- *  - sélecteur limité au bucket du tempo courant
+ *  - sélecteur limité au bucket du tempo courant ; REBASCLAGE automatique
+ *    quand on change de tempo (le sample doit appartenir au nouveau tempo,
+ *    sinon l'ancien fichier serait rejoué — bug corrigé 2026-08-08)
  *  - badge durée réelle + nombre de mesures (décodé depuis le fichier)
  *  - volume
- *  - DÉCALAGE DE PHASE précis (slider + champ + ±1/±10 ms) appliqué EN
- *    DIRECT pendant la lecture : la boucle se recale instantanément à la
- *    bonne phase → vérification à l'oreille, comme le décalage du clic.
+ *  - DÉCALAGE DE PHASE −200..+200 ms (slider + champ + ±1/±10 ms) appliqué
+ *    EN DIRECT pendant la lecture ; chaque sample garde sa préférence
+ *    mémorisée via le VERROU 🔒 (spinner grisé quand verrouillé).
  */
-import { Music } from 'lucide-react';
+import { Lock, Unlock, Music } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { backendUrl } from '../lib/chordUtils';
 import type { SampleLoopCfg } from '../lib/browserSynth';
+import { sampleBelongsToTempo } from '../lib/sampleLoop';
+import { loadSampleOffsets, saveSampleOffsets } from '../lib/sampleOffsets';
 
 interface LoopControlProps {
   /** Tempo courant (BPM) — filtre le bucket de samples proposé. */
@@ -32,10 +36,14 @@ interface LoopControlProps {
 }
 
 export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlProps) {
-  /** Samples disponibles groupés par tempo : { "160": ["snap5_160.wav", ...] }. */
+  /** Samples disponibles groupés par tempo : { "160": ["snap5_160.wav"...] }. */
   const [samples, setSamples] = useState<Record<string, string[]>>({});
   /** Durée réelle (s) du sample sélectionné — pour le badge mesures. */
   const [duration, setDuration] = useState<number | null>(null);
+  /** Offsets mémorisés PAR SAMPLE (préférences globales, localStorage). */
+  const [memOffsets, setMemOffsets] = useState<Record<string, number>>(() => loadSampleOffsets());
+  /** Verrou : quand actif, le spinner est grisé et la valeur est mémorisée. */
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     fetch(`${backendUrl()}/samples-list`)
@@ -68,6 +76,51 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
   const bucket = samples[String(tempo)] || [];
   const beatsPerMes = parseInt(sig.split('/')[0] || '4', 10) || 4;
   const mesures = duration ? Math.max(1, Math.round((duration * tempo) / 60 / beatsPerMes)) : null;
+
+  // REBASCLAGE au changement de tempo : le sample courant doit appartenir au
+  // bucket du tempo actif. Sinon → bascule sur le premier du nouveau tempo,
+  // ou désactive la boucle si aucun sample n'existe pour ce tempo.
+  useEffect(() => {
+    if (!cfg.enabled || !cfg.sample) return;
+    if (sampleBelongsToTempo(cfg.sample, tempo, bucket)) return;
+    if (bucket.length > 0) {
+      onChange({ sample: `${bucket[0]}_${tempo}.wav` });
+    } else {
+      onChange({ enabled: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tempo, cfg.enabled, cfg.sample]);
+
+  // OFFSET MÉMORISÉ : au changement de sample, restaurer sa préférence
+  // (verrouillé) — ou repartir de 0 si le sample n'en a jamais eu.
+  useEffect(() => {
+    if (!cfg.sample) return;
+    const mem = memOffsets[cfg.sample];
+    if (mem !== undefined && cfg.offsetMs !== mem) {
+      onChange({ offsetMs: mem });
+      setLocked(true);
+    } else if (mem === undefined && cfg.offsetMs !== 0) {
+      onChange({ offsetMs: 0 }); // sample sans préférence → neutre
+      setLocked(false);
+    } else {
+      setLocked(mem !== undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.sample]);
+
+  /** Verrouille/déverrouille : verrouiller = mémoriser l'offset pour CE
+   * sample (préférence globale) et griser le spinner. */
+  const toggleLock = () => {
+    if (!cfg.sample) return;
+    if (locked) {
+      setLocked(false);
+    } else {
+      const next = { ...memOffsets, [cfg.sample]: cfg.offsetMs };
+      setMemOffsets(next);
+      saveSampleOffsets(next);
+      setLocked(true);
+    }
+  };
 
   return (
     <div
@@ -139,44 +192,71 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
 
       {/* Décalage de phase — appliqué EN DIRECT pendant la lecture. Plage
           −200..+200 ms : POSITIF si le sample tombe en AVANCE (le reculer),
-          NÉGATIF s'il tombe en RETARD (le tirer en arrière). */}
+          NÉGATIF s'il tombe en RETARD (le tirer en arrière). Grisé quand le
+          verrou 🔒 est actif (valeur mémorisée pour ce sample). */}
       {cfg.enabled && (
         <div
-          className="flex items-center gap-1"
-          title={`Décalage du sample (${cfg.offsetMs} ms) — positif si le sample tombe EN AVANCE sur les temps (à reculer), négatif s'il tombe EN RETARD (à tirer en arrière). Appliqué immédiatement, même pendant la lecture.`}
+          className={`flex items-center gap-1 transition-opacity ${locked ? 'opacity-50' : ''}`}
+          title={
+            locked
+              ? `Décalage mémorisé pour ce sample (${cfg.offsetMs} ms) — déverrouillez pour ajuster`
+              : `Décalage du sample (${cfg.offsetMs} ms) — positif si le sample tombe EN AVANCE sur les temps (à reculer), négatif s'il tombe EN RETARD (à tirer en arrière). Appliqué immédiatement, même pendant la lecture.`
+          }
         >
           <span className="text-[10px] text-gray-400">Décalage</span>
           <input
             type="range" min={-200} max={200} step={1} value={cfg.offsetMs}
+            disabled={locked}
             onChange={(e) => onChange({ offsetMs: parseInt(e.target.value) })}
             className="w-20 accent-emerald-500"
           />
           <input
             type="number" min={-200} max={200} step={1} value={cfg.offsetMs}
+            disabled={locked}
             onChange={(e) => onChange({ offsetMs: Math.max(-200, Math.min(200, parseInt(e.target.value) || 0)) })}
-            className="w-11 bg-gray-800 text-emerald-300 text-xs rounded-md px-1 py-1 border border-gray-700 text-center"
+            className="w-11 bg-gray-800 text-emerald-300 text-xs rounded-md px-1 py-1 border border-gray-700 text-center disabled:opacity-60"
           />
           <span className="text-[10px] text-gray-500">ms</span>
           <button
             onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 10) })}
-            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            disabled={locked}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="−10 ms"
           >−10</button>
           <button
             onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 1) })}
-            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            disabled={locked}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="−1 ms"
           >−1</button>
           <button
             onClick={() => onChange({ offsetMs: Math.min(200, cfg.offsetMs + 1) })}
-            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            disabled={locked}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="+1 ms"
           >+1</button>
           <button
             onClick={() => onChange({ offsetMs: Math.min(200, cfg.offsetMs + 10) })}
-            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700"
+            disabled={locked}
+            className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="+10 ms"
           >+10</button>
+          {/* Verrou : mémorise l'offset pour CE sample (préférence globale) */}
+          <button
+            onClick={toggleLock}
+            className={`px-1.5 py-0.5 rounded border transition-colors ${
+              locked
+                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-300'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700'
+            }`}
+            title={
+              locked
+                ? 'Déverrouiller (ajuster le décalage)'
+                : 'Verrouiller : mémorise ce décalage pour ce sample (retrouvé à chaque sélection)'
+            }
+          >
+            {locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+          </button>
         </div>
       )}
     </div>

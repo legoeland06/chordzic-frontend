@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   computeSamplePhase,
   clampSampleOffset,
+  sampleBelongsToTempo,
   SAMPLE_OFFSET_MIN,
   SAMPLE_OFFSET_MAX,
 } from './sampleLoop';
@@ -78,4 +79,21 @@ test('clamp : valeurs non finies → 0', () => {
 test('bornes exportées cohérentes', () => {
   assert.equal(SAMPLE_OFFSET_MIN, -200);
   assert.equal(SAMPLE_OFFSET_MAX, 200);
+});
+
+// ─── sampleBelongsToTempo ──────────────────────────────────────────────
+
+test('sample reconnu dans le bucket de SON tempo', () => {
+  assert.ok(sampleBelongsToTempo('snap5_160.wav', 160, ['snap5', 'snap6']));
+  assert.ok(sampleBelongsToTempo('snap6_160.wav', 160, ['snap5', 'snap6']));
+});
+
+test('sample d un AUTRE tempo rejeté (rebasculage nécessaire)', () => {
+  // Le bug signalé : arrivé sur 175 BPM, cfg.sample valait encore snap5_160.wav
+  assert.ok(!sampleBelongsToTempo('snap5_160.wav', 175, ['snap2', 'snap3', 'snap4']));
+  assert.ok(!sampleBelongsToTempo('snap5_160.wav', 160, []));
+});
+
+test('nom de fichier construit à la main = clé + tempo (convention backend)', () => {
+  assert.ok(sampleBelongsToTempo('snap2_175.wav', 175, ['snap2']));
 });

@@ -9,6 +9,17 @@
 export const SAMPLE_OFFSET_MIN = -200;
 export const SAMPLE_OFFSET_MAX = 200;
 
+/** Vrai si le sample (nom complet, ex. « snap5_160.wav ») appartient au
+ * bucket de clés du tempo donné — utilisé pour rebasculer automatiquement
+ * le sample quand on CHANGE de tempo. */
+export function sampleBelongsToTempo(
+  sample: string,
+  tempo: number,
+  bucketKeys: string[],
+): boolean {
+  return bucketKeys.some((s) => sample === `${s}_${tempo}.wav`);
+}
+
 /** Borne une valeur de décalage dans [MIN, MAX]. */
 export function clampSampleOffset(ms: number): number {
   if (!Number.isFinite(ms)) return 0;

@@ -513,6 +513,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               courant, badge durée·mesures, volume et <b className="text-white">décalage −200…+200 ms</b>{' '}
               (±1/±10 ms, slider + champ) réglable à l'oreille PENDANT la lecture : positif si le sample
               tombe en AVANCE, négatif s'il tombe en RETARD — voir la section du clic pour le principe.
+              Au <b className="text-white">changement de tempo</b>, le sample bascule automatiquement sur un
+              sample du nouveau tempo (ou la boucle se coupe s'il n'y en a pas). Le{' '}
+              <b className="text-emerald-400">verrou 🔒</b> mémorise le décalage POUR CE SAMPLE (préférence
+              globale, retrouvée à chaque sélection — le spinner se grise tant qu'il est verrouillé).
             </p>
             <p className="text-xs text-gray-500">
               Fichiers attendus : <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}
