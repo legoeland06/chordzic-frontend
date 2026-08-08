@@ -70,7 +70,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'raccourcis', icon: '⌨️', title: 'Raccourcis clavier', keys: 'ctrl z y c x v a suppr espace escape annuler copier coller' },
     { id: 'sauvegarde', icon: '💾', title: 'Sauvegarde & fichiers', keys: 'save load export import json grilles auto restauration actualisation perte' },
     { id: 'copiercoller', icon: '📋', title: 'Copier / coller entre pistes', keys: 'copier coller piste presse-papiers miroir emplacements valeurs' },
-    { id: 'boucles', icon: '🔁', title: 'Boucles WAV drums', keys: 'boucle échantillon sample offset drums' },
+    { id: 'boucles', icon: '🎵', title: 'Boucle sample (Navig)', keys: 'boucle échantillon sample offset drums navig' },
     { id: 'depannage', icon: '🛠️', title: 'Dépannage', keys: 'pas de son fluidsynth midi muet erreur' },
   ];
 
@@ -502,16 +502,20 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
           </Section>
 
-          {/* ── Boucles WAV drums ── */}
-          <Section id="boucles" icon="🔁" title="Boucles WAV drums">
+          {/* ── Boucle sample (mode Navig) ── */}
+          <Section id="boucles" icon="🎵" title="Boucle sample (mode Navig)">
             <p>
-              Si des échantillons existent pour le tempo courant dans{' '}
-              <code className="text-gray-400">~/samples/drums/</code>, une section « boucle » apparaît :
-              volume, toggle <b>🎵 Boucle</b>, choix du fichier et <b>offset en millisecondes</b> (calage fin de la boucle).
+              Depuis la v2.6.1, les boucles de samples se font <b className="text-white">uniquement en mode{' '}
+              <b className="text-purple-400">📱 Navig.</b></b> : le contrôle <b className="text-emerald-400">🎵 Loop</b>{' '}
+              (barre de transport, à côté du clic) répète un sample de quelques mesures en boucle{' '}
+              <b className="text-white">pendant la lecture</b>, joué par le navigateur en Web Audio en
+              parallèle du WAV principal (synchro parfaite par construction). Sélecteur limité au tempo
+              courant, badge durée·mesures, volume et <b className="text-white">décalage ±1/±10 ms</b> réglable
+              à l'oreille PENDANT la lecture — voir la section du clic pour le principe.
             </p>
             <p className="text-xs text-gray-500">
-              La boucle est jouée en parallèle de l'arrangement MIDI. Sans échantillon pour ce tempo :
-              « Aucune boucle pour {`{tempo}`} bpm dans ~/samples/drums/ ».
+              Fichiers attendus : <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}
+              <code className="text-gray-400">~/samples/drums/</code> (ex. snap5_160.wav pour 160 BPM).
             </p>
           </Section>
 

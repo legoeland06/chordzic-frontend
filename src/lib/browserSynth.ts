@@ -73,6 +73,8 @@ export class BrowserSynth {
   /** Boucle sample (mode Navig) : config + objets Web Audio dédiés. */
   private _sampleLoop: SampleLoopCfg | null = null;
   private _sampleBuffer: AudioBuffer | null = null;
+  /** Nom du sample actuellement en cache (pour recharger quand on change). */
+  private _lastSampleName: string | null = null;
   private _sampleSource: AudioBufferSourceNode | null = null;
   private _sampleGain: GainNode | null = null;
 
@@ -131,8 +133,10 @@ export class BrowserSynth {
     const pos = this.getPositionRaw();
     if (pos < 0) return;
     void (async () => {
-      if (!this._sampleBuffer) {
+      // Cache INVALIDÉ si le sample change (sinon l'ancien buffer resservait)
+      if (!this._sampleBuffer || this._lastSampleName !== cfg.sample) {
         this._sampleBuffer = await this._loadSample(cfg.sample);
+        this._lastSampleName = cfg.sample;
       }
       const buf = this._sampleBuffer;
       if (!buf || !this._playing) return;

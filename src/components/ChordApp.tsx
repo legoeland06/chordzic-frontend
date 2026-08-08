@@ -57,10 +57,6 @@ interface GrilleEntry {
   use432Hz?: boolean;
   loopOn?: boolean;
   walkingBass?: boolean;
-  useLoops?: boolean;
-  loopOffset?: number;
-  loopName?: string;
-  loopVolume?: number;
   /** Boucle sample du mode Navig (v2.6). */
   sampleLoop?: SampleLoopCfg;
 }
@@ -209,11 +205,6 @@ export default function ChordApp() {
   const [walkingBass, setWalkingBass] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
-  const [useLoops, setUseLoops] = useState(false);
-  const [loopOffset, setLoopOffset] = useState(0);
-  const [loopName, setLoopName] = useState('');
-  const [loopVolume, setLoopVolume] = useState(80);
-  const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
 
   // ── Boucle sample du mode Navig ──────────────────────────────────
   /** Sample audio (quelques mesures) répété en boucle pendant la lecture
@@ -379,10 +370,6 @@ export default function ChordApp() {
       if (data.use432Hz !== undefined) setUse432(data.use432Hz);
       if (data.loopOn !== undefined) setLoopOn(data.loopOn);
       if (data.walkingBass !== undefined) setWalkingBass(data.walkingBass);
-      if (data.useLoops !== undefined) { setUseLoops(data.useLoops); engineRef.current?.setUseLoops(data.useLoops); }
-      if (data.loopOffset !== undefined) { setLoopOffset(data.loopOffset); engineRef.current?.setLoopOffset(data.loopOffset); }
-      if (data.loopName !== undefined) setLoopName(data.loopName);
-      if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
       if (data.sampleLoop) {
         const raw = data.sampleLoop;
         const sl: SampleLoopCfg = {
@@ -421,7 +408,7 @@ export default function ChordApp() {
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, tempo, sig, tracks, pianoNotes, drumPattern, use432, loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume, sampleLoop]);
+  }, [input, tempo, sig, tracks, pianoNotes, drumPattern, use432, loopOn, walkingBass, sampleLoop]);
 
   // ── FLUSH SYNCHRONE à la fermeture/actualisation : même si le debounce
   // n'a pas encore écrit, le dernier état connu est sauvegardé d'un coup. ──
@@ -691,7 +678,7 @@ export default function ChordApp() {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
       tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
-      loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume,
+      loopOn, walkingBass,
       sampleLoop,
       projectName,
       ...(hasPianoNotes ? { pianoNotes } : {}),
@@ -731,10 +718,6 @@ export default function ChordApp() {
     if (entry.use432Hz !== undefined) setUse432(entry.use432Hz);
     if (entry.loopOn !== undefined) setLoopOn(entry.loopOn);
     if (entry.walkingBass !== undefined) setWalkingBass(entry.walkingBass);
-    if (entry.useLoops !== undefined) { setUseLoops(entry.useLoops); engineRef.current?.setUseLoops(entry.useLoops); }
-    if (entry.loopOffset !== undefined) { setLoopOffset(entry.loopOffset); engineRef.current?.setLoopOffset(entry.loopOffset); }
-    if (entry.loopName !== undefined) setLoopName(entry.loopName);
-    if (entry.loopVolume !== undefined) { setLoopVolume(entry.loopVolume); engineRef.current?.setLoopVolume(entry.loopVolume); }
     if (entry.sampleLoop) {
       const raw = entry.sampleLoop;
       const sl: SampleLoopCfg = {
@@ -811,10 +794,6 @@ export default function ChordApp() {
     setDrumPattern('rock');
     setLoopOn(false);
     setWalkingBass(false);
-    setUseLoops(false); engineRef.current?.setUseLoops(false);
-    setLoopOffset(0); engineRef.current?.setLoopOffset(0);
-    setLoopName('');
-    setLoopVolume(80); engineRef.current?.setLoopVolume(80);
     // Boucle sample
     setSampleLoopState({ enabled: false, sample: '', volume: 80, offsetMs: 0 });
     engineRef.current?.setSampleLoop(null);
@@ -978,10 +957,6 @@ export default function ChordApp() {
           if (data.use432Hz !== undefined) setUse432(data.use432Hz);
           if (data.loopOn !== undefined) setLoopOn(data.loopOn);
           if (data.walkingBass !== undefined) setWalkingBass(data.walkingBass);
-          if (data.useLoops !== undefined) { setUseLoops(data.useLoops); engineRef.current?.setUseLoops(data.useLoops); }
-          if (data.loopOffset !== undefined) { setLoopOffset(data.loopOffset); engineRef.current?.setLoopOffset(data.loopOffset); }
-          if (data.loopName !== undefined) setLoopName(data.loopName);
-          if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
           if (data.version >= 3 && data.pianoNotes) {
             setPianoNotes(data.pianoNotes);
           } else {
@@ -1048,16 +1023,6 @@ export default function ChordApp() {
     fetch('http://localhost:4000/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tempo }) }).catch(() => {});
     engineRef.current?.setTempo(tempo);
   }, [tempo]);
-
-  const fetchSamples = useCallback(async () => {
-    try { const res = await fetch('http://localhost:4000/samples-list'); if (res.ok) setAvailableSamples(await res.json()); } catch {}
-  }, []);
-  useEffect(() => { fetchSamples(); }, [fetchSamples]);
-
-  useEffect(() => { fetch('http://localhost:4000/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ use_loops: useLoops }) }).catch(() => {}); }, [useLoops]);
-  useEffect(() => { fetch('http://localhost:4000/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loop_offset: loopOffset }) }).catch(() => {}); }, [loopOffset]);
-  useEffect(() => { fetch('http://localhost:4000/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loop_name: loopName }) }).catch(() => {}); }, [loopName]);
-  useEffect(() => { fetchSamples(); }, [tempo, fetchSamples]);
 
   // Parse automatique avec debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1194,12 +1159,6 @@ export default function ChordApp() {
             onUpdateTrack={updateTrack}
             onAddTrack={() => setShowAddTrack(true)}
             onRemoveTrack={requestRemoveTrack}
-            useLoops={useLoops} loopOffset={loopOffset} loopName={loopName}
-            availableSamples={availableSamples} loopVolume={loopVolume}
-            onSetUseLoops={(v) => { setUseLoops(v); engineRef.current?.setUseLoops(v); }}
-            onSetLoopOffset={(v) => { setLoopOffset(v); engineRef.current?.setLoopOffset(v); }}
-            onSetLoopName={(v) => { setLoopName(v); }}
-            onSetLoopVolume={(v) => { setLoopVolume(v); engineRef.current?.setLoopVolume(v); }}
             onOpenPianoRoll={setOpenPianoRoll}
           />
         </div>

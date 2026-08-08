@@ -197,9 +197,6 @@ export class AudioEngine {
   setProgram(index: number)     { this.setTrack(0, { program: index }); }
   set432Hz(enabled: boolean)    { this.sendConfig({ use432: enabled }); }
   setVolume(vol: number)        { this.masterVol = vol; this.sendConfig({ master_vol: vol }); }
-  setUseLoops(v: boolean)       { this.sendConfig({ use_loops: v }); }
-  setLoopOffset(ms: number)     { this.sendConfig({ loop_offset: ms }); }
-  setLoopVolume(v: number)      { this.sendConfig({ loop_volume: v }); }
 
   /** Enregistre un callback pour le highlight des accords. */
   onHighlight(cb: (idx: number) => void) { this.onChordHighlight = cb; }

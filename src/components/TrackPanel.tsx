@@ -10,7 +10,6 @@
  * - Sélecteur de signature rythmique (4/4, 3/4, 6/8)
  * - Contrôles individuels par piste (instrument, mute, volume)
  * - Sélecteur MIDI (FluidSynth / Roland)
- * - Section boucle WAV drums (volume, sélecteur, offset spinner)
  */
 import React, { useState } from 'react';
 import { Volume2 } from 'lucide-react';
@@ -73,10 +72,6 @@ interface TrackPanelProps {
   drumPattern: string;
   sig: string;
   tracks: TrackConfig[];
-  useLoops: boolean;
-  loopOffset: number;
-  loopName: string;
-  availableSamples: Record<string, string[]>;
   onSetVolume: (v: number) => void;
   onSet432: (v: boolean) => void;
   onSetBrowserAudio: (v: boolean) => void;
@@ -86,11 +81,6 @@ interface TrackPanelProps {
   onSetSig: (v: string) => void;
   onSetTempo: (v: number) => void;
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
-  onSetUseLoops: (v: boolean) => void;
-  onSetLoopOffset: (v: number) => void;
-  onSetLoopName: (v: string) => void;
-  onSetLoopVolume: (v: number) => void;
-  loopVolume: number;
   /** Callback pour ouvrir le PianoRoll d'une piste (channel). */
   onOpenPianoRoll?: (channel: number) => void;
   /** Ajoute une nouvelle piste instrument. */
@@ -102,16 +92,11 @@ interface TrackPanelProps {
 export default function TrackPanel({
   chords, highlighted, playing, currentBeat, tempo,
   volume, use432, browserAudio, loopOn, walkingBass, drumPattern, sig, tracks,
-  useLoops, loopOffset, loopName, availableSamples,
   onSetVolume, onSet432, onSetBrowserAudio, onSetLoop, onSetWalkingBass,
-  loopVolume,
   onSetDrumPattern, onSetSig, onSetTempo, onUpdateTrack,
-  onSetUseLoops, onSetLoopOffset, onSetLoopName, onSetLoopVolume,
   onOpenPianoRoll, onAddTrack, onRemoveTrack,
 }: TrackPanelProps) {
   const [midiPort, setMidiPort] = useState(2);
-  // Échantillons disponibles pour le tempo courant
-  const samplesHere = availableSamples[String(tempo)] || [];
 
   return (
     <>
@@ -349,92 +334,6 @@ export default function TrackPanel({
           Roland
         </button>
       </div>
-
-      {/* ── Section boucle WAV drums ── */}
-      {samplesHere.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-800">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Volume boucle */}
-            <span className="text-[10px] text-gray-500 shrink-0">Vol:</span>
-            <input
-              type="range" min={1} max={127} value={loopVolume}
-              onChange={(e) => onSetLoopVolume(parseInt(e.target.value))}
-              className="w-16 accent-emerald-500 shrink-0"
-            />
-
-            {/* Toggle boucle */}
-            <button
-              onClick={() => onSetUseLoops(!useLoops)}
-              className={`px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
-                useLoops
-                  ? 'bg-emerald-900/40 border-emerald-500 text-emerald-400'
-                  : 'bg-gray-800 border-gray-700 text-gray-500 hover:bg-gray-700'
-              }`}
-            >
-              {'\ud83c\udfb5'} Boucle {useLoops ? '\u25cf' : '\u25cb'}
-            </button>
-
-            {/* Sélecteur de fichier boucle */}
-            {samplesHere.length > 1 && (
-              <select
-                value={loopName || samplesHere[0]}
-                onChange={e => onSetLoopName(e.target.value)}
-                className="bg-gray-800 text-emerald-400 text-[10px] px-2 py-1 rounded border border-gray-700 outline-none"
-              >
-                {samplesHere.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            )}
-
-            {/* Spinner offset (décalage en ms) */}
-            <div className="flex items-center gap-1 bg-gray-800 rounded border border-gray-700 px-2 py-1">
-              <span className="text-[10px] text-gray-500">{'\u2195'}</span>
-              <button
-                onClick={() => onSetLoopOffset(loopOffset - 1)}
-                className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-                title="-1ms"
-              >{'◀'}</button>
-              <input
-                type="number"
-                value={loopOffset}
-                onChange={e => onSetLoopOffset(parseInt(e.target.value) || 0)}
-                className="w-14 bg-gray-900 text-emerald-400 text-xs font-mono text-center rounded border border-gray-700 outline-none px-1 py-0.5"
-                step={1}
-              />
-              <span className="text-[10px] text-gray-500">ms</span>
-              <button
-                onClick={() => onSetLoopOffset(loopOffset + 1)}
-                className="text-[10px] text-gray-400 hover:text-white px-1 font-bold"
-                title="+1ms"
-              >{'▶'}</button>
-            </div>
-          </div>
-
-          {/* Info boucle unique */}
-          {samplesHere.length === 1 && (
-            <div className="text-[10px] text-gray-500 mt-1">
-              Boucle: {samplesHere[0]} ({tempo} bpm)
-            </div>
-          )}
-
-          {/* Statut boucle active */}
-          {useLoops && (
-            <div className="text-[10px] text-emerald-600/60 mt-1">
-              {'\ud83d\udd01'} Lecture en boucle active (offset {loopOffset}ms)
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Message si pas de boucle pour ce tempo */}
-      {samplesHere.length === 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-800">
-          <div className="text-[10px] text-gray-600">
-            {'\uD83D\uDCC2'} Aucune boucle pour {tempo} bpm dans ~/samples/drums/
-          </div>
-        </div>
-      )}
     </>
   );
 }
