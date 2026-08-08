@@ -15,7 +15,9 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2 } from 'lucide-react';
 import ClickControl from './ClickControl';
+import LoopControl from './LoopControl';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
+import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -70,6 +72,9 @@ interface DawViewProps {
   onImport: () => void;
   /** Réinitialise le projet courant (Nouveau projet). */
   onNewProject: () => void;
+  /** Boucle sample (mode Navig) : config + mise à jour (appliquée en direct). */
+  sampleLoop: SampleLoopCfg;
+  onSampleLoopChange: (patch: Partial<SampleLoopCfg>) => void;
   onAddTrack: () => void;
   onRemoveTrack: (channel: number) => void;
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
@@ -373,6 +378,7 @@ export default function DawView({
   tracks, pianoNotes, playing, hasWav, tempo, loopOn, sig, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
+  sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onOpenPianoRoll, onHelp,
   onPostProd, bouncing,
 }: DawViewProps) {
@@ -672,6 +678,9 @@ export default function DawView({
 
         {/* Piste de clic (métronome + sortie dédiée + rendu) */}
         <ClickControl />
+
+        {/* Boucle sample (répétée pendant la lecture, offset en direct) */}
+        <LoopControl tempo={tempo} sig={sig} cfg={sampleLoop} onChange={onSampleLoopChange} />
 
         <div className={tSep} />
 

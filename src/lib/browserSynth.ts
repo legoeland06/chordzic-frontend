@@ -37,6 +37,21 @@ export interface RenderOptions {
   click_in_render?: boolean;
 }
 
+/** Configuration de la boucle sample (mode Navig) : un sample audio de
+ * quelques mesures, joué en boucle par le NAVIGATEUR en parallèle du WAV
+ * principal (même horloge Web Audio → synchro parfaite par construction).
+ * `offsetMs` décale la phase en DIRECT pendant la lecture (vérification
+ * à l'oreille, comme le décalage de la piste clic). */
+export interface SampleLoopCfg {
+  enabled: boolean;
+  /** Nom du fichier sample (ex. « snap5_160.wav » dans ~/samples/drums/). */
+  sample: string;
+  /** Volume 0-100. */
+  volume: number;
+  /** Décalage de phase 0-200 ms. */
+  offsetMs: number;
+}
+
 /**
  * Synthétiseur audio navigateur — utilise le backend pour le rendu WAV
  * et l'API Web Audio pour la lecture.
@@ -55,8 +70,87 @@ export class BrowserSynth {
   private ctxTimeAtStart = 0;
   private _loopTimer: ReturnType<typeof setTimeout> | null = null;
   private sources: AudioBufferSourceNode[] = [];
+  /** Boucle sample (mode Navig) : config + objets Web Audio dédiés. */
+  private _sampleLoop: SampleLoopCfg | null = null;
+  private _sampleBuffer: AudioBuffer | null = null;
+  private _sampleSource: AudioBufferSourceNode | null = null;
+  private _sampleGain: GainNode | null = null;
 
   get isPlaying() { return this._playing; }
+
+  /** Configure la boucle sample. Pendant la lecture, un changement (offset,
+   * volume, sample, toggle) est appliqué IMMÉDIATEMENT : la boucle est
+   * recalculée à la bonne phase — vérification en direct à l'oreille. */
+  setSampleLoop(cfg: SampleLoopCfg | null) {
+    this._sampleLoop = cfg;
+    if (cfg && cfg.enabled && cfg.sample) {
+      if (this._playing) this._syncSampleLoop();
+    } else {
+      this._stopSampleLoop();
+    }
+  }
+
+  /** Charge (et met en cache) le fichier sample depuis le backend. */
+  private async _loadSample(name: string): Promise<AudioBuffer | null> {
+    try {
+      const resp = await fetch(`${backendUrl()}/sample-file/${encodeURIComponent(name)}`);
+      if (!resp.ok) return null;
+      const data = await resp.arrayBuffer();
+      const ctx = await this.getContext();
+      return await ctx.decodeAudioData(data);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Arrête la source de la boucle sample (sans toucher au WAV principal). */
+  private _stopSampleLoop() {
+    if (this._sampleSource) {
+      try { this._sampleSource.stop(); } catch {}
+      this._sampleSource.disconnect();
+      this._sampleSource = null;
+    }
+    if (this._sampleGain) {
+      this._sampleGain.disconnect();
+      this._sampleGain = null;
+    }
+  }
+
+  /** (Re)synchronise la boucle sample sur la position courante du morceau.
+   * Appelé après chaque (re)création de la source WAV (play, reprise, scrub)
+   * et à chaque changement de config pendant la lecture. La phase jouée est
+   * `position_du_morceau + offset` (modulo la durée du sample) → l'offset
+   * décale la boucle en direct, exactement comme le décalage du clic. */
+  private _syncSampleLoop() {
+    const cfg = this._sampleLoop;
+    const ctx = this.audioCtx;
+    if (!cfg || !cfg.enabled || !cfg.sample || !ctx || !this._playing) {
+      this._stopSampleLoop();
+      return;
+    }
+    const pos = this.getPositionRaw();
+    if (pos < 0) return;
+    void (async () => {
+      if (!this._sampleBuffer) {
+        this._sampleBuffer = await this._loadSample(cfg.sample);
+      }
+      const buf = this._sampleBuffer;
+      if (!buf || !this._playing) return;
+      // Phase cible : position du morceau + offset (modulo durée du sample)
+      const startPos = ((pos + cfg.offsetMs / 1000) % buf.duration + buf.duration) % buf.duration;
+      this._stopSampleLoop();
+      const gain = ctx.createGain();
+      gain.gain.value = cfg.volume / 100;
+      gain.connect(ctx.destination);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.connect(gain);
+      src.start(0, startPos);
+      this._sampleSource = src;
+      this._sampleGain = gain;
+    })();
+  }
 
   setVolume(_v: number) {
     // Le volume est géré par le rendu backend (master_vol)
@@ -286,6 +380,7 @@ export class BrowserSynth {
     source.start(whenSec, Math.max(0, seconds));
     this.source = source;
     this._playing = true;
+    this._syncSampleLoop();
     source.onended = () => {
       if (this.source === source) { this._playing = false; this.source = null; }
     };
@@ -313,6 +408,7 @@ export class BrowserSynth {
     source.start(0, Math.max(0, seconds));
     this.source = source;
     this._playing = true;
+    this._syncSampleLoop();
     source.onended = () => {
       if (this.source === source) { this._playing = false; this.source = null; }
     };
@@ -336,6 +432,7 @@ export class BrowserSynth {
     source.start();
     this.source = source;
     this._playing = true;
+    this._syncSampleLoop();
     source.onended = () => {
       if (this.source === source) { this._playing = false; this.source = null; }
     };
@@ -343,6 +440,7 @@ export class BrowserSynth {
 
   stop() {
     this._playing = false;
+    this._stopSampleLoop();
     // Terminer la promesse du mode séparé (le serveur coupe le son)
     if (this._navPlayResolver) {
       const r = this._navPlayResolver;

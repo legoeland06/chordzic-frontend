@@ -12,7 +12,7 @@
  * lib/chordUtils.ts (évite la duplication avec browserSynth.ts).
  */
 import { ChordData, GrilleData } from '../types/chord';
-import { BrowserSynth, RenderOptions } from './browserSynth';
+import { BrowserSynth, RenderOptions, SampleLoopCfg } from './browserSynth';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { PianoNote } from './pianoRollTypes';
 
@@ -423,6 +423,12 @@ export class AudioEngine {
   /** Déplace la tête de lecture du rendu Navig courant (lecture ou pause). */
   seekNavig(seconds: number): void {
     this.browserSynth.seekTo(seconds);
+  }
+
+  /** Configure la boucle sample du mode Navig (jouée par le navigateur en
+   * parallèle du WAV principal). Appliquée en direct pendant la lecture. */
+  setSampleLoop(cfg: SampleLoopCfg | null): void {
+    this.browserSynth.setSampleLoop(cfg);
   }
 
   /** Dernier WAV rendu par le backend (mode Navig), pour extraction. */

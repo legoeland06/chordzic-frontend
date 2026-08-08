@@ -13,6 +13,7 @@ import { Sparkles, Music } from 'lucide-react';
 import { parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
+import type { SampleLoopCfg } from '../lib/browserSynth';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
@@ -60,6 +61,8 @@ interface GrilleEntry {
   loopOffset?: number;
   loopName?: string;
   loopVolume?: number;
+  /** Boucle sample du mode Navig (v2.6). */
+  sampleLoop?: SampleLoopCfg;
 }
 
 export default function ChordApp() {
@@ -211,6 +214,23 @@ export default function ChordApp() {
   const [loopName, setLoopName] = useState('');
   const [loopVolume, setLoopVolume] = useState(80);
   const [availableSamples, setAvailableSamples] = useState<Record<string, string[]>>({});
+
+  // ── Boucle sample du mode Navig ──────────────────────────────────
+  /** Sample audio (quelques mesures) répété en boucle pendant la lecture
+   * Navig, joué par le navigateur (Web Audio) en parallèle du WAV principal.
+   * `offsetMs` décale la phase EN DIRECT (vérification à l'oreille).
+   * Persisté avec le projet (buildGrilleObject / autosave / Load). */
+  const [sampleLoop, setSampleLoopState] = useState<SampleLoopCfg>({
+    enabled: false, sample: '', volume: 80, offsetMs: 0,
+  });
+  /** Applique un changement de config (appliqué en direct au moteur Navig). */
+  const updateSampleLoop = (patch: Partial<SampleLoopCfg>) => {
+    setSampleLoopState(prev => {
+      const next = { ...prev, ...patch };
+      engineRef.current?.setSampleLoop(next.enabled && next.sample ? next : null);
+      return next;
+    });
+  };
   const [status, setStatus] = useState('Prêt');
   const [statusColor, setStatusColor] = useState('text-gray-400');
   const [audioStarted, setAudioStarted] = useState(false);
@@ -363,6 +383,17 @@ export default function ChordApp() {
       if (data.loopOffset !== undefined) { setLoopOffset(data.loopOffset); engineRef.current?.setLoopOffset(data.loopOffset); }
       if (data.loopName !== undefined) setLoopName(data.loopName);
       if (data.loopVolume !== undefined) { setLoopVolume(data.loopVolume); engineRef.current?.setLoopVolume(data.loopVolume); }
+      if (data.sampleLoop) {
+        const raw = data.sampleLoop;
+        const sl: SampleLoopCfg = {
+          enabled: raw.enabled ?? false,
+          sample: raw.sample ?? '',
+          volume: raw.volume ?? 80,
+          offsetMs: raw.offsetMs ?? 0,
+        };
+        setSampleLoopState(sl);
+        engineRef.current?.setSampleLoop(sl.enabled && sl.sample ? sl : null);
+      }
       setLastAutosaveAt(data.savedAt ? new Date(data.savedAt).getTime() : Date.now());
       setProjectName(typeof data.projectName === 'string' && data.projectName ? data.projectName : null);
       setStatus('♻️ Session restaurée (sauvegarde automatique locale)');
@@ -390,7 +421,7 @@ export default function ChordApp() {
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, tempo, sig, tracks, pianoNotes, drumPattern, use432, loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume]);
+  }, [input, tempo, sig, tracks, pianoNotes, drumPattern, use432, loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume, sampleLoop]);
 
   // ── FLUSH SYNCHRONE à la fermeture/actualisation : même si le debounce
   // n'a pas encore écrit, le dernier état connu est sauvegardé d'un coup. ──
@@ -661,6 +692,7 @@ export default function ChordApp() {
       tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
       loopOn, walkingBass, useLoops, loopOffset, loopName, loopVolume,
+      sampleLoop,
       projectName,
       ...(hasPianoNotes ? { pianoNotes } : {}),
       ...extra,
@@ -703,6 +735,17 @@ export default function ChordApp() {
     if (entry.loopOffset !== undefined) { setLoopOffset(entry.loopOffset); engineRef.current?.setLoopOffset(entry.loopOffset); }
     if (entry.loopName !== undefined) setLoopName(entry.loopName);
     if (entry.loopVolume !== undefined) { setLoopVolume(entry.loopVolume); engineRef.current?.setLoopVolume(entry.loopVolume); }
+    if (entry.sampleLoop) {
+      const raw = entry.sampleLoop;
+      const sl: SampleLoopCfg = {
+        enabled: raw.enabled ?? false,
+        sample: raw.sample ?? '',
+        volume: raw.volume ?? 80,
+        offsetMs: raw.offsetMs ?? 0,
+      };
+      setSampleLoopState(sl);
+      engineRef.current?.setSampleLoop(sl.enabled && sl.sample ? sl : null);
+    }
     setProjectName(entry.name || null);
     setShowLoadModal(false);
     setStatus(`📂 Grille « ${entry.name} » chargée`); setStatusColor('text-blue-400');
@@ -772,6 +815,9 @@ export default function ChordApp() {
     setLoopOffset(0); engineRef.current?.setLoopOffset(0);
     setLoopName('');
     setLoopVolume(80); engineRef.current?.setLoopVolume(80);
+    // Boucle sample
+    setSampleLoopState({ enabled: false, sample: '', volume: 80, offsetMs: 0 });
+    engineRef.current?.setSampleLoop(null);
     // Modes & sessions
     setNavigMode(false);
     setHasWav(false);
@@ -1104,6 +1150,8 @@ export default function ChordApp() {
             onImport={() => fileInputRef.current?.click()}
             onNewProject={requestNewProject}
             onAddTrack={() => setShowAddTrack(true)}
+            sampleLoop={sampleLoop}
+            onSampleLoopChange={updateSampleLoop}
             onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
             onReorderTracks={reorderTracks}

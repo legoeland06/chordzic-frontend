@@ -222,6 +222,21 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               ne pouvaient pas rester synchronisées. « Dans le rendu » = synchro parfaite ; « Sortie » =
               clic dans vos oreilles via l'agrégat multicanal, également échantillon-parfait.
             </p>
+            <p className="mt-2">
+              <b className="text-emerald-400">🎵 Loop</b> (à côté du clic, même barre) : un{' '}
+              <b className="text-white">sample audio de quelques mesures</b> (fichiers{' '}
+              <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}
+              <code className="text-gray-400">~/samples/drums/</code>) est répété en boucle{' '}
+              <b className="text-white">pendant la lecture</b>, joué par le navigateur en parallèle du WAV
+              principal (même horloge Web Audio → synchro parfaite par construction). Le sélecteur ne
+              propose que les samples du tempo courant, avec un badge <b className="text-white">durée · mesures</b>{' '}
+              (ex. « 4,0s·2mes »). Le <b className="text-white">Décalage</b> (±1/±10 ms, slider + champ)
+              décale la phase de la boucle <b className="text-white">EN DIRECT pendant la lecture</b> :
+              tournez-le jusqu'à ce que le sample tombe pile sur les temps — vérification immédiate à
+              l'oreille, comme le décalage du clic. La config est sauvegardée avec le projet
+              (Save/Load/auto-sauvegarde). Note : la boucle est jouée en parallèle par le navigateur —
+              elle n'est pas incluse dans le WAV extrait (comme le clic en mode « Sortie »).
+            </p>
           </Section>
 
           {/* ── Pistes & réglages ── */}
