@@ -517,6 +517,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               sample du nouveau tempo (ou la boucle se coupe s'il n'y en a pas). Le{' '}
               <b className="text-emerald-400">verrou 🔒</b> mémorise le décalage POUR CE SAMPLE (préférence
               globale, retrouvée à chaque sélection — le spinner se grise tant qu'il est verrouillé).
+              À l'<b className="text-white">extraction</b> (Extract Wav), le sample est <b className="text-white">MIXÉ</b> au
+              morceau (mêmes volume et décalage que la lecture) : le WAV extrait reflète exactement ce
+              qu'on entend — mention « sample inclus » dans le statut. (Seul le clic en mode « Sortie », joué
+              par le serveur, reste absent du WAV extrait.)
             </p>
             <p className="text-xs text-gray-500">
               Fichiers attendus : <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}

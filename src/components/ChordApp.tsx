@@ -831,9 +831,12 @@ export default function ChordApp() {
     setStatus('📤 Grille exportée en JSON'); setStatusColor('text-green-400');
   };
 
-  /** Extrait le dernier rendu WAV (mode Navig) en fichier téléchargeable. */
-  const handleExtractWav = () => {
-    const blob = engineRef.current?.getLastWavBlob();
+  /** Extrait le dernier rendu WAV (mode Navig) en fichier téléchargeable.
+   * Si la boucle sample est active, le sample est MIXÉ au morceau avant
+   * l'encodage (mêmes volume/offset que la lecture) — l'extraction reflète
+   * exactement ce qu'on entend. */
+  const handleExtractWav = async () => {
+    const blob = await engineRef.current?.getExtractWavBlob();
     if (!blob) {
       setStatus('❌ Aucun WAV à extraire — lance une lecture d\'abord'); setStatusColor('text-red-400');
       return;
@@ -846,7 +849,9 @@ export default function ChordApp() {
     a.download = `${base}_${Date.now()}.wav`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus(`📥 WAV extrait (${(blob.size / 1048576).toFixed(1)} Mo)`); setStatusColor('text-green-400');
+    const sampleInclus = sampleLoop.enabled && !!sampleLoop.sample;
+    setStatus(`📥 WAV extrait (${(blob.size / 1048576).toFixed(1)} Mo${sampleInclus ? ' · sample inclus' : ''})`);
+    setStatusColor('text-green-400');
   };
 
   /** Bounce multitrack → mode PostProd.

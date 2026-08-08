@@ -431,6 +431,9 @@ export class AudioEngine {
   /** Dernier WAV rendu par le backend (mode Navig), pour extraction. */
   getLastWavBlob(): Blob | null { return this.browserSynth.getLastWavBlob(); }
 
+  /** WAV à extraire — avec le sample bouclé MIXÉ si la boucle est active. */
+  getExtractWavBlob(): Promise<Blob | null> { return this.browserSynth.getExtractWavBlob(); }
+
   /** Joue une note en direct (preview PianoRoll) via le backend.
    * Fire-and-forget : ne bloque jamais l'édition. */
   async playPreviewNote(channel: number, pitch: number): Promise<void> {

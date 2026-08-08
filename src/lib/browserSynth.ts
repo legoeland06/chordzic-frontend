@@ -351,6 +351,52 @@ export class BrowserSynth {
     return this._lastWavBlob;
   }
 
+  /** WAV à extraire : si la boucle sample est ACTIVE, le sample est MIXÉ au
+   * morceau (OfflineAudioContext — rendu hors-ligne, mêmes volume/offset que
+   * la lecture) puis encodé en WAV. Sinon, le WAV brut du rendu. */
+  async getExtractWavBlob(): Promise<Blob | null> {
+    const cfg = this._sampleLoop;
+    if (!this._buffer) return this._lastWavBlob;
+    const sampleActive = !!(cfg && cfg.enabled && cfg.sample);
+    if (!sampleActive) return this._lastWavBlob;
+
+    // Charger le sample s'il n'est pas déjà en cache
+    if (!this._sampleBuffer || this._lastSampleName !== cfg.sample) {
+      this._sampleBuffer = await this._loadSample(cfg.sample);
+      this._lastSampleName = cfg.sample;
+    }
+    const sample = this._sampleBuffer;
+    if (!sample) return this._lastWavBlob; // sample illisible → brut
+
+    const main = this._buffer;
+    const ctx = new OfflineAudioContext(
+      main.numberOfChannels,
+      Math.ceil(main.duration * main.sampleRate),
+      main.sampleRate,
+    );
+
+    // Morceau principal (tel que rendu)
+    const srcMain = ctx.createBufferSource();
+    srcMain.buffer = main;
+    srcMain.connect(ctx.destination);
+    srcMain.start(0);
+
+    // Sample bouclé sur toute la durée, avec son volume et sa phase (offset)
+    const gain = ctx.createGain();
+    gain.gain.value = cfg.volume / 100;
+    const srcSample = ctx.createBufferSource();
+    srcSample.buffer = sample;
+    srcSample.loop = true;
+    srcSample.connect(gain);
+    gain.connect(ctx.destination);
+    // Début du morceau (position 0) + décalage de phase mémorisé
+    const startPos = computeSamplePhase(0, cfg.offsetMs, sample.duration);
+    srcSample.start(0, startPos);
+
+    const rendered = await ctx.startRendering();
+    return encodeWav(rendered);
+  }
+
   /** Pause : gèle le contexte audio → le son et le curseur se figent,
    * la reprise est exacte (le currentTime ne bouge pas). */
   async pause(): Promise<void> {
@@ -471,4 +517,44 @@ export class BrowserSynth {
     // Arrêter aussi le clic séparé joué par le serveur
     fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
   }
+}
+
+/** Encode un AudioBuffer en WAV PCM 16-bit (interleaved) — utilisé pour
+ * l'extraction du rendu avec le sample mixé. */
+function encodeWav(buffer: AudioBuffer): Blob {
+  const numCh = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numFrames = buffer.length;
+  const blockAlign = numCh * 2;
+  const dataSize = numFrames * blockAlign;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+  const writeStr = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);            // PCM
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);           // 16 bits
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let c = 0; c < numCh; c++) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      offset += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
 }
