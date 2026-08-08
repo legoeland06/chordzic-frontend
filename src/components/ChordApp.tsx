@@ -19,7 +19,7 @@ import TrackPanel from './TrackPanel';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import ChordDetailModal from './ChordDetailModal';
-import { SaveModal, LoadModal } from './SaveLoadModal';
+import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
 import HelpModal from './HelpModal';
 import DawView from './DawView';
@@ -83,13 +83,17 @@ export default function ChordApp() {
   const [showPostProd, setShowPostProd] = useState(false);
   /** Vrai pendant le bounce multitrack (bouton PostProd désactivé). */
   const [bouncing, setBouncing] = useState(false);
-  const [tracks, setLocalTracks] = useState<TrackConfig[]>([
+  /** Pistes par défaut d'un nouveau projet — référence stable (le reset
+   * « Nouveau projet » repart toujours de cette liste). */
+  const DEFAULT_TRACKS: TrackConfig[] = [
     { channel: 0, label: 'Lead',    program: 51, volume: 60, mute: false },
     { channel: 2, label: 'Bass',    program: 33, volume: 70, mute: false },
     { channel: 3, label: 'Nappes',  program: 48, volume: 60, mute: false },
     { channel: 9, label: 'Drums',   program: 1,  volume: 90, mute: false },
     { channel: 4, label: 'Accent',  program: 2,  volume: 50, mute: false },
-  ]);
+  ];
+
+  const [tracks, setLocalTracks] = useState<TrackConfig[]>(DEFAULT_TRACKS);
 
   const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
     setLocalTracks(prev => {
@@ -304,6 +308,8 @@ export default function ChordApp() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  /** Modal de confirmation « Nouveau projet » (action destructive). */
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   /** Nom du projet courant (grille chargée/sauvegardée, sans extension) —
    * affiché à côté du titre. null = aucun projet nommé. */
   const [projectName, setProjectName] = useState<string | null>(null);
@@ -712,6 +718,77 @@ export default function ChordApp() {
     } catch { /* silencieux */ }
   };
 
+  // ─── Nouveau projet ─────────────────────────────────────────────
+
+  /** Vrai si le projet courant ne contient rien (grille vide, aucune note
+   * de piano roll, aucun nom) — dans ce cas pas besoin de confirmation. */
+  const projectIsEmpty =
+    input.trim() === '' &&
+    Object.values(pianoNotes).every(notes => notes.length === 0) &&
+    projectName === null;
+
+  /** Demande la création d'un nouveau projet : confirmation si le projet
+   * courant contient des données, sinon action directe. La lecture est
+   * arrêtée dès l'ouverture (une modal + de la musique = brouhaha). */
+  const requestNewProject = () => {
+    stop();
+    if (projectIsEmpty) { confirmNewProject(); return; }
+    setShowNewProjectModal(true);
+  };
+
+  /** Réinitialise COMPLÈTEMENT le projet : grille, tempo, mesure, pistes
+   * (retour aux 5 par défaut, moteur synchronisé), notes des piano rolls,
+   * réglages audio/musicaux, nom du projet, lecture et modals.
+   * L'auto-sauvegarde locale est PURGÉE : un F5 après « Nouveau projet »
+   * ne doit PAS restaurer l'ancien projet (le debounce réécrira ensuite
+   * un autosave vierge puisque l'état a changé). */
+  const confirmNewProject = () => {
+    setShowNewProjectModal(false);
+    stop();
+    // Grille & lecture
+    setInput('');
+    setChords([]);
+    setHighlighted(-1);
+    setPlaying(false);
+    setCurrentBeat(0);
+    setSelectedChord(null);
+    setLastChiffrage('');
+    // Paramètres audio par défaut
+    setTempo(120);
+    setVolume(127);
+    setUse432(true);
+    engineRef.current?.set432Hz(true);
+    // Pistes par défaut (remplace la liste ET synchronise le moteur)
+    applyLoadedTracks(DEFAULT_TRACKS);
+    // Piano rolls & édition
+    setPianoNotes({});
+    setOpenPianoRoll(null);
+    setDragIdx(null);
+    // Options musicales
+    setDrumPattern('rock');
+    setLoopOn(false);
+    setWalkingBass(false);
+    setUseLoops(false); engineRef.current?.setUseLoops(false);
+    setLoopOffset(0); engineRef.current?.setLoopOffset(0);
+    setLoopName('');
+    setLoopVolume(80); engineRef.current?.setLoopVolume(80);
+    // Modes & sessions
+    setNavigMode(false);
+    setHasWav(false);
+    setPostProdSession(null);
+    setShowPostProd(false);
+    setBouncing(false);
+    // Projet & modals
+    setProjectName(null);
+    setPendingDeleteTrack(null);
+    setShowAddTrack(false);
+    // Auto-sauvegarde : purge pour ne pas restaurer l'ancien projet au F5
+    try { localStorage.removeItem(AUTOSAVE_KEY); } catch { /* localStorage indisponible */ }
+    autosavePayloadRef.current = null;
+    setLastAutosaveAt(null);
+    setStatus('✨ Nouveau projet — repartez de zéro'); setStatusColor('text-green-400');
+  };
+
   const handleExport = () => setShowExportModal(true);
 
   const doExport = (name: string) => {
@@ -1025,6 +1102,7 @@ export default function ChordApp() {
             onLoad={() => setShowLoadModal(true)}
             onExport={handleExport}
             onImport={() => fileInputRef.current?.click()}
+            onNewProject={requestNewProject}
             onAddTrack={() => setShowAddTrack(true)}
             onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
@@ -1050,6 +1128,7 @@ export default function ChordApp() {
             onSave={() => setShowSaveModal(true)}
             onLoad={() => setShowLoadModal(true)}
             onExport={handleExport} onImport={() => fileInputRef.current?.click()}
+            onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
             onTempoChange={setTempo}
           />
@@ -1122,6 +1201,11 @@ export default function ChordApp() {
           grilles={savedGrilles}
           onLoad={handleLoad}
           onDelete={handleDeleteSave}
+        />
+        <NewProjectModal
+          show={showNewProjectModal}
+          onClose={() => setShowNewProjectModal(false)}
+          onConfirm={confirmNewProject}
         />
 
         {/* Choix du type de piste à ajouter : instrument ou drums */}

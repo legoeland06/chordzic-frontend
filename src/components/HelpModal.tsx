@@ -459,6 +459,14 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               autonome ; <b className="text-white">📥 Import</b> le relit (les anciens formats sont convertis automatiquement).
             </p>
             <p>
+              <b className="text-white">✨ Nouveau projet</b> (bouton <b className="text-fuchsia-400">Nouveau</b>,
+              à côté de Save/Load) efface la grille, les pistes (retour aux 5 par défaut), les notes des piano
+              rolls et tous les réglages pour <b className="text-white">repartir de zéro</b>. Une
+              <b className="text-white"> confirmation</b> est demandée si le projet contient des données
+              (jamais de suppression silencieuse). L'auto-sauvegarde locale est purgée : un rechargement
+              après « Nouveau projet » démarre bien sur un projet vierge.
+            </p>
+            <p>
               <b className="text-white">Extract Wav</b> : en mode <b className="text-purple-400">📱 Navig.</b>, lancez une
               lecture puis cliquez — le WAV rendu est téléchargé (nom = début de grille + horodatage).
             </p>

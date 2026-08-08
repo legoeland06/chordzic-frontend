@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2 } from 'lucide-react';
 import ClickControl from './ClickControl';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import { getClickSig } from '../lib/clickPrefs';
@@ -68,6 +68,8 @@ interface DawViewProps {
   onLoad: () => void;
   onExport: () => void;
   onImport: () => void;
+  /** Réinitialise le projet courant (Nouveau projet). */
+  onNewProject: () => void;
   onAddTrack: () => void;
   onRemoveTrack: (channel: number) => void;
   onUpdateTrack: (channel: number, cfg: Partial<TrackConfig>) => void;
@@ -370,7 +372,7 @@ function TrackLane({
 export default function DawView({
   tracks, pianoNotes, playing, hasWav, tempo, loopOn, sig, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
-  onSave, onLoad, onExport, onImport,
+  onSave, onLoad, onExport, onImport, onNewProject,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onOpenPianoRoll, onHelp,
   onPostProd, bouncing,
 }: DawViewProps) {
@@ -693,6 +695,7 @@ export default function DawView({
         <button onClick={onLoad} title="Charger une grille (Load)" className={tBtn}><FolderOpen className="w-3.5 h-3.5" /></button>
         <button onClick={onExport} title="Exporter en JSON" className={tBtn}><Upload className="w-3.5 h-3.5" /></button>
         <button onClick={onImport} title="Importer un fichier JSON" className={tBtn}><Download className="w-3.5 h-3.5" /></button>
+        <button onClick={onNewProject} title="Nouveau projet — repartir de zéro" className={tBtn}><FilePlus2 className="w-3.5 h-3.5" /></button>
 
         <div className="ml-auto flex items-center gap-1.5">
           <button

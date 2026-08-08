@@ -5,7 +5,7 @@
  * Agit comme un hub de commandes pour ChordApp : chaque bouton déclenche
  * une callback vers le composant parent.
  */
-import { Play, Square, Trash2, Gauge, Save, FolderOpen, Download } from 'lucide-react';
+import { Play, Square, Trash2, Gauge, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
 
 interface ControlBarProps {
   chords: { time: number }[];
@@ -19,6 +19,8 @@ interface ControlBarProps {
   onLoad: () => void;
   onExport: () => void;
   onImport: () => void;
+  /** Réinitialise le projet courant (Nouveau projet). */
+  onNewProject: () => void;
   /** Extrait le dernier rendu WAV (mode Navig) en fichier téléchargeable. */
   onExtractWav: () => void;
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
@@ -29,7 +31,7 @@ interface ControlBarProps {
 export default function ControlBar({
   chords, playing, tempo,
   onAnalyse, onPlay, onStop, onClear,
-  onSave, onLoad, onExport, onImport,
+  onSave, onLoad, onExport, onImport, onNewProject,
   onExtractWav, hasWav,
   onTempoChange,
 }: ControlBarProps) {
@@ -91,6 +93,15 @@ export default function ControlBar({
           className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
         >
           <FolderOpen className="w-3 h-3" /> Load
+        </button>
+
+        {/* Nouveau projet : repart de zéro (confirmation si le projet contient des données) */}
+        <button
+          onClick={onNewProject}
+          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-fuchsia-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          title="Nouveau projet — efface la grille, les pistes et les réglages pour repartir de zéro"
+        >
+          <FilePlus2 className="w-3 h-3" /> Nouveau
         </button>
 
         {/* Export / Import JSON */}

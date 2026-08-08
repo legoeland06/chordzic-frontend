@@ -136,3 +136,53 @@ export function LoadModal({ show, onClose, grilles, onLoad, onDelete }: LoadModa
     </div>
   );
 }
+
+// ─── NewProjectModal ────────────────────────────────────────────────────
+
+interface NewProjectModalProps {
+  show: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+/** Confirmation avant « Nouveau projet » : action destructive, jamais
+ * exécutée sans accord explicite (même règle que la suppression de piste). */
+export function NewProjectModal({ show, onClose, onConfirm }: NewProjectModalProps) {
+  if (!show) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 rounded-xl border border-gray-700 p-6 w-full max-w-80 mx-4 shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="text-sm font-bold text-white mb-2">✨ Nouveau projet</h3>
+        <p className="text-xs text-gray-400 mb-1">
+          Effacer le projet courant et repartir de zéro ?
+        </p>
+        <p className="text-[10px] text-gray-500 mb-4">
+          La grille, les pistes, les notes des piano rolls et tous les réglages
+          seront réinitialisés. L'auto-sauvegarde locale sera purgée (un
+          rechargement ne restaurera pas l'ancien projet).
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors"
+          >
+            ✨ Nouveau projet
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
