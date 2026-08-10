@@ -522,6 +522,16 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               qu'on entend — mention « sample inclus » dans le statut. (Seul le clic en mode « Sortie », joué
               par le serveur, reste absent du WAV extrait.)
             </p>
+            <p>
+              <b className="text-white">🎯 Recadrage automatique sur la grille :</b> pour que le sample ne
+              dérive JAMAIS du métronome (même après des dizaines de mesures), la période de boucle est
+              forcée à un <b className="text-white">multiple entier de la mesure</b> (calculée depuis le tempo
+              et la signature). Si la durée réelle du sample n'est pas déjà parfaite, elle est ajustée
+              automatiquement : <b className="text-emerald-400">✂ coupée</b> si le sample est trop long,{' '}
+              <b className="text-sky-400">silence ajouté</b> s'il est trop court (espace entre chaque
+              répétition). Le badge durée·mesures l'indique (✂−X ms / +Y ms) ; le recadrage suit
+              immédiatement tout changement de tempo ou de signature.
+            </p>
             <p className="text-xs text-gray-500">
               Fichiers attendus : <code className="text-gray-400">&lt;nom&gt;_&lt;tempo&gt;.wav</code> dans{' '}
               <code className="text-gray-400">~/samples/drums/</code> (ex. snap5_160.wav pour 160 BPM).

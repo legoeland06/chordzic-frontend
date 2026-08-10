@@ -215,11 +215,17 @@ export default function ChordApp() {
   const [sampleLoop, setSampleLoopState] = useState<SampleLoopCfg>({
     enabled: false, sample: '', volume: DEFAULT_SAMPLE_VOLUME, offsetMs: 0,
   });
-  /** Applique un changement de config (appliqué en direct au moteur Navig). */
+  /** Applique un changement de config (appliqué en direct au moteur Navig).
+   * Le contexte grille (tempo + signature) est ajouté à l'appel moteur pour
+   * que le sample soit RECADRÉ sur la mesure (coupe / silence) — jamais
+   * persisté (le projet stocke déjà tempo et sig séparément). */
   const updateSampleLoop = (patch: Partial<SampleLoopCfg>) => {
     setSampleLoopState(prev => {
       const next = { ...prev, ...patch };
-      engineRef.current?.setSampleLoop(next.enabled && next.sample ? next : null);
+      const beatsPerBar = parseInt((sig.split('/')[0] || '4'), 10) || 4;
+      engineRef.current?.setSampleLoop(
+        next.enabled && next.sample ? { ...next, tempo, beatsPerBar } : null,
+      );
       return next;
     });
   };
@@ -380,7 +386,11 @@ export default function ChordApp() {
           offsetMs: raw.offsetMs ?? 0,
         };
         setSampleLoopState(sl);
-        engineRef.current?.setSampleLoop(sl.enabled && sl.sample ? sl : null);
+        // Contexte grille chargé (tempo/sig locaux, pas encore dans le state)
+        const bpb = parseInt(((data.sig || '4/4').split('/')[0] || '4'), 10) || 4;
+        engineRef.current?.setSampleLoop(
+          sl.enabled && sl.sample ? { ...sl, tempo: data.tempo || 120, beatsPerBar: bpb } : null,
+        );
       }
       setLastAutosaveAt(data.savedAt ? new Date(data.savedAt).getTime() : Date.now());
       setProjectName(typeof data.projectName === 'string' && data.projectName ? data.projectName : null);
@@ -728,7 +738,11 @@ export default function ChordApp() {
         offsetMs: raw.offsetMs ?? 0,
       };
       setSampleLoopState(sl);
-      engineRef.current?.setSampleLoop(sl.enabled && sl.sample ? sl : null);
+      // Contexte grille chargée (tempo/sig de l'entrée, pas encore dans le state)
+      const bpb = parseInt(((entry.sig || '4/4').split('/')[0] || '4'), 10) || 4;
+      engineRef.current?.setSampleLoop(
+        sl.enabled && sl.sample ? { ...sl, tempo: entry.tempo || 120, beatsPerBar: bpb } : null,
+      );
     }
     setProjectName(entry.name || null);
     setShowLoadModal(false);
@@ -1029,6 +1043,19 @@ export default function ChordApp() {
     fetch('http://localhost:4000/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tempo }) }).catch(() => {});
     engineRef.current?.setTempo(tempo);
   }, [tempo]);
+
+  // RECADRAGE de la boucle sample au changement de tempo/signature : la
+  // période de boucle (multiple entier de la mesure) dépend des deux — on
+  // rappelle setSampleLoop pour que le moteur recalcule le buffer recadré,
+  // même pendant la lecture (le sample reste synchrone du métronome).
+  useEffect(() => {
+    if (!sampleLoop.enabled || !sampleLoop.sample) return;
+    const beatsPerBar = parseInt((sig.split('/')[0] || '4'), 10) || 4;
+    engineRef.current?.setSampleLoop({
+      ...sampleLoop, tempo, beatsPerBar,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tempo, sig]);
 
   // Parse automatique avec debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

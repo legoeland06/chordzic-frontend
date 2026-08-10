@@ -9,7 +9,7 @@
  */
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
-import { computeSamplePhase } from './sampleLoop';
+import { computeSamplePhase, fitSampleToGrid, measureDurationSec } from './sampleLoop';
 
 export interface TrackCfg {
   channel: number;
@@ -51,6 +51,10 @@ export interface SampleLoopCfg {
   volume: number;
   /** Décalage de phase 0-200 ms. */
   offsetMs: number;
+  /** Contexte de la grille (rempli par ChordApp à l'appel) : sert à calculer
+   * la durée d'une mesure pour recadrer le sample sur la grille. */
+  tempo?: number;
+  beatsPerBar?: number;
 }
 
 /**
@@ -78,6 +82,11 @@ export class BrowserSynth {
   private _lastSampleName: string | null = null;
   private _sampleSource: AudioBufferSourceNode | null = null;
   private _sampleGain: GainNode | null = null;
+  /** Sample RECADRÉ sur la grille (coupé ou complété par du silence) — c'est
+   * CE buffer qui est bouclé, pour que chaque période soit un multiple exact
+   * de la mesure et que le sample ne dérive jamais du métronome.
+   * Cache clé par (nom du sample, période cible). */
+  private _alignedSample: { name: string; periodSec: number; buffer: AudioBuffer } | null = null;
 
   get isPlaying() { return this._playing; }
 
@@ -144,21 +153,51 @@ export class BrowserSynth {
       }
       const buf = this._sampleBuffer;
       if (!buf || !this._playing) return;
-      // Phase cible : position du morceau + offset (modulo durée du sample) —
-      // les décalages NÉGATIFS sont gérés par computeSamplePhase (double modulo).
-      const startPos = computeSamplePhase(pos, cfg.offsetMs, buf.duration);
+      // Recadrage sur la grille : la période de boucle est un multiple ENTIER
+      // de la mesure (coupe si le sample est trop long, silence si trop court)
+      // → le sample ne dérive JAMAIS du métronome, même sur 100 mesures.
+      const aligned = this._getAlignedSample(cfg, buf, ctx);
+      // Phase cible : position du morceau + offset (modulo la période recadrée)
+      const startPos = computeSamplePhase(pos, cfg.offsetMs, aligned.duration);
       this._stopSampleLoop();
       const gain = ctx.createGain();
       gain.gain.value = cfg.volume / 100;
       gain.connect(ctx.destination);
       const src = ctx.createBufferSource();
-      src.buffer = buf;
+      src.buffer = aligned;
       src.loop = true;
       src.connect(gain);
       src.start(0, startPos);
       this._sampleSource = src;
       this._sampleGain = gain;
     })();
+  }
+
+  /** Buffer sample RECADRÉ sur la grille (cache par nom + période).
+   * La période cible dépend du tempo et de la signature courants : si le
+   * contexte (tempo/sig) manque, le sample brut est utilisé tel quel. */
+  private _getAlignedSample(
+    cfg: SampleLoopCfg,
+    buf: AudioBuffer,
+    ctx: BaseAudioContext,
+  ): AudioBuffer {
+    if (!cfg.tempo || !cfg.beatsPerBar) return buf; // contexte inconnu → brut
+    const measureSec = measureDurationSec(cfg.tempo, cfg.beatsPerBar);
+    const fit = fitSampleToGrid(buf.duration, measureSec);
+    if (fit.mode === 'exact') return buf; // déjà parfait → pas de recopie
+    if (
+      this._alignedSample &&
+      this._alignedSample.name === cfg.sample &&
+      Math.abs(this._alignedSample.periodSec - fit.periodSec) < 1e-9
+    ) {
+      return this._alignedSample.buffer; // cache valide
+    }
+    this._alignedSample = {
+      name: cfg.sample,
+      periodSec: fit.periodSec,
+      buffer: buildAlignedBuffer(ctx, buf, fit.periodSec),
+    };
+    return this._alignedSample.buffer;
   }
 
   setVolume(_v: number) {
@@ -381,16 +420,22 @@ export class BrowserSynth {
     srcMain.connect(ctx.destination);
     srcMain.start(0);
 
+    // Sample RECADRÉ sur la grille (même buffer que la lecture → l'extraction
+    // est rigoureusement identique à ce qui s'entend pendant la lecture) :
+    // période = multiple entier de la mesure, coupée ou complétée par du
+    // silence pour que la boucle ne dérive jamais du métronome.
+    const aligned = this._getAlignedSample(cfg, sample, ctx);
+
     // Sample bouclé sur toute la durée, avec son volume et sa phase (offset)
     const gain = ctx.createGain();
     gain.gain.value = cfg.volume / 100;
     const srcSample = ctx.createBufferSource();
-    srcSample.buffer = sample;
+    srcSample.buffer = aligned;
     srcSample.loop = true;
     srcSample.connect(gain);
     gain.connect(ctx.destination);
     // Début du morceau (position 0) + décalage de phase mémorisé
-    const startPos = computeSamplePhase(0, cfg.offsetMs, sample.duration);
+    const startPos = computeSamplePhase(0, cfg.offsetMs, aligned.duration);
     srcSample.start(0, startPos);
 
     const rendered = await ctx.startRendering();
@@ -517,6 +562,36 @@ export class BrowserSynth {
     // Arrêter aussi le clic séparé joué par le serveur
     fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
   }
+}
+
+/** Construit un buffer RECADRÉ sur la grille : copie du sample sur
+ * `periodSec` (période = multiple entier de la mesure) — coupé si le sample
+ * est trop long, complété par du silence (zéros) s'il est trop court.
+ * Un micro fade-out (~2 ms) est appliqué à la fin de la partie audible pour
+ * éviter tout clic à la jonction de boucle (la coupure peut tomber en plein
+ * hit de batterie ; le silence ajouté peut suivre une fin non nulle). */
+function buildAlignedBuffer(
+  ctx: BaseAudioContext,
+  src: AudioBuffer,
+  periodSec: number,
+): AudioBuffer {
+  const srcLen = src.length;
+  const periodLen = Math.max(1, Math.round(periodSec * src.sampleRate));
+  const copyLen = Math.min(srcLen, periodLen);
+  // ~2 ms à 44,1 kHz ≈ 88 échantillons (ajusté si la partie copiée est courte)
+  const fadeSamples = Math.min(88, copyLen);
+  const out = ctx.createBuffer(src.numberOfChannels, periodLen, src.sampleRate);
+  for (let ch = 0; ch < src.numberOfChannels; ch++) {
+    const s = src.getChannelData(ch);
+    const d = out.getChannelData(ch);
+    d.set(s.subarray(0, copyLen));
+    // Micro fade-out sur la fin de la partie copiée (ramène à zéro)
+    for (let i = 0; i < fadeSamples; i++) {
+      const idx = copyLen - 1 - i;
+      if (idx >= 0) d[idx] *= (i + 1) / (fadeSamples + 1);
+    }
+  }
+  return out;
 }
 
 /** Encode un AudioBuffer en WAV PCM 16-bit (interleaved) — utilisé pour

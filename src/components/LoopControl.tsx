@@ -21,7 +21,7 @@ import { Lock, Unlock, Music } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { backendUrl } from '../lib/chordUtils';
 import type { SampleLoopCfg } from '../lib/browserSynth';
-import { sampleBelongsToTempo } from '../lib/sampleLoop';
+import { sampleBelongsToTempo, fitSampleToGrid, measureDurationSec } from '../lib/sampleLoop';
 import { loadSampleOffsets, saveSampleOffsets } from '../lib/sampleOffsets';
 
 interface LoopControlProps {

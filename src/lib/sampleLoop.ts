@@ -54,3 +54,58 @@ export function computeSamplePhase(
   if (phase < eps || phase > durationSec - eps) phase = 0;
   return phase;
 }
+
+// ─── Alignement du sample sur la grille (mesures) ────────────────────────
+//
+// Le sample est répété en boucle pour couvrir tout le morceau. Pour qu'il ne
+// DÉRIVE PAS par rapport au métronome (à chaque boucle, la phase se décale
+// de `durée_sample − durée_de_la_période`), la période de boucle doit être un
+// MULTIPLE ENTIER de la durée d'une mesure. Si le sample n'est pas déjà
+// parfait, on l'ajuste automatiquement :
+//  - trop long  → coupé à la période cible ;
+//  - trop court → complété par du silence (espace entre chaque répétition).
+
+/** Durée d'UNE mesure en secondes (ex. 4/4 à 120 BPM → 2 s). */
+export function measureDurationSec(tempo: number, beatsPerBar: number): number {
+  const bpb = Number.isFinite(beatsPerBar) && beatsPerBar >= 1 ? Math.floor(beatsPerBar) : 4;
+  const t = Number.isFinite(tempo) && tempo > 0 ? tempo : 120;
+  return (bpb * 60) / t;
+}
+
+/** Tolérance d'ajustement (s) : en dessous, le sample est considéré déjà
+ * aligné (~1 échantillon à 44,1 kHz — inaudible, on ne touche à rien). */
+export const SAMPLE_GRID_EPS_SEC = 1 / 44100;
+
+export type SampleGridMode = 'exact' | 'cut' | 'pad';
+
+export interface SampleGridFit {
+  /** Période de boucle cible (s) = bars × durée d'une mesure. */
+  periodSec: number;
+  /** Nombre de mesures couvertes par la période. */
+  bars: number;
+  /** Ajustement appliqué : 'exact' = déjà parfait, 'cut' = sample trop
+   * long (coupé), 'pad' = sample trop court (silence ajouté). */
+  mode: SampleGridMode;
+  /** Écart (s) entre la durée brute et la période cible (>0 = trop long). */
+  deltaSec: number;
+}
+
+/** Calcule la période de boucle « parfaite » pour un sample : le multiple
+ * entier de la mesure le plus proche de sa durée réelle (1 mesure minimum).
+ * Ex. : sample 4,05 s, mesure 4 s → période 4 s (coupé de 50 ms) ;
+ * sample 3,7 s, mesure 4 s → période 4 s (300 ms de silence ajoutés). */
+export function fitSampleToGrid(
+  sampleDurationSec: number,
+  measureSec: number,
+): SampleGridFit {
+  if (!(sampleDurationSec > 0) || !(measureSec > 0)) {
+    return { periodSec: Math.max(0, sampleDurationSec), bars: 1, mode: 'exact', deltaSec: 0 };
+  }
+  const bars = Math.max(1, Math.round(sampleDurationSec / measureSec));
+  const periodSec = bars * measureSec;
+  const deltaSec = sampleDurationSec - periodSec;
+  if (Math.abs(deltaSec) < SAMPLE_GRID_EPS_SEC) {
+    return { periodSec: sampleDurationSec, bars, mode: 'exact', deltaSec: 0 };
+  }
+  return { periodSec, bars, mode: deltaSec > 0 ? 'cut' : 'pad', deltaSec };
+}

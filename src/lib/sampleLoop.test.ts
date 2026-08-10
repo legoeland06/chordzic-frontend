@@ -11,6 +11,8 @@ import {
   computeSamplePhase,
   clampSampleOffset,
   sampleBelongsToTempo,
+  measureDurationSec,
+  fitSampleToGrid,
   SAMPLE_OFFSET_MIN,
   SAMPLE_OFFSET_MAX,
   DEFAULT_SAMPLE_VOLUME,
@@ -102,4 +104,88 @@ test('sample d un AUTRE tempo rejeté (rebasculage nécessaire)', () => {
 
 test('nom de fichier construit à la main = clé + tempo (convention backend)', () => {
   assert.ok(sampleBelongsToTempo('snap2_175.wav', 175, ['snap2']));
+});
+
+// ─── measureDurationSec ────────────────────────────────────────────────
+
+test('mesure 4/4 à 120 BPM = 2 s', () => {
+  assert.ok(approx(measureDurationSec(120, 4), 2.0));
+});
+
+test('mesure 4/4 à 160 BPM = 1,5 s', () => {
+  assert.ok(approx(measureDurationSec(160, 4), 1.5));
+});
+
+test('mesure 3/4 à 120 BPM = 1,5 s (numérateur pris en compte)', () => {
+  assert.ok(approx(measureDurationSec(120, 3), 1.5));
+});
+
+test('valeurs invalides → repli sain (4/4 à 120)', () => {
+  assert.ok(approx(measureDurationSec(0, 4), 2.0));
+  assert.ok(approx(measureDurationSec(120, 0), 2.0));
+  assert.ok(approx(measureDurationSec(Number.NaN, 4), 2.0));
+});
+
+// ─── fitSampleToGrid ───────────────────────────────────────────────────
+
+test('sample déjà parfait (1 mesure exacte) : rien à faire', () => {
+  const f = fitSampleToGrid(2.0, 2.0);
+  assert.equal(f.mode, 'exact');
+  assert.ok(approx(f.periodSec, 2.0));
+  assert.equal(f.bars, 1);
+  assert.equal(f.deltaSec, 0);
+});
+
+test('sample de 2 mesures exactes : période = 2 mesures, rien à faire', () => {
+  const f = fitSampleToGrid(4.0, 2.0);
+  assert.equal(f.mode, 'exact');
+  assert.ok(approx(f.periodSec, 4.0));
+  assert.equal(f.bars, 2);
+});
+
+test('sample TROP LONG (4,05 s, mesure 4 s) : coupé à 4 s (−50 ms)', () => {
+  const f = fitSampleToGrid(4.05, 4.0);
+  assert.equal(f.mode, 'cut');
+  assert.ok(approx(f.periodSec, 4.0));
+  assert.equal(f.bars, 1);
+  assert.ok(approx(f.deltaSec, 0.05));
+});
+
+test('sample TROP COURT (3,7 s, mesure 4 s) : 300 ms de silence ajoutés', () => {
+  const f = fitSampleToGrid(3.7, 4.0);
+  assert.equal(f.mode, 'pad');
+  assert.ok(approx(f.periodSec, 4.0));
+  assert.equal(f.bars, 1);
+  assert.ok(approx(f.deltaSec, -0.3));
+});
+
+test('sample de 2 mesures + 100 ms : période 2 mesures (coupé de 100 ms)', () => {
+  // round(8,1/4) = 2 → on coupe 100 ms, on ne perd PAS une mesure entière
+  const f = fitSampleToGrid(8.1, 4.0);
+  assert.equal(f.mode, 'cut');
+  assert.ok(approx(f.periodSec, 8.0));
+  assert.equal(f.bars, 2);
+  assert.ok(approx(f.deltaSec, 0.1));
+});
+
+test('sample entre 1 et 2 mesures (6 s, mesure 4 s) : période 2 mesures, pad 2 s', () => {
+  // round(6/4) = 2 → la boucle fait 2 mesures : 6 s de sample + 2 s de silence
+  const f = fitSampleToGrid(6.0, 4.0);
+  assert.equal(f.mode, 'pad');
+  assert.ok(approx(f.periodSec, 8.0));
+  assert.equal(f.bars, 2);
+  assert.ok(approx(f.deltaSec, -2.0));
+});
+
+test('écart inférieur à un échantillon (44,1 kHz) : considéré exact', () => {
+  const f = fitSampleToGrid(4.0 + 0.00001, 4.0); // +10 µs < 1/44100 s ≈ 22,7 µs
+  assert.equal(f.mode, 'exact');
+});
+
+test('durées invalides : pas de modification', () => {
+  const f = fitSampleToGrid(0, 4.0);
+  assert.equal(f.mode, 'exact');
+  assert.equal(f.periodSec, 0);
+  const g = fitSampleToGrid(2.0, 0);
+  assert.equal(g.mode, 'exact');
 });
