@@ -517,6 +517,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               sample du nouveau tempo (ou la boucle se coupe s'il n'y en a pas). Le{' '}
               <b className="text-emerald-400">verrou 🔒</b> mémorise le décalage POUR CE SAMPLE (préférence
               globale, retrouvée à chaque sélection — le spinner se grise tant qu'il est verrouillé).
+              Le décalage est <b className="text-white">sauvegardé avec le projet</b> (Save/Load/auto-sauvegarde,
+              si le sample est actif) et <b className="text-white">restauré automatiquement</b> au chargement :
+              la position du fichier prime sur la préférence locale — elle est appliquée dès la lecture,
+              sans avoir à re-cliquer Stop.
               À l'<b className="text-white">extraction</b> (Extract Wav), le sample est <b className="text-white">MIXÉ</b> au
               morceau (mêmes volume et décalage que la lecture) : le WAV extrait reflète exactement ce
               qu'on entend — mention « sample inclus » dans le statut. (Seul le clic en mode « Sortie », joué

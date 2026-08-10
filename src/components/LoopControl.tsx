@@ -77,6 +77,23 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
   const beatsPerMes = parseInt(sig.split('/')[0] || '4', 10) || 4;
   const mesures = duration ? Math.max(1, Math.round((duration * tempo) / 60 / beatsPerMes)) : null;
 
+  // OFFSET MÉMORISÉ (🔒) : appliqué uniquement quand l'UTILISATEUR change de
+  // sample (sélecteur, rebasculage tempo, activation). Un CHARGEMENT de
+  // projet restaure l'offset STOCKÉ DANS LE FICHIER sans être écrasé par la
+  // préférence locale — le décalage sauvegardé est donc appliqué d'office,
+  // sans avoir à re-cliquer Stop/Play.
+  const applySamplePreference = (sample: string) => {
+    onChange({ sample });
+    const mem = memOffsets[sample];
+    if (mem !== undefined) {
+      onChange({ offsetMs: mem });
+      setLocked(true);
+    } else {
+      onChange({ offsetMs: 0 });
+      setLocked(false);
+    }
+  };
+
   // REBASCLAGE au changement de tempo : le sample courant doit appartenir au
   // bucket du tempo actif. Sinon → bascule sur le premier du nouveau tempo,
   // ou désactive la boucle si aucun sample n'existe pour ce tempo.
@@ -84,27 +101,19 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
     if (!cfg.enabled || !cfg.sample) return;
     if (sampleBelongsToTempo(cfg.sample, tempo, bucket)) return;
     if (bucket.length > 0) {
-      onChange({ sample: `${bucket[0]}_${tempo}.wav` });
+      applySamplePreference(`${bucket[0]}_${tempo}.wav`);
     } else {
       onChange({ enabled: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tempo, cfg.enabled, cfg.sample]);
 
-  // OFFSET MÉMORISÉ : au changement de sample, restaurer sa préférence
-  // (verrouillé) — ou repartir de 0 si le sample n'en a jamais eu.
+  // Verrou UI : suit le sample courant. Si l'offset actuel n'est pas la
+  // préférence verrouillée de ce sample (ex. offset chargé depuis un projet),
+  // le slider reste actif — on ne grise que ce qui est réellement verrouillé.
   useEffect(() => {
     if (!cfg.sample) return;
-    const mem = memOffsets[cfg.sample];
-    if (mem !== undefined && cfg.offsetMs !== mem) {
-      onChange({ offsetMs: mem });
-      setLocked(true);
-    } else if (mem === undefined && cfg.offsetMs !== 0) {
-      onChange({ offsetMs: 0 }); // sample sans préférence → neutre
-      setLocked(false);
-    } else {
-      setLocked(mem !== undefined);
-    }
+    setLocked(memOffsets[cfg.sample] === cfg.offsetMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg.sample]);
 
@@ -134,7 +143,8 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
         onClick={() => {
           if (!cfg.enabled && !cfg.sample && bucket.length > 0) {
             // Premier activage : pré-sélectionne le premier sample du tempo
-            onChange({ enabled: true, sample: `${bucket[0]}_${tempo}.wav` });
+            applySamplePreference(`${bucket[0]}_${tempo}.wav`);
+            onChange({ enabled: true });
           } else {
             onChange({ enabled: !cfg.enabled });
           }
@@ -160,7 +170,7 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
       {bucket.length > 0 && (
         <select
           value={cfg.sample || `${bucket[0]}_${tempo}.wav`}
-          onChange={(e) => onChange({ sample: e.target.value })}
+          onChange={(e) => applySamplePreference(e.target.value)}
           title={`Sample à ${tempo} BPM (dossier ~/samples/drums/)`}
           className="bg-gray-800 text-emerald-400 text-[10px] px-1.5 py-1 rounded border border-gray-700 outline-none max-w-[110px]"
         >
