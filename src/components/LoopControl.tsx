@@ -44,12 +44,16 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
   const [memOffsets, setMemOffsets] = useState<Record<string, number>>(() => loadSampleOffsets());
   /** Verrou : quand actif, le spinner est grisé et la valeur est mémorisée. */
   const [locked, setLocked] = useState(false);
+  /** Vrai quand /samples-list a répondu — évite de « rebasculer » (ou pire,
+   * de DÉSACTIVER) la boucle restaurée tant que le bucket du tempo est vide
+   * (course au montage : le fetch part après le premier render). */
+  const [samplesLoaded, setSamplesLoaded] = useState(false);
 
   useEffect(() => {
     fetch(`${backendUrl()}/samples-list`)
       .then((r) => r.json())
-      .then((d) => setSamples(d || {}))
-      .catch(() => {});
+      .then((d) => { setSamples(d || {}); setSamplesLoaded(true); })
+      .catch(() => setSamplesLoaded(true));
   }, []);
 
   // Mesure la durée du sample sélectionné (décodage du fichier réel)
@@ -98,6 +102,7 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
   // bucket du tempo actif. Sinon → bascule sur le premier du nouveau tempo,
   // ou désactive la boucle si aucun sample n'existe pour ce tempo.
   useEffect(() => {
+    if (!samplesLoaded) return; // liste pas encore là → ne rien décider
     if (!cfg.enabled || !cfg.sample) return;
     if (sampleBelongsToTempo(cfg.sample, tempo, bucket)) return;
     if (bucket.length > 0) {
@@ -106,7 +111,7 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
       onChange({ enabled: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tempo, cfg.enabled, cfg.sample]);
+  }, [tempo, cfg.enabled, cfg.sample, samplesLoaded]);
 
   // Verrou UI : suit le sample courant. Si l'offset actuel n'est pas la
   // préférence verrouillée de ce sample (ex. offset chargé depuis un projet),
