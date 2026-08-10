@@ -13,7 +13,7 @@
  *    sinon l'ancien fichier serait rejoué — bug corrigé 2026-08-08)
  *  - badge durée réelle + nombre de mesures (décodé depuis le fichier)
  *  - volume
- *  - DÉCALAGE DE PHASE −200..+200 ms (slider + champ + ±1/±10 ms) appliqué
+ *  - DÉCALAGE DE PHASE −2000..+2000 ms (slider + champ + ±1/±10 ms) appliqué
  *    EN DIRECT pendant la lecture ; chaque sample garde sa préférence
  *    mémorisée via le VERROU 🔒 (spinner grisé quand verrouillé).
  */
@@ -21,7 +21,7 @@ import { Lock, Unlock, Music } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { backendUrl } from '../lib/chordUtils';
 import type { SampleLoopCfg } from '../lib/browserSynth';
-import { sampleBelongsToTempo, fitSampleToGrid, measureDurationSec } from '../lib/sampleLoop';
+import { sampleBelongsToTempo, fitSampleToGrid, measureDurationSec, SAMPLE_OFFSET_MIN, SAMPLE_OFFSET_MAX } from '../lib/sampleLoop';
 import { loadSampleOffsets, saveSampleOffsets } from '../lib/sampleOffsets';
 
 interface LoopControlProps {
@@ -223,7 +223,7 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
       )}
 
       {/* Décalage de phase — appliqué EN DIRECT pendant la lecture. Plage
-          −200..+200 ms : POSITIF si le sample tombe en AVANCE (le reculer),
+          −2000..+2000 ms : POSITIF si le sample tombe en AVANCE (le reculer),
           NÉGATIF s'il tombe en RETARD (le tirer en arrière). Grisé quand le
           verrou 🔒 est actif (valeur mémorisée pour ce sample). */}
       {cfg.enabled && (
@@ -237,38 +237,38 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
         >
           <span className="text-[10px] text-gray-400">Décalage</span>
           <input
-            type="range" min={-200} max={200} step={1} value={cfg.offsetMs}
+            type="range" min={SAMPLE_OFFSET_MIN} max={SAMPLE_OFFSET_MAX} step={1} value={cfg.offsetMs}
             disabled={locked}
             onChange={(e) => onChange({ offsetMs: parseInt(e.target.value) })}
             className="w-20 accent-emerald-500"
           />
           <input
-            type="number" min={-200} max={200} step={1} value={cfg.offsetMs}
+            type="number" min={SAMPLE_OFFSET_MIN} max={SAMPLE_OFFSET_MAX} step={1} value={cfg.offsetMs}
             disabled={locked}
-            onChange={(e) => onChange({ offsetMs: Math.max(-200, Math.min(200, parseInt(e.target.value) || 0)) })}
+            onChange={(e) => onChange({ offsetMs: Math.max(SAMPLE_OFFSET_MIN, Math.min(SAMPLE_OFFSET_MAX, parseInt(e.target.value) || 0)) })}
             className="w-11 bg-gray-800 text-emerald-300 text-xs rounded-md px-1 py-1 border border-gray-700 text-center disabled:opacity-60"
           />
           <span className="text-[10px] text-gray-500">ms</span>
           <button
-            onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 10) })}
+            onClick={() => onChange({ offsetMs: Math.max(SAMPLE_OFFSET_MIN, cfg.offsetMs - 10) })}
             disabled={locked}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="−10 ms"
           >−10</button>
           <button
-            onClick={() => onChange({ offsetMs: Math.max(-200, cfg.offsetMs - 1) })}
+            onClick={() => onChange({ offsetMs: Math.max(SAMPLE_OFFSET_MIN, cfg.offsetMs - 1) })}
             disabled={locked}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="−1 ms"
           >−1</button>
           <button
-            onClick={() => onChange({ offsetMs: Math.min(200, cfg.offsetMs + 1) })}
+            onClick={() => onChange({ offsetMs: Math.min(SAMPLE_OFFSET_MAX, cfg.offsetMs + 1) })}
             disabled={locked}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="+1 ms"
           >+1</button>
           <button
-            onClick={() => onChange({ offsetMs: Math.min(200, cfg.offsetMs + 10) })}
+            onClick={() => onChange({ offsetMs: Math.min(SAMPLE_OFFSET_MAX, cfg.offsetMs + 10) })}
             disabled={locked}
             className="px-1.5 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 disabled:opacity-40"
             title="+10 ms"

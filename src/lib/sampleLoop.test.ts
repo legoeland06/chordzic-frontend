@@ -65,12 +65,12 @@ test('durée invalide (0 ou négative) : retourne 0', () => {
 
 // ─── clampSampleOffset ─────────────────────────────────────────────────
 
-test('clamp : borne dans [−200, +200]', () => {
+test('clamp : borne dans [−2000, +2000]', () => {
   assert.equal(clampSampleOffset(0), 0);
-  assert.equal(clampSampleOffset(200), 200);
-  assert.equal(clampSampleOffset(-200), -200);
-  assert.equal(clampSampleOffset(250), 200);
-  assert.equal(clampSampleOffset(-250), -200);
+  assert.equal(clampSampleOffset(2000), 2000);
+  assert.equal(clampSampleOffset(-2000), -2000);
+  assert.equal(clampSampleOffset(2500), 2000);
+  assert.equal(clampSampleOffset(-2500), -2000);
   assert.equal(clampSampleOffset(42), 42);
 });
 
@@ -80,8 +80,8 @@ test('clamp : valeurs non finies → 0', () => {
 });
 
 test('bornes exportées cohérentes', () => {
-  assert.equal(SAMPLE_OFFSET_MIN, -200);
-  assert.equal(SAMPLE_OFFSET_MAX, 200);
+  assert.equal(SAMPLE_OFFSET_MIN, -2000);
+  assert.equal(SAMPLE_OFFSET_MAX, 2000);
 });
 
 test('volume par défaut DOUX (samples plus faibles que FluidSynth)', () => {

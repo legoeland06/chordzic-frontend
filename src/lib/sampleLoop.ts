@@ -8,8 +8,8 @@
  */
 
 /** Borne du décalage de phase (ms) : −200..+200. */
-export const SAMPLE_OFFSET_MIN = -200;
-export const SAMPLE_OFFSET_MAX = 200;
+export const SAMPLE_OFFSET_MIN = -2000;
+export const SAMPLE_OFFSET_MAX = 2000;
 
 /** Volume par défaut du sample (0-100) — volontairement DOUX (55 ≈ −3 dB
  * vs 80) : les samples bruts sont souvent plus forts que le rendu
