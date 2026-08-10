@@ -85,8 +85,8 @@ export class BrowserSynth {
   /** Sample RECADRÉ sur la grille (coupé ou complété par du silence) — c'est
    * CE buffer qui est bouclé, pour que chaque période soit un multiple exact
    * de la mesure et que le sample ne dérive jamais du métronome.
-   * Cache clé par (nom du sample, période cible). */
-  private _alignedSample: { name: string; periodSec: number; buffer: AudioBuffer } | null = null;
+   * Cache clé par (nom du sample, période cible, sampleRate). */
+  private _alignedSample: { name: string; periodSec: number; sampleRate: number; buffer: AudioBuffer } | null = null;
 
   get isPlaying() { return this._playing; }
 
@@ -188,6 +188,7 @@ export class BrowserSynth {
     if (
       this._alignedSample &&
       this._alignedSample.name === cfg.sample &&
+      this._alignedSample.sampleRate === ctx.sampleRate &&
       Math.abs(this._alignedSample.periodSec - fit.periodSec) < 1e-9
     ) {
       return this._alignedSample.buffer; // cache valide
@@ -195,6 +196,7 @@ export class BrowserSynth {
     this._alignedSample = {
       name: cfg.sample,
       periodSec: fit.periodSec,
+      sampleRate: ctx.sampleRate,
       buffer: buildAlignedBuffer(ctx, buf, fit.periodSec),
     };
     return this._alignedSample.buffer;
