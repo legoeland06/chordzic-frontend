@@ -92,14 +92,32 @@ export class BrowserSynth {
 
   /** Configure la boucle sample. Pendant la lecture, un changement (offset,
    * volume, sample, toggle) est appliqué IMMÉDIATEMENT : la boucle est
-   * recalculée à la bonne phase — vérification en direct à l'oreille. */
+   * recalculée à la bonne phase — vérification en direct à l'oreille.
+   * À l'arrêt, le sample est PRÉ-CHARGÉ en arrière-plan (cache chaud) : le
+   * premier Play part sans latence de fetch → le sample démarre calé. */
   setSampleLoop(cfg: SampleLoopCfg | null) {
     this._sampleLoop = cfg;
     if (cfg && cfg.enabled && cfg.sample) {
-      if (this._playing) this._syncSampleLoop();
+      if (this._playing) {
+        this._syncSampleLoop();
+      } else {
+        this._preloadSample(cfg.sample);
+      }
     } else {
       this._stopSampleLoop();
     }
+  }
+
+  /** Charge le sample en cache sans le jouer (premier Play sans latence). */
+  private _preloadSample(name: string) {
+    if (this._sampleBuffer && this._lastSampleName === name) return; // déjà chaud
+    void (async () => {
+      const buf = await this._loadSample(name);
+      if (buf) {
+        this._sampleBuffer = buf;
+        this._lastSampleName = name;
+      }
+    })();
   }
 
   /** Charge (et met en cache) le fichier sample depuis le backend. */
@@ -157,8 +175,14 @@ export class BrowserSynth {
       // de la mesure (coupe si le sample est trop long, silence si trop court)
       // → le sample ne dérive JAMAIS du métronome, même sur 100 mesures.
       const aligned = this._getAlignedSample(cfg, buf, ctx);
+      // ⚠️ Position RE-CAPTURÉE après le chargement du sample : le fetch +
+      // décodage peuvent prendre 100-300 ms — utiliser la position d'avant
+      // démarrait le sample en RETARD (décalage faux au premier Play, qui
+      // disparaissait après un Stop/Play une fois le cache chaud).
+      const posNow = this.getPositionRaw();
+      if (posNow < 0) return;
       // Phase cible : position du morceau + offset (modulo la période recadrée)
-      const startPos = computeSamplePhase(pos, cfg.offsetMs, aligned.duration);
+      const startPos = computeSamplePhase(posNow, cfg.offsetMs, aligned.duration);
       this._stopSampleLoop();
       const gain = ctx.createGain();
       gain.gain.value = cfg.volume / 100;
