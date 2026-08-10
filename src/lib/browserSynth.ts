@@ -87,6 +87,10 @@ export class BrowserSynth {
    * de la mesure et que le sample ne dérive jamais du métronome.
    * Cache clé par (nom du sample, période cible, sampleRate). */
   private _alignedSample: { name: string; periodSec: number; sampleRate: number; buffer: AudioBuffer } | null = null;
+  /** Génération de la config boucle : incrémentée à CHAQUE setSampleLoop.
+   * Un _syncSampleLoop lancé avec une ancienne génération abandonne après
+   * son await (fetch) — un changement de config plus récent a gagné. */
+  private _sampleLoopGen = 0;
 
   get isPlaying() { return this._playing; }
 
@@ -97,6 +101,7 @@ export class BrowserSynth {
    * premier Play part sans latence de fetch → le sample démarre calé. */
   setSampleLoop(cfg: SampleLoopCfg | null) {
     this._sampleLoop = cfg;
+    this._sampleLoopGen++; // invalide tout _syncSampleLoop en cours
     if (cfg && cfg.enabled && cfg.sample) {
       if (this._playing) {
         this._syncSampleLoop();
@@ -149,8 +154,9 @@ export class BrowserSynth {
   /** (Re)synchronise la boucle sample sur la position courante du morceau.
    * Appelé après chaque (re)création de la source WAV (play, reprise, scrub)
    * et à chaque changement de config pendant la lecture. La phase jouée est
-   * `position_du_morceau + offset` (modulo la durée du sample) → l'offset
-   * décale la boucle en direct, exactement comme le décalage du clic. */
+   * `position_du_morceau + offset` (modulo la période de boucle, brute ou
+   * recadrée) → l'offset décale la boucle en direct, exactement comme le
+   * décalage du clic. */
   private _syncSampleLoop() {
     const cfg = this._sampleLoop;
     const ctx = this.audioCtx;
@@ -158,6 +164,7 @@ export class BrowserSynth {
       this._stopSampleLoop();
       return;
     }
+    const gen = this._sampleLoopGen; // config capturée pour ce cycle
     const pos = this.getPositionRaw();
     if (pos < 0) return;
     void (async () => {
@@ -169,8 +176,12 @@ export class BrowserSynth {
         }
         this._lastSampleName = cfg.sample;
       }
+      // Abandonner si la config a changé pendant le fetch (un cycle plus
+      // récent est en cours — il créera sa propre source) ou si la lecture
+      // s'est arrêtée entre-temps.
+      if (gen !== this._sampleLoopGen || !this._playing) return;
       const buf = this._sampleBuffer;
-      if (!buf || !this._playing) return;
+      if (!buf) return;
       // Recadrage sur la grille : la période de boucle est un multiple ENTIER
       // de la mesure (coupe si le sample est trop long, silence si trop court)
       // → le sample ne dérive JAMAIS du métronome, même sur 100 mesures.

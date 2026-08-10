@@ -189,3 +189,77 @@ test('durées invalides : pas de modification', () => {
   const g = fitSampleToGrid(2.0, 0);
   assert.equal(g.mode, 'exact');
 });
+
+// ─── fitSampleToGrid : cas limites ────────────────────────────────────
+
+test('sample de DEMI-mesure (2 s, mesure 4 s) : période 1 mesure, pad 2 s', () => {
+  // round(0,5) = 1 → le sample est répété 1× par mesure, moitié silence
+  const f = fitSampleToGrid(2.0, 4.0);
+  assert.equal(f.mode, 'pad');
+  assert.equal(f.bars, 1);
+  assert.ok(approx(f.periodSec, 4.0));
+  assert.ok(approx(f.deltaSec, -2.0));
+});
+
+test('sample entre 1 et 2 mesures (5,96 s, mesure 4 s) : coupé à 1 mesure', () => {
+  // round(1,49) = 1 → le multiple le plus proche gagne (coupe 1,96 s)
+  const f = fitSampleToGrid(5.96, 4.0);
+  assert.equal(f.mode, 'cut');
+  assert.equal(f.bars, 1);
+  assert.ok(approx(f.periodSec, 4.0));
+  assert.ok(approx(f.deltaSec, 1.96));
+});
+
+test('sample très long (401,6 s, mesure 4 s) : 100 mesures, coupe 1,6 s', () => {
+  const f = fitSampleToGrid(401.6, 4.0);
+  assert.equal(f.mode, 'cut');
+  assert.equal(f.bars, 100);
+  assert.ok(approx(f.periodSec, 400.0));
+  assert.ok(approx(f.deltaSec, 1.6));
+});
+
+test('sample très long, léger excès sous la tolérance : exact', () => {
+  // 400 s + 10 µs < 1/44100 s → considéré parfait (aucune recopie massive)
+  const f = fitSampleToGrid(400.00001, 4.0);
+  assert.equal(f.mode, 'exact');
+  assert.ok(approx(f.periodSec, 400.00001));
+});
+
+test('période toujours ≥ 1 mesure et multiple strict de la mesure', () => {
+  for (const s of [0.1, 0.9, 1.0, 2.5, 3.999, 4.001, 8.0, 20.0, 1000.0]) {
+    const f = fitSampleToGrid(s, 4.0);
+    assert.ok(f.bars >= 1, `bars=${f.bars} pour sample=${s}`);
+    const attendu = f.bars * 4.0;
+    assert.ok(
+      approx(f.periodSec, attendu) || f.mode === 'exact',
+      `période ${f.periodSec} ≠ ${attendu} (mode ${f.mode}) pour sample=${s}`,
+    );
+  }
+});
+
+// ─── measureDurationSec : cas limites ──────────────────────────────────
+
+test('tempo et beatsPerBar négatifs → repli sain (4/4 à 120)', () => {
+  assert.ok(approx(measureDurationSec(-120, 4), 2.0));
+  assert.ok(approx(measureDurationSec(120, -4), 2.0));
+  assert.ok(approx(measureDurationSec(Number.NEGATIVE_INFINITY, 4), 2.0));
+});
+
+test('beatsPerBar fractionnaire → tronqué (3,7 temps → 3 temps)', () => {
+  assert.ok(approx(measureDurationSec(120, 3.7), 1.5));
+});
+
+// ─── computeSamplePhase : période RECADRÉE (alignement grille) ─────────
+
+test('phase calculée modulo la PÉRIODE fournie (pas la durée brute)', () => {
+  // Période recadrée 4 s alors que le sample brut dure 4,05 s : la phase
+  // utilisée par le moteur est modulo 4 s (le buffer joué est le recadré).
+  assert.ok(approx(computeSamplePhase(4.1, 0, 4.0), 0.1));
+  assert.ok(approx(computeSamplePhase(4.1, -200, 4.0), 3.9));
+});
+
+test('phase indépendante du contexte de grille quand période = durée brute', () => {
+  // Cohérence lecture/extraction : même position, même offset, même période
+  // → même phase, que la période soit la durée brute ou un multiple exact.
+  assert.ok(approx(computeSamplePhase(12.345, 37, 4.0), computeSamplePhase(12.345, 37, 4.0)));
+});

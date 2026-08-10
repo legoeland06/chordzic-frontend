@@ -177,7 +177,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Analyser" v="Parse immédiatement la grille (l'analyse est sinon automatique ~0,6 s après la frappe)." />
             <Row k="▶ Jouer" v="Lance la lecture de la grille entière (désactivé si la grille est vide)." />
             <Row k="■ Stop" v="Arrête la lecture." />
-            <Row k="Extract Wav" v="Télécharge le dernier rendu WAV (mode 📱 Navig.) en fichier .wav." />
+            <Row k="Extract Wav" v="Télécharge le dernier rendu WAV (mode 📱 Navig.) en fichier .wav — la boucle sample active y est MIXÉE (mention « sample inclus » dans le statut)." />
             <Row k="🗑 Effacer" v="Arrête et vide la grille." />
             <Row k="💾 Save / 📂 Load" v="Sauvegarde / charge une grille sur le serveur (fichier JSON)." />
             <Row k="📤 / 📥" v="Exporte la grille en fichier JSON / importe un fichier JSON." />
@@ -234,8 +234,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               décale la phase de la boucle <b className="text-white">EN DIRECT pendant la lecture</b> :
               tournez-le jusqu'à ce que le sample tombe pile sur les temps — vérification immédiate à
               l'oreille, comme le décalage du clic. La config est sauvegardée avec le projet
-              (Save/Load/auto-sauvegarde). Note : la boucle est jouée en parallèle par le navigateur —
-              elle n'est pas incluse dans le WAV extrait (comme le clic en mode « Sortie »).
+              (Save/Load/auto-sauvegarde) et l'offset du fichier est restauré automatiquement au
+              chargement. Note : à l'extraction (Extract Wav), la boucle est MIXÉE au morceau — le WAV
+              extrait reflète la lecture (seul le clic en mode « Sortie » en est absent).
             </p>
           </Section>
 

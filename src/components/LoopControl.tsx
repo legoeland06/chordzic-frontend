@@ -80,6 +80,12 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
   const bucket = samples[String(tempo)] || [];
   const beatsPerMes = parseInt(sig.split('/')[0] || '4', 10) || 4;
   const mesures = duration ? Math.max(1, Math.round((duration * tempo) / 60 / beatsPerMes)) : null;
+  // Recadrage automatique du sample sur la grille (badge ✂ / +) : la période
+  // de boucle est forcée à un multiple entier de la mesure — coupée si le
+  // sample est trop long, complétée par du silence s'il est trop court.
+  const fit = duration
+    ? fitSampleToGrid(duration, measureDurationSec(tempo, beatsPerMes))
+    : null;
 
   // OFFSET MÉMORISÉ (🔒) : appliqué uniquement quand l'UTILISATEUR change de
   // sample (sélecteur, rebasculage tempo, activation). Un CHARGEMENT de
@@ -185,13 +191,24 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
         </select>
       )}
 
-      {/* Badge durée réelle + mesures */}
+      {/* Badge durée réelle + mesures + recadrage auto sur la grille.
+          Le recadrage est appliqué à la lecture ET à l'extraction WAV : le
+          sample ne dérive jamais du métronome (période = multiple entier de
+          la mesure). L'ajustement (coupe ✂ / silence +) est affiché en ms. */}
       {cfg.enabled && duration !== null && (
         <span
           className="text-[9px] text-gray-500 font-mono shrink-0"
-          title={`Durée réelle du sample : ${duration.toFixed(2)} s — environ ${mesures} mesure(s) à ${tempo} BPM en ${sig}`}
+          title={`Durée réelle du sample : ${duration.toFixed(2)} s — environ ${mesures} mesure(s) à ${tempo} BPM en ${sig}. ${
+            fit && fit.mode !== 'exact'
+              ? `Recadrage auto sur la grille : période ${fit.periodSec.toFixed(2)} s (${fit.bars} mesure${fit.bars > 1 ? 's' : ''}) — ${
+                  fit.mode === 'cut' ? `coupé de ${Math.round(fit.deltaSec * 1000)} ms` : `${Math.round(-fit.deltaSec * 1000)} ms de silence ajoutés`
+                }.`
+              : 'Le sample est déjà aligné sur la grille (aucun ajustement).'
+          }`}
         >
           {duration.toFixed(1)}s·{mesures}mes
+          {fit && fit.mode === 'cut' && <span className="text-amber-400">·✂−{Math.round(fit.deltaSec * 1000)}ms</span>}
+          {fit && fit.mode === 'pad' && <span className="text-sky-400">·+{Math.round(-fit.deltaSec * 1000)}ms</span>}
         </span>
       )}
 

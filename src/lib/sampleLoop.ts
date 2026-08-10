@@ -1,8 +1,10 @@
 /**
  * sampleLoop.ts — fonctions pures de la boucle sample (mode Navig).
  *
- * Séparées du moteur Web Audio pour être testables unitairement
- * (notamment le calcul de phase avec décalage NÉGATIF).
+ * Séparées du moteur Web Audio pour être testables unitairement :
+ *  - calcul de phase avec décalage NÉGATIF (double modulo) ;
+ *  - alignement sur la grille : durée d'une mesure, période de boucle
+ *    « parfaite » (multiple entier de la mesure — coupe ou silence).
  */
 
 /** Borne du décalage de phase (ms) : −200..+200. */
@@ -35,9 +37,11 @@ export function clampSampleOffset(ms: number): number {
  * Position de lecture dans le sample (secondes) pour la position courante
  * du morceau et un décalage de phase donné.
  *
- * `phase = (position_du_morceau + décalage) mod durée_du_sample`
+ * `phase = (position_du_morceau + décalage) mod durée_de_la_période`
  * — le double modulo garantit un résultat dans [0, durée) même pour un
  * décalage NÉGATIF (le sample est tiré en arrière dans le temps).
+ * `durationSec` est la PÉRIODE de boucle effective : durée brute du sample
+ * s'il est déjà aligné, ou période recadrée (voir fitSampleToGrid) sinon.
  */
 export function computeSamplePhase(
   positionSec: number,
