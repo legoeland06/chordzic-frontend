@@ -17,6 +17,15 @@ mixage et export audio.
 - 6 patterns batterie, walking bass, pompe skank, accent 2&4
 - Mode serveur (MIDI → FluidSynth) et mode Navigateur (Web Audio)
 
+![Grille d'accords en mode Live](screenshots/grille_accords_texte_modeLive.png)
+*Grille d'accords en saisie texte (mode Live)*
+
+![Panneau de liste d'accords en mode Live](screenshots/panelChordList_modeLive.png)
+*Panneau de sélection des accords (mode Live)*
+
+![Panneau de contrôle en mode Navigateur](screenshots/controlPanel_modeNavig.png)
+*Panneau de contrôle (mode Navigateur)*
+
 ### Pistes & piano rolls
 - Pistes 🎹 instrument et 🥁 **drums** (jouées sur le canal 9)
 - Piano roll par piste : notes, sélection, groupes ⛓, déplacement, zoom
@@ -25,10 +34,19 @@ mixage et export audio.
   emplacements sur une autre piste, avec confirmation et fusion annulable Ctrl+Z)
 - Suppression de piste avec confirmation obligatoire
 
+![Vue piste en mode Navigateur](screenshots/trackView_modeNavig.png)
+*Vue d'une piste (mode Navigateur)*
+
+![Liste des pistes en mode Live](screenshots/controlPanel_trackListe_modeLive.png)
+*Liste des pistes avec contrôle (mode Live)*
+
 ### Table de mixage
 - Volume, mute, sélecteur d'instrument par piste
 - Réordonnancement des pistes, mini-vumètres
 - Indicateur 💾 d'autosave
+
+![Table de mixage en mode Navigateur](screenshots/controlPanel_tableMixage_modeNavig.png)
+*Panneau de contrôle et table de mixage (mode Navigateur)*
 
 ### Samples (boucles)
 - Boucle d'échantillon par piste : volume, **offset/décalage** mémorisés par sample
@@ -43,6 +61,12 @@ mixage et export audio.
   — F5 ne perd rien, restauration automatique au chargement
 - Save / Load / Import côté serveur (archives)
 - Préférences locales (offset sample, click…) persistées par sample
+
+### Post-production
+- Vue de post-production pour l'assemblage et l'édition des rendus
+
+![Modal de post-production](screenshots/modal_modProd.png)
+*Modal de post-production*
 
 ### Aide intégrée
 - Bouton ❓ → **HelpModal** : documentation utilisateur complète, mise à jour à chaque release
