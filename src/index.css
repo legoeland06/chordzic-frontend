@@ -1,34 +1,84 @@
 @import "tailwindcss";
 
 /* ── Barre d'outils du PianoRoll intégré (mode Navig, zone transport) ──
-   Police et paddings réduits pour tout faire tenir dans la barre. */
+   Style « studio » : icônes vectorielles, groupes séparés par des filets,
+   boutons carrés compacts, états actifs colorés (esprit Cubase/Pro Tools). */
 .pianoroll-toolbar-embedded {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 2px 8px;
-  padding: 2px 8px;
+  gap: 0;
+  padding: 3px 8px;
   font-size: 9px;
   color: #6b7280;
-  background: #0e1016;
-  border-bottom: 1px solid #1f2937;
+  background: #0d1117;
+  border-bottom: 1px solid #1f2733;
   max-height: 140px;
   overflow-y: auto;
+  overflow-x: auto;
 }
-.pianoroll-toolbar-embedded button {
-  padding: 1px 6px !important;
-  font-size: 9px !important;
-  border-radius: 3px !important;
-  line-height: 1.2;
+.pianoroll-toolbar-embedded .pr-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.pianoroll-toolbar-embedded .pr-sep {
+  width: 1px;
+  height: 16px;
+  background: #242c3a;
+  margin: 0 7px;
+  flex-shrink: 0;
+}
+.pianoroll-toolbar-embedded .pr-tbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  border-radius: 4px;
+  background: transparent;
+  color: #8a94a6;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.pianoroll-toolbar-embedded .pr-tbtn:hover {
+  background: #1a2230;
+  color: #c6d2e0;
+}
+.pianoroll-toolbar-embedded .pr-tbtn.active {
+  background: #1f3a5f;
+  color: #9cc4f0;
+  border-color: #2f5a8f;
+}
+.pianoroll-toolbar-embedded .pr-tbtn.disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.pianoroll-toolbar-embedded .pr-lbl {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #55606e;
+  margin: 0 2px;
+}
+.pianoroll-toolbar-embedded .pr-val {
+  font-size: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #9aa4b5;
+  min-width: 14px;
+  text-align: center;
+}
+.pianoroll-toolbar-embedded .pr-sliders input[type='range'] {
+  width: 42px;
+  height: 12px;
+  margin: 0 2px;
 }
 .pianoroll-toolbar-embedded select {
-  font-size: 9px !important;
-  padding: 0 4px !important;
-}
-.pianoroll-toolbar-embedded input[type='range'] {
-  width: 44px !important;
-  height: 12px;
-}
-.pianoroll-toolbar-embedded span {
-  font-size: 9px !important;
+  background: #131a24;
+  color: #9aa4b5;
+  font-size: 9px;
+  border: 1px solid #263040;
+  border-radius: 3px;
+  padding: 1px 3px;
 }

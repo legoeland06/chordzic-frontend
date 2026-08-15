@@ -21,6 +21,10 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup,
+} from 'lucide-react';
+import {
   PianoNote,
   DEFAULT_PIXELS_PER_BEAT,
   SNAP_UNIT,
@@ -1478,8 +1482,87 @@ export default function PianoRoll({
 
   /** Barre d'outils — en mode embarqué, rendue dans la zone transport de
    * DawView (portal vers #pianoroll-toolbar-slot) ; sinon rendue dans la modal. */
-  const renderToolbar = () => (
-    <div className={embedded ? 'pianoroll-toolbar-embedded' : 'px-3 sm:px-4 py-2 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[10px] text-gray-500 shrink-0'}>
+  const renderToolbar = () => {
+    // ── Mode embarqué : barre « studio » (icônes vectorielles, groupes
+    //    séparés par des filets, états actifs colorés — esprit Cubase/Pro Tools) ──
+    if (embedded) {
+      const btn = (active: boolean, disabled = false) =>
+        `pr-tbtn${active ? ' active' : ''}${disabled ? ' disabled' : ''}`;
+      return (
+        <div className="pianoroll-toolbar-embedded">
+          {/* Outils d'édition */}
+          <div className="pr-group">
+            <button className={btn(tool === 'edit')} onClick={() => setTool('edit')} title="Outil Édition — clic vide : créer · drag : déplacer · bord droit : redimensionner"><Pencil className="w-3 h-3" /></button>
+            <button className={btn(tool === 'select')} onClick={() => setTool('select')} title="Outil Sélection — clic : sélectionner · drag vide : plage · drag note : déplacer"><MousePointer2 className="w-3 h-3" /></button>
+          </div>
+          <div className="pr-sep" />
+          {/* Presse-papiers + édition */}
+          <div className="pr-group">
+            <button className={btn(false, notes.length === 0)} onClick={copySelection} title="Copier (Ctrl+C) — toute la piste si rien n'est sélectionné"><Copy className="w-3 h-3" /></button>
+            <button className={btn(false, selectedIds.size === 0)} onClick={() => { copySelection(); deleteSelection(); }} title="Couper (Ctrl+X)"><Scissors className="w-3 h-3" /></button>
+            <button className={btn(false, !clip)} onClick={pasteClipboard} title="Coller (Ctrl+V) — même piste : au clic · autre piste : mêmes emplacements"><ClipboardPaste className="w-3 h-3" /></button>
+            <button className={btn(false, selectedIds.size === 0)} onClick={deleteSelection} title="Supprimer la sélection (Suppr)"><Trash2 className="w-3 h-3" /></button>
+            <button className={btn(false, selectedIds.size < 2)} onClick={groupSelection} title="Grouper la sélection (déplace ensemble)"><Group className="w-3 h-3" /></button>
+            <button className={btn(false, selectedIds.size === 0)} onClick={ungroupSelection} title="Dégrouper"><Ungroup className="w-3 h-3" /></button>
+          </div>
+          <div className="pr-sep" />
+          {/* Vélocité / Durée */}
+          <div className="pr-group pr-sliders">
+            <span className="pr-lbl">Vel</span>
+            <input type="range" min={1} max={127} value={velValue}
+              onChange={(e) => applyVelocity(parseInt(e.target.value))}
+              onPointerDown={() => { velGestureActiveRef.current = true; velGestureRef.current = snapshotNotes(localNotesRef.current); }}
+              disabled={selectedIds.size === 0} className="accent-amber-400" title="Vélocité des notes sélectionnées" />
+            <span className="pr-val">{velValue}</span>
+            <span className="pr-lbl">Dur</span>
+            <input type="range" min={1} max={64} value={durSnaps}
+              onChange={(e) => applyDuration(parseInt(e.target.value))}
+              onPointerDown={() => { durGestureActiveRef.current = true; durGestureRef.current = snapshotNotes(localNotesRef.current); }}
+              disabled={selectedIds.size === 0} className="accent-sky-400" title="Durée des notes sélectionnées (subdivisions de grille)" />
+            <span className="pr-val">{durSnaps}</span>
+          </div>
+          <div className="pr-sep" />
+          {/* Snap + quantiser */}
+          <div className="pr-group">
+            <button className={btn(snapEnabled)} onClick={() => setSnapEnabled(s => !s)} title={snapEnabled ? 'Snap magnétique actif — cliquer pour libérer' : 'Snap libre — cliquer pour activer le magnétisme'}><Magnet className="w-3 h-3" /></button>
+            <select value={snapUnit} onChange={(e) => setSnapUnit(parseFloat(e.target.value))} title="Subdivision de la grille (1/32 → 1/1, triolets, sextolets)">
+              {SNAP_UNITS.map(u => (<option key={u} value={u}>1/{Math.round(1 / u)}</option>))}
+            </select>
+            <button className={btn(false, notes.length === 0)} onClick={quantizeNotes} title="Quantiser : aligne les notes sur la grille"><Grid3x3 className="w-3 h-3" /></button>
+          </div>
+          <div className="pr-sep" />
+          {/* Transport local */}
+          <div className="pr-group">
+            <button className={btn(pianoPlaying !== 'idle', !engine || (pianoPlaying === 'idle' && notes.length === 0))} onClick={togglePlay} title={pianoPlaying === 'playing' ? 'Pause (Espace)' : pianoPlaying === 'paused' ? 'Reprendre (Espace)' : 'Lecture de la piste (Espace)'}>
+              {pianoPlaying === 'playing' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            </button>
+          </div>
+          <div className="pr-sep" />
+          {/* Historique */}
+          <div className="pr-group">
+            <button className={btn(false, !canUndo)} onClick={undo} title="Annuler (Ctrl+Z)"><Undo2 className="w-3 h-3" /></button>
+            <button className={btn(false, !canRedo)} onClick={redo} title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)"><Redo2 className="w-3 h-3" /></button>
+          </div>
+          <div className="pr-sep" />
+          {/* Registre visible */}
+          <div className="pr-group pr-sliders">
+            <span className="pr-lbl">Reg</span>
+            <input type="range" min={0} max={127} value={userMinPitch}
+              onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
+              className="accent-blue-500" title="Bord bas du registre visible" />
+            <span className="pr-val">{pitchLabel(userMinPitch)}</span>
+            <span className="pr-lbl">→</span>
+            <input type="range" min={0} max={127} value={userMaxPitch}
+              onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
+              className="accent-blue-500" title="Bord haut du registre visible" />
+            <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
+          </div>
+        </div>
+      );
+    }
+    // ── Mode modal : rendu classique avec libellés ──
+    return (
+    <div className="px-3 sm:px-4 py-2 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[10px] text-gray-500 shrink-0">
       {/* Outils */}
       <div className="flex items-center gap-1.5">
         <button
@@ -1693,6 +1776,7 @@ export default function PianoRoll({
       </div>
     </div>
   );
+  };
 
   return (
     <div className={embedded ? 'w-full h-full flex flex-col bg-[#0e1016]' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70'}>
