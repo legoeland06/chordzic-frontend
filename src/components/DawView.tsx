@@ -390,9 +390,9 @@ export default function DawView({
   type PlayState = 'idle' | 'playing' | 'paused';
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [posBeats, setPosBeats] = useState(0);
-  /** Canaux dont la lane est AGRANDIE (mode détail : hauteur = notes,
-   * non tronquée). Par défaut : mode APERÇU (petite hauteur). */
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  /** Canal dont la lane est AGRANDIE (PianoRoll intégré). Une seule à la
+   * fois : la barre d'outils (dans la zone transport) pilote cette piste. */
+  const [expandedCh, setExpandedCh] = useState<number | null>(null);
   /** Table de mixage rétractable (comme modProd) — état local, ouvert par défaut. */
   const [mixerOpen, setMixerOpen] = useState(true);
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
@@ -610,11 +610,7 @@ export default function DawView({
   }, [playing]);
 
   const toggleExpanded = (ch: number) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(ch)) next.delete(ch); else next.add(ch);
-      return next;
-    });
+    setExpandedCh(prev => (prev === ch ? null : ch));
   };
 
   // ── Styles transport (tons sobres / studio) ─────────────────────
@@ -732,6 +728,13 @@ export default function DawView({
         </div>
       </div>
 
+      {/* Slot de la barre d'outils du PianoRoll intégré (rempli par portal
+          quand une piste est agrandie) — au-dessus de la table de mixage */}
+      <div
+        id="pianoroll-toolbar-slot"
+        className={expandedCh !== null ? 'border-b border-gray-800 bg-[#0e1016]' : 'hidden'}
+      />
+
       {/* ── Table de mixage (rétractable, comme modProd) ── */}
       <div className="mb-3 pb-3 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
@@ -834,7 +837,7 @@ export default function DawView({
           {/* Panneau GAUCHE fixe : chevron + nom + mini-vumètre (jamais déplacé par le zoom) */}
           <div className="shrink-0 w-[168px] border-r border-gray-800/80">
             {tracks.map((t, i) => {
-              const isExpanded = expanded.has(t.channel);
+              const isExpanded = expandedCh === t.channel;
               const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
               const isDragging = dragTrackIdx === i;
               return (
@@ -894,7 +897,7 @@ export default function DawView({
           <div ref={lanesScrollRef} className="overflow-x-auto flex-1 min-w-0">
             <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
               {tracks.map(t => {
-                const isExpanded = expanded.has(t.channel);
+                const isExpanded = expandedCh === t.channel;
                 const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
                 return (
                   <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
@@ -910,6 +913,7 @@ export default function DawView({
                         height={LANE_PIANOROLL_H}
                         tempo={tempo}
                         engine={engine}
+                        onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
                       />
                     ) : (
                       <TrackLane

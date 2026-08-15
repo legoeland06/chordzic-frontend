@@ -19,6 +19,7 @@
  */
 
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   PianoNote,
   DEFAULT_PIXELS_PER_BEAT,
@@ -1475,10 +1476,230 @@ export default function PianoRoll({
   }, [totalBeats, viewportW]);
   const contentWidth = totalBeats * effectivePixelsPerBeat + 200;
 
+  /** Barre d'outils — en mode embarqué, rendue dans la zone transport de
+   * DawView (portal vers #pianoroll-toolbar-slot) ; sinon rendue dans la modal. */
+  const renderToolbar = () => (
+    <div className={embedded ? 'pianoroll-toolbar-embedded' : 'px-3 sm:px-4 py-2 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[10px] text-gray-500 shrink-0'}>
+      {/* Outils */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setTool('edit')}
+          className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+          title="Mode édition : créer / déplacer / redimensionner"
+        >
+          {'\u270f'} Édition
+        </button>
+        <button
+          onClick={() => setTool('select')}
+          className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+          title="Mode sélection : clic = sélection, drag vide = plage, drag note = déplacer la sélection"
+        >
+          {'\ud83d\uddb1'} Sélection
+        </button>
+      </div>
+
+      {/* Vélocité de la sélection (toujours visible → layout stable :
+          le canvas ne bouge pas quand une sélection apparaît) */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-gray-400">Vel:</span>
+        <input
+          type="range" min={1} max={127} value={velValue}
+          onChange={(e) => applyVelocity(parseInt(e.target.value))}
+          onPointerDown={() => {
+            velGestureActiveRef.current = true;
+            velGestureRef.current = snapshotNotes(localNotesRef.current);
+          }}
+          disabled={selectedIds.size === 0}
+          className="w-24 sm:w-24 accent-amber-400 disabled:opacity-30"
+          title="Vélocité des notes sélectionnées"
+        />
+        <span className="text-gray-300 w-6">{velValue}</span>
+        <span className="text-gray-600 hidden sm:inline">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
+      </div>
+
+      {/* Durée de la sélection (même logique que la vélocité) */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-gray-400">Dur:</span>
+        <input
+          type="range" min={1} max={64} value={durSnaps}
+          onChange={(e) => applyDuration(parseInt(e.target.value))}
+          onPointerDown={() => {
+            durGestureActiveRef.current = true;
+            durGestureRef.current = snapshotNotes(localNotesRef.current);
+          }}
+          disabled={selectedIds.size === 0}
+          className="w-24 sm:w-24 accent-sky-400 disabled:opacity-30"
+          title={`Durée des notes sélectionnées, en subdivisions de la grille (1/${Math.round(1 / snapUnit)} chacune)`}
+        />
+        <span className="text-gray-300 w-8">{durSnaps}</span>
+      </div>
+
+      {/* Presse-papiers + suppression */}
+      <div className="flex items-center gap-1.5">
+        <span
+          className="text-yellow-300 font-mono min-w-[4.5rem] text-center hidden sm:inline"
+          title={firstSelected ? `Note sélectionnée : ${pitchLabel(firstSelected.pitch)}` : undefined}
+        >
+          {firstSelected ? `🎵 ${pitchLabel(firstSelected.pitch)}` : ''}
+        </span>
+        <button onClick={copySelection} disabled={notes.length === 0}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Copier la sélection — ou TOUTE la piste si rien n'est sélectionné (Ctrl+C). Les notes sont copiées à leurs positions exactes : un Ctrl+V dans une autre piste les colle aux mêmes emplacements.">{'\ud83d\udccb'} Copier</button>
+        <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Couper la sélection (Ctrl+X)">{'\u2702'} Couper</button>
+        <button onClick={pasteClipboard} disabled={!clip}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title={clip
+            ? `Coller ${clip.notes.length} note(s) de « ${clip.sourceLabel} » — même piste : à l'endroit du clic ; autre piste : aux mêmes emplacements (Ctrl+V)`
+            : 'Coller (Ctrl+V) — copiez d\'abord une sélection ou une piste (Ctrl+C)'}>{'\ud83d\udccc'} Coller</button>
+        {clip && (
+          <span
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-300 text-[10px] font-mono"
+            title={`Presse-papiers : ${clip.wholeTrack ? 'toute la piste' : 'sélection'} de « ${clip.sourceLabel} » (${clip.notes.length} note(s)) — collable dans une autre piste aux mêmes emplacements`}
+          >
+            {'\ud83d\udccb'} {clip.sourceLabel} · {clip.notes.length}
+            <button
+              onClick={clearClipboard}
+              className="ml-0.5 text-yellow-500 hover:text-white"
+              title="Vider le presse-papiers"
+            >✕</button>
+          </span>
+        )}
+        <button
+          onClick={deleteSelection}
+          disabled={selectedIds.size === 0}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 hover:bg-red-800 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Supprimer la sélection (Suppr)"
+        >
+          🗑 Supprimer
+        </button>
+        <button
+          onClick={groupSelection}
+          disabled={selectedIds.size < 2}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Grouper la sélection : un clic sur une note du groupe sélectionne tout le groupe, déplacer une note déplace tout le groupe"
+        >
+          {'\u26d3\ufe0f'} Grouper
+        </button>
+        <button
+          onClick={ungroupSelection}
+          disabled={selectedIds.size === 0}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Dégrouper les notes sélectionnées"
+        >
+          {'\u26d3\ufe0f'} Dégrouper
+        </button>
+      </div>
+
+      {/* Lecture locale de la piste */}
+      <div className="flex items-center gap-1">
+        <button
+          onClick={togglePlay}
+          disabled={!engine || (pianoPlaying === 'idle' && notes.length === 0)}
+          className="px-3 py-2 sm:px-2 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title={
+            pianoPlaying === 'playing' ? 'Pause (Espace)'
+            : pianoPlaying === 'paused' ? 'Reprendre (Espace)'
+            : 'Lecture de la piste (Espace)'
+          }
+        >
+          {pianoPlaying === 'playing' ? '⏸ Pause' : pianoPlaying === 'paused' ? '▶ Reprendre' : '▶ Lecture'}
+        </button>
+      </div>
+
+      {/* Subdivision de la grille (snap) */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setSnapEnabled(s => !s)}
+          className={`px-3 py-2 sm:px-2 sm:py-0.5 rounded border transition-colors text-xs sm:text-[10px] ${snapEnabled ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-gray-500'}`}
+          title={snapEnabled
+            ? "Snap magnétique actif : les notes s'alignent sur la grille. Cliquer pour libérer le placement (positions et durées libres)."
+            : "Snap libre : les notes se placent où vous voulez, sans magnétisme de grille. Cliquer pour réactiver le snap."}
+        >
+          {snapEnabled ? '🧲 Snap' : '✋ Libre'}
+        </button>
+        <span className="text-gray-400">Snap:</span>
+        <select
+          value={snapUnit}
+          onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
+          className="bg-gray-800 text-gray-300 text-xs sm:text-[10px] rounded border border-gray-700 px-2 py-2 sm:px-1 sm:py-0.5"
+          title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets. (Inactif en mode Libre.)"
+        >
+          {SNAP_UNITS.map(u => (
+            <option key={u} value={u}>1/{Math.round(1 / u)}</option>
+          ))}
+        </select>
+        <button
+          onClick={quantizeNotes}
+          disabled={notes.length === 0}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Quantiser : aligne les notes sélectionnées (ou toutes) sur la grille du snap courant"
+        >
+          🎯 Quantiser
+        </button>
+      </div>
+
+      {/* Historique */}
+      <div className="flex items-center gap-1.5">
+        <button onClick={undo} disabled={!canUndo}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Annuler (Ctrl+Z)">{'\u21a9'} Annuler</button>
+        <button onClick={redo} disabled={!canRedo}
+          className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
+          title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
+      </div>
+
+      {/* Registre visible : sliders bord bas / bord haut (écart min 1 octave) */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-gray-400">Reg:</span>
+        <input
+          type="range" min={0} max={127} value={userMinPitch}
+          onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
+          className="w-14 sm:w-20 accent-blue-500"
+          title="Bord bas du registre visible (plage grave)"
+        />
+        <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMinPitch)}</span>
+        <span className="text-gray-600">→</span>
+        <input
+          type="range" min={0} max={127} value={userMaxPitch}
+          onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
+          className="w-14 sm:w-20 accent-blue-500"
+          title="Bord haut du registre visible (plage aiguë)"
+        />
+        <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMaxPitch)}</span>
+      </div>
+
+      {/* Raccourcis contextuels (desktop uniquement) */}
+      <div className="hidden sm:flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
+        {tool === 'edit' ? (
+          <>
+            <span>{'\ud83d\uddb1'} Clic vide → créer</span>
+            <span>↕ Drag → déplacer</span>
+            <span>↔ Bord droit → taille</span>
+            <span>{'\ud83d\udd04'} Double-clic → suppr.</span>
+          </>
+        ) : (
+          <>
+            <span>{'\ud83d\uddb1'} Clic → sélectionner</span>
+            <span>⬒ Drag vide → plage</span>
+            <span>↕ Drag note → déplacer la sélection</span>
+            <span>⇧ Clic → ajouter/retirer</span>
+          </>
+        )}
+        <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
+        <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
+        <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom</span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl flex flex-col max-w-[95vw] max-h-[90vh] w-full">
-        {/* Header */}
+    <div className={embedded ? 'w-full h-full flex flex-col bg-[#0e1016]' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70'}>
+      <div className={embedded ? 'flex flex-col flex-1 min-h-0' : 'bg-gray-900 rounded-xl border border-gray-700 shadow-2xl flex flex-col max-w-[95vw] max-h-[90vh] w-full'}>
+        {/* Header (masqué en mode embarqué : l'info est dans le panneau gauche) */}
+        {!embedded && (
+        <>
         <div className="flex items-center justify-between gap-2 flex-wrap px-3 sm:px-4 py-3 border-b border-gray-700 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-base sm:text-lg font-bold text-white truncate">🎹 {trackLabel}</span>
@@ -1529,226 +1750,16 @@ export default function PianoRoll({
           </div>
         </div>
 
-        {/* Barre d'outils : outils, vélocité, presse-papiers, raccourcis */}
-        <div className="px-3 sm:px-4 py-2 bg-gray-850 border-b border-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[10px] text-gray-500 shrink-0">
-          {/* Outils */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setTool('edit')}
-              className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
-              title="Mode édition : créer / déplacer / redimensionner"
-            >
-              {'\u270f'} Édition
-            </button>
-            <button
-              onClick={() => setTool('select')}
-              className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
-              title="Mode sélection : clic = sélection, drag vide = plage, drag note = déplacer la sélection"
-            >
-              {'\ud83d\uddb1'} Sélection
-            </button>
-          </div>
+                </>
+        )}
 
-          {/* Vélocité de la sélection (toujours visible → layout stable :
-              le canvas ne bouge pas quand une sélection apparaît) */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-400">Vel:</span>
-            <input
-              type="range" min={1} max={127} value={velValue}
-              onChange={(e) => applyVelocity(parseInt(e.target.value))}
-              onPointerDown={() => {
-                velGestureActiveRef.current = true;
-                velGestureRef.current = snapshotNotes(localNotesRef.current);
-              }}
-              disabled={selectedIds.size === 0}
-              className="w-24 sm:w-24 accent-amber-400 disabled:opacity-30"
-              title="Vélocité des notes sélectionnées"
-            />
-            <span className="text-gray-300 w-6">{velValue}</span>
-            <span className="text-gray-600 hidden sm:inline">({selectedIds.size} note{selectedIds.size > 1 ? 's' : ''})</span>
-          </div>
-
-          {/* Durée de la sélection (même logique que la vélocité) */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-400">Dur:</span>
-            <input
-              type="range" min={1} max={64} value={durSnaps}
-              onChange={(e) => applyDuration(parseInt(e.target.value))}
-              onPointerDown={() => {
-                durGestureActiveRef.current = true;
-                durGestureRef.current = snapshotNotes(localNotesRef.current);
-              }}
-              disabled={selectedIds.size === 0}
-              className="w-24 sm:w-24 accent-sky-400 disabled:opacity-30"
-              title={`Durée des notes sélectionnées, en subdivisions de la grille (1/${Math.round(1 / snapUnit)} chacune)`}
-            />
-            <span className="text-gray-300 w-8">{durSnaps}</span>
-          </div>
-
-          {/* Presse-papiers + suppression */}
-          <div className="flex items-center gap-1.5">
-            <span
-              className="text-yellow-300 font-mono min-w-[4.5rem] text-center hidden sm:inline"
-              title={firstSelected ? `Note sélectionnée : ${pitchLabel(firstSelected.pitch)}` : undefined}
-            >
-              {firstSelected ? `🎵 ${pitchLabel(firstSelected.pitch)}` : ''}
-            </span>
-            <button onClick={copySelection} disabled={notes.length === 0}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Copier la sélection — ou TOUTE la piste si rien n'est sélectionné (Ctrl+C). Les notes sont copiées à leurs positions exactes : un Ctrl+V dans une autre piste les colle aux mêmes emplacements.">{'\ud83d\udccb'} Copier</button>
-            <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Couper la sélection (Ctrl+X)">{'\u2702'} Couper</button>
-            <button onClick={pasteClipboard} disabled={!clip}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title={clip
-                ? `Coller ${clip.notes.length} note(s) de « ${clip.sourceLabel} » — même piste : à l'endroit du clic ; autre piste : aux mêmes emplacements (Ctrl+V)`
-                : 'Coller (Ctrl+V) — copiez d\'abord une sélection ou une piste (Ctrl+C)'}>{'\ud83d\udccc'} Coller</button>
-            {clip && (
-              <span
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-300 text-[10px] font-mono"
-                title={`Presse-papiers : ${clip.wholeTrack ? 'toute la piste' : 'sélection'} de « ${clip.sourceLabel} » (${clip.notes.length} note(s)) — collable dans une autre piste aux mêmes emplacements`}
-              >
-                {'\ud83d\udccb'} {clip.sourceLabel} · {clip.notes.length}
-                <button
-                  onClick={clearClipboard}
-                  className="ml-0.5 text-yellow-500 hover:text-white"
-                  title="Vider le presse-papiers"
-                >✕</button>
-              </span>
-            )}
-            <button
-              onClick={deleteSelection}
-              disabled={selectedIds.size === 0}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 hover:bg-red-800 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Supprimer la sélection (Suppr)"
-            >
-              🗑 Supprimer
-            </button>
-            <button
-              onClick={groupSelection}
-              disabled={selectedIds.size < 2}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Grouper la sélection : un clic sur une note du groupe sélectionne tout le groupe, déplacer une note déplace tout le groupe"
-            >
-              {'\u26d3\ufe0f'} Grouper
-            </button>
-            <button
-              onClick={ungroupSelection}
-              disabled={selectedIds.size === 0}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Dégrouper les notes sélectionnées"
-            >
-              {'\u26d3\ufe0f'} Dégrouper
-            </button>
-          </div>
-
-          {/* Lecture locale de la piste */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={togglePlay}
-              disabled={!engine || (pianoPlaying === 'idle' && notes.length === 0)}
-              className="px-3 py-2 sm:px-2 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title={
-                pianoPlaying === 'playing' ? 'Pause (Espace)'
-                : pianoPlaying === 'paused' ? 'Reprendre (Espace)'
-                : 'Lecture de la piste (Espace)'
-              }
-            >
-              {pianoPlaying === 'playing' ? '⏸ Pause' : pianoPlaying === 'paused' ? '▶ Reprendre' : '▶ Lecture'}
-            </button>
-          </div>
-
-          {/* Subdivision de la grille (snap) */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setSnapEnabled(s => !s)}
-              className={`px-3 py-2 sm:px-2 sm:py-0.5 rounded border transition-colors text-xs sm:text-[10px] ${snapEnabled ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-300 border-gray-600 hover:border-gray-500'}`}
-              title={snapEnabled
-                ? "Snap magnétique actif : les notes s'alignent sur la grille. Cliquer pour libérer le placement (positions et durées libres)."
-                : "Snap libre : les notes se placent où vous voulez, sans magnétisme de grille. Cliquer pour réactiver le snap."}
-            >
-              {snapEnabled ? '🧲 Snap' : '✋ Libre'}
-            </button>
-            <span className="text-gray-400">Snap:</span>
-            <select
-              value={snapUnit}
-              onChange={(e) => setSnapUnit(parseFloat(e.target.value))}
-              className="bg-gray-800 text-gray-300 text-xs sm:text-[10px] rounded border border-gray-700 px-2 py-2 sm:px-1 sm:py-0.5"
-              title="Subdivision de la grille — 1/12 = triolets de croches, 1/6 = triolets de noires, 1/3 = triolets binaires, 1/24/1/18 = sextolets. (Inactif en mode Libre.)"
-            >
-              {SNAP_UNITS.map(u => (
-                <option key={u} value={u}>1/{Math.round(1 / u)}</option>
-              ))}
-            </select>
-            <button
-              onClick={quantizeNotes}
-              disabled={notes.length === 0}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Quantiser : aligne les notes sélectionnées (ou toutes) sur la grille du snap courant"
-            >
-              🎯 Quantiser
-            </button>
-          </div>
-
-          {/* Historique */}
-          <div className="flex items-center gap-1.5">
-            <button onClick={undo} disabled={!canUndo}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Annuler (Ctrl+Z)">{'\u21a9'} Annuler</button>
-            <button onClick={redo} disabled={!canRedo}
-              className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-              title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
-          </div>
-
-          {/* Registre visible : sliders bord bas / bord haut (écart min 1 octave) */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-400">Reg:</span>
-            <input
-              type="range" min={0} max={127} value={userMinPitch}
-              onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
-              className="w-14 sm:w-20 accent-blue-500"
-              title="Bord bas du registre visible (plage grave)"
-            />
-            <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMinPitch)}</span>
-            <span className="text-gray-600">→</span>
-            <input
-              type="range" min={0} max={127} value={userMaxPitch}
-              onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
-              className="w-14 sm:w-20 accent-blue-500"
-              title="Bord haut du registre visible (plage aiguë)"
-            />
-            <span className="text-[10px] text-gray-400 w-9 text-center font-mono">{pitchLabel(userMaxPitch)}</span>
-          </div>
-
-          {/* Raccourcis contextuels (desktop uniquement) */}
-          <div className="hidden sm:flex flex-wrap gap-x-3 gap-y-0.5 ml-auto">
-            {tool === 'edit' ? (
-              <>
-                <span>{'\ud83d\uddb1'} Clic vide → créer</span>
-                <span>↕ Drag → déplacer</span>
-                <span>↔ Bord droit → taille</span>
-                <span>{'\ud83d\udd04'} Double-clic → suppr.</span>
-              </>
-            ) : (
-              <>
-                <span>{'\ud83d\uddb1'} Clic → sélectionner</span>
-                <span>⬒ Drag vide → plage</span>
-                <span>↕ Drag note → déplacer la sélection</span>
-                <span>⇧ Clic → ajouter/retirer</span>
-              </>
-            )}
-            <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
-            <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
-            <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom</span>
-          </div>
-        </div>
+        {embedded ? createPortal(renderToolbar(), document.getElementById('pianoroll-toolbar-slot') ?? document.body) : renderToolbar()}
 
         {/* Zone canvas : scroll horizontal natif + barre de défilement
             dédiée (mobile). Le canvas a touch-action: none → les gestes
             dessus sont TOUJOURS de l'édition (jamais de scroll parasite) ;
             le défilement se fait sur la barre en bas. */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ maxHeight: embedded ? undefined : 'calc(90vh - 100px)' }}>
           <div
             ref={containerRef}
             className="overflow-x-auto"
