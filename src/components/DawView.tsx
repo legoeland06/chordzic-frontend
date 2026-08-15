@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2 } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
@@ -389,6 +389,8 @@ export default function DawView({
   /** Canaux dont la lane est AGRANDIE (mode détail : hauteur = notes,
    * non tronquée). Par défaut : mode APERÇU (petite hauteur). */
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  /** Table de mixage rétractable (comme modProd) — état local, ouvert par défaut. */
+  const [mixerOpen, setMixerOpen] = useState(true);
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -726,9 +728,19 @@ export default function DawView({
         </div>
       </div>
 
-      {/* ── Table de mixage ── */}
+      {/* ── Table de mixage (rétractable, comme modProd) ── */}
       <div className="mb-3 pb-3 border-b border-gray-800">
-        <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-2">🎚 Table de mixage</div>
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            onClick={() => setMixerOpen(v => !v)}
+            className="p-1 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
+            title={mixerOpen ? 'Rétracter la table de mixage' : 'Déployer la table de mixage'}
+          >
+            {mixerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          <div className="text-[10px] text-gray-600 uppercase tracking-wider">🎚 Table de mixage</div>
+        </div>
+        {mixerOpen && (
         <div className="flex gap-2 overflow-x-auto pb-1 items-stretch">
           {tracks.map(t => (
             <div
@@ -805,6 +817,7 @@ export default function DawView({
             Piste
           </button>
         </div>
+        )}
       </div>
 
       {/* ── Pistes horizontales (lanes) ── */}
