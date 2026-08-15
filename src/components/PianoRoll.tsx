@@ -84,8 +84,11 @@ interface PianoRollProps {
   pixelsPerBeat?: number;
   /** Hauteur en pixels du composant (défaut: 400). */
   height?: number;
-  /** Appelé quand la modal se ferme. */
-  onClose: () => void;
+  /** Mode embarqué (intégré dans une lane) : masque le bouton ✕ Fermer,
+   * Échap ne ferme pas. La fermeture se fait par le repli de la lane. */
+  embedded?: boolean;
+  /** Appelé quand la modal se ferme. Optionnel en mode embarqué. */
+  onClose?: () => void;
   /** Audition en direct : joue la note édité (création, déplacement, resize). */
   onPreviewNote?: (pitch: number) => void;
   /** Tempo courant (conversion position audio → beats pour le curseur). */
@@ -107,6 +110,7 @@ export default function PianoRoll({
   maxPitch,
   pixelsPerBeat = DEFAULT_PIXELS_PER_BEAT,
   height = 400,
+  embedded = false,
   onClose,
   onPreviewNote,
   tempo,
@@ -1408,7 +1412,7 @@ export default function PianoRoll({
         // Zoom horizontal : G = arrière, H = avant (hors saisie), centré viewport
         applyZoom(zoomRef.current * (k === 'g' ? 1 / 1.25 : 1.25));
       }
-      else if (e.key === 'Escape') { stopPlayback(); onClose(); }
+      else if (e.key === 'Escape') { stopPlayback(); onClose?.(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1514,12 +1518,14 @@ export default function PianoRoll({
             >
               +
             </button>
+            {!embedded && (
             <button
-              onClick={() => { stopPlayback(); onClose(); }}
+              onClick={() => { stopPlayback(); onClose?.(); }}
               className="px-3 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors"
             >
               ✕ Fermer
             </button>
+            )}
           </div>
         </div>
 

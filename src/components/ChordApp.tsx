@@ -1153,7 +1153,7 @@ export default function ChordApp() {
             onRemoveTrack={requestRemoveTrack}
             onUpdateTrack={updateTrack}
             onReorderTracks={reorderTracks}
-            onOpenPianoRoll={setOpenPianoRoll}
+            onNotesChange={handlePianoRollChange}
             onHelp={() => setShowHelp(true)}
             engine={engineRef.current}
             input={input}

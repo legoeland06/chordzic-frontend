@@ -16,6 +16,7 @@ import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react'
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
+import PianoRoll from './PianoRoll';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
@@ -32,6 +33,8 @@ const LANE_ZOOM_MAX = LANE_PPB * 8;
 const PITCH_PX = 6;
 /** Hauteur d'une lane fine (défaut). */
 const LANE_COMPACT_H = 26;
+/** Hauteur d'une lane agrandie : accueille le PianoRoll intégré (éditable). */
+const LANE_PIANOROLL_H = 300;
 /** Durée minimale affichée (beats). */
 const MIN_BEATS = 16;
 
@@ -81,7 +84,8 @@ interface DawViewProps {
   /** Réordonne les pistes (drag & drop des lanes) — ordre partagé avec la
    * table de mixage et le mode Live. from/to = indices dans `tracks`. */
   onReorderTracks: (from: number, to: number) => void;
-  onOpenPianoRoll: (channel: number) => void;
+  /** Met à jour les notes d'une piste (édition directe dans le PianoRoll intégré). */
+  onNotesChange: (channel: number, notes: PianoNote[]) => void;
   onHelp: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
@@ -379,7 +383,7 @@ export default function DawView({
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
-  onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onOpenPianoRoll, onHelp,
+  onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onHelp,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -824,14 +828,14 @@ export default function DawView({
       <div>
         <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1 flex items-center gap-2">
           <span>🎹 Pistes</span>
-          <span className="text-gray-700 normal-case">— clic sur la piste : tête de lecture · clic sur le nom : Piano Roll · chevron : hauteur · glisser le nom : réordonner</span>
+          <span className="text-gray-700 normal-case">— clic sur la piste : tête de lecture · clic sur le nom : Piano Roll intégré · chevron : hauteur · glisser le nom : réordonner</span>
         </div>
         <div className="flex items-stretch">
           {/* Panneau GAUCHE fixe : chevron + nom + mini-vumètre (jamais déplacé par le zoom) */}
           <div className="shrink-0 w-[168px] border-r border-gray-800/80">
             {tracks.map((t, i) => {
               const isExpanded = expanded.has(t.channel);
-              const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
+              const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
               const isDragging = dragTrackIdx === i;
               return (
                 <div
@@ -861,11 +865,11 @@ export default function DawView({
                   >
                     {isExpanded ? '▼' : '▶'}
                   </button>
-                  {/* Nom + mini-vumètre (clic sur le nom = Piano Roll) */}
+                  {/* Nom + mini-vumètre (clic sur le nom = Piano Roll intégré) */}
                   <div
                     className="flex-1 min-w-0 cursor-pointer hover:opacity-80"
-                    onClick={() => onOpenPianoRoll(t.channel)}
-                    title={`Ouvrir le Piano Roll de ${t.label}`}
+                    onClick={() => toggleExpanded(t.channel)}
+                    title={`${isExpanded ? 'Réduire' : 'Agrandir'} : Piano Roll intégré de ${t.label}`}
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-bold truncate flex-1" style={{ color: trackColor(t.channel) }}>
@@ -891,17 +895,32 @@ export default function DawView({
             <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
               {tracks.map(t => {
                 const isExpanded = expanded.has(t.channel);
-                const h = laneHeightFor(pianoNotes[t.channel] ?? [], isExpanded);
+                const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
                 return (
                   <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
-                    <TrackLane
-                      track={t}
-                      notes={pianoNotes[t.channel] ?? []}
-                      totalBeats={totalBeats}
-                      posBeats={posBeats}
-                      compact={!isExpanded}
-                      onScrub={doScrub}
-                    />
+                    {isExpanded ? (
+                      <PianoRoll
+                        embedded
+                        notes={pianoNotes[t.channel] ?? []}
+                        onNotesChange={(notes) => onNotesChange(t.channel, notes)}
+                        trackLabel={t.label}
+                        channel={t.channel}
+                        isDrum={t.channel === 9 || !!t.drums}
+                        pixelsPerBeat={lanePpb}
+                        height={LANE_PIANOROLL_H}
+                        tempo={tempo}
+                        engine={engine}
+                      />
+                    ) : (
+                      <TrackLane
+                        track={t}
+                        notes={pianoNotes[t.channel] ?? []}
+                        totalBeats={totalBeats}
+                        posBeats={posBeats}
+                        compact
+                        onScrub={doScrub}
+                      />
+                    )}
                   </div>
                 );
               })}
