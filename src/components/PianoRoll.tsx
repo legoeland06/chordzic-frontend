@@ -1487,14 +1487,14 @@ export default function PianoRoll({
           className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'edit' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
           title="Mode édition : créer / déplacer / redimensionner"
         >
-          {'\u270f'} Édition
+          {'\u270f'}{embedded ? '' : ' Édition'}
         </button>
         <button
           onClick={() => setTool('select')}
           className={`px-3 py-2 sm:px-2 sm:py-1 rounded border transition-colors text-xs sm:text-[10px] ${tool === 'select' ? 'bg-gray-700 text-yellow-400 border-yellow-600/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
           title="Mode sélection : clic = sélection, drag vide = plage, drag note = déplacer la sélection"
         >
-          {'\ud83d\uddb1'} Sélection
+          {'\ud83d\uddb1'}{embedded ? '' : ' Sélection'}
         </button>
       </div>
 
@@ -1544,15 +1544,15 @@ export default function PianoRoll({
         </span>
         <button onClick={copySelection} disabled={notes.length === 0}
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-          title="Copier la sélection — ou TOUTE la piste si rien n'est sélectionné (Ctrl+C). Les notes sont copiées à leurs positions exactes : un Ctrl+V dans une autre piste les colle aux mêmes emplacements.">{'\ud83d\udccb'} Copier</button>
+          title="Copier la sélection — ou TOUTE la piste si rien n'est sélectionné (Ctrl+C). Les notes sont copiées à leurs positions exactes : un Ctrl+V dans une autre piste les colle aux mêmes emplacements.">{'\ud83d\udccb'}{embedded ? '' : ' Copier'}</button>
         <button onClick={() => { copySelection(); deleteSelection(); }} disabled={selectedIds.size === 0}
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-          title="Couper la sélection (Ctrl+X)">{'\u2702'} Couper</button>
+          title="Couper la sélection (Ctrl+X)">{'\u2702'}{embedded ? '' : ' Couper'}</button>
         <button onClick={pasteClipboard} disabled={!clip}
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
           title={clip
             ? `Coller ${clip.notes.length} note(s) de « ${clip.sourceLabel} » — même piste : à l'endroit du clic ; autre piste : aux mêmes emplacements (Ctrl+V)`
-            : 'Coller (Ctrl+V) — copiez d\'abord une sélection ou une piste (Ctrl+C)'}>{'\ud83d\udccc'} Coller</button>
+            : 'Coller (Ctrl+V) — copiez d\'abord une sélection ou une piste (Ctrl+C)'}>{'\ud83d\udccc'}{embedded ? '' : ' Coller'}</button>
         {clip && (
           <span
             className="flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-900/30 border border-yellow-700/50 text-yellow-300 text-[10px] font-mono"
@@ -1572,7 +1572,7 @@ export default function PianoRoll({
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-red-900/40 text-red-300 border border-red-800/50 hover:bg-red-800 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
           title="Supprimer la sélection (Suppr)"
         >
-          🗑 Supprimer
+          🗑{embedded ? '' : ' Supprimer'}
         </button>
         <button
           onClick={groupSelection}
@@ -1604,7 +1604,7 @@ export default function PianoRoll({
             : 'Lecture de la piste (Espace)'
           }
         >
-          {pianoPlaying === 'playing' ? '⏸ Pause' : pianoPlaying === 'paused' ? '▶ Reprendre' : '▶ Lecture'}
+          {pianoPlaying === 'playing' ? `⏸${embedded ? '' : ' Pause'}` : pianoPlaying === 'paused' ? `▶${embedded ? '' : ' Reprendre'}` : `▶${embedded ? '' : ' Lecture'}`}
         </button>
       </div>
 
@@ -1636,7 +1636,7 @@ export default function PianoRoll({
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
           title="Quantiser : aligne les notes sélectionnées (ou toutes) sur la grille du snap courant"
         >
-          🎯 Quantiser
+          🎯{embedded ? '' : ' Quantiser'}
         </button>
       </div>
 
@@ -1644,10 +1644,10 @@ export default function PianoRoll({
       <div className="flex items-center gap-1.5">
         <button onClick={undo} disabled={!canUndo}
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-          title="Annuler (Ctrl+Z)">{'\u21a9'} Annuler</button>
+          title="Annuler (Ctrl+Z)">{'\u21a9'}{embedded ? '' : ' Annuler'}</button>
         <button onClick={redo} disabled={!canRedo}
           className="px-3 py-2 sm:px-1.5 sm:py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700 hover:text-white disabled:opacity-30 transition-colors text-xs sm:text-[10px]"
-          title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'} Rétablir</button>
+          title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)">{'\u21aa'}{embedded ? '' : ' Rétablir'}</button>
       </div>
 
       {/* Registre visible : sliders bord bas / bord haut (écart min 1 octave) */}
