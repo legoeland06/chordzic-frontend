@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from
 import { createPortal } from 'react-dom';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
-  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings,
 } from 'lucide-react';
 import {
   PianoNote,
@@ -100,6 +100,8 @@ interface PianoRollProps {
   tempo: number;
   /** Moteur audio (lecture locale de la piste ouverte : play/pause + curseur). */
   engine?: AudioEngine | null;
+  /** Lecture MIDI via le port choisi (mode intégré) : envoie les notes au backend. */
+  onPlayMidi?: (notes: PianoNote[]) => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export default function PianoRoll({
   height = 400,
   embedded = false,
   onClose,
+  onPlayMidi,
   onPreviewNote,
   tempo,
   engine,
@@ -1535,6 +1538,9 @@ export default function PianoRoll({
           <div className="pr-group">
             <button className={btn(pianoPlaying !== 'idle', !engine || (pianoPlaying === 'idle' && notes.length === 0))} onClick={togglePlay} title={pianoPlaying === 'playing' ? 'Pause (Espace)' : pianoPlaying === 'paused' ? 'Reprendre (Espace)' : 'Lecture de la piste (Espace)'}>
               {pianoPlaying === 'playing' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            </button>
+            <button className={btn(false, notes.length === 0)} onClick={() => onPlayMidi?.(notes)} title="Lecture MIDI — envoie les notes sur le port MIDI choisi (instrument externe, ex. Roland)">
+              <Cable className="w-3 h-3" /><span className="pr-lbl" style={{ marginLeft: 2 }}>MIDI</span>
             </button>
           </div>
           <div className="pr-sep" />

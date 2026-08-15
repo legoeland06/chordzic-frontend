@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown, Settings } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -619,6 +619,69 @@ export default function DawView({
     setMixerOpen(expandedCh === null);
   }, [expandedCh]);
 
+  // ── Ports MIDI / Audio (réglages) ───────────────────────────────────
+  const [showPorts, setShowPorts] = useState(false);
+  const [midiPorts, setMidiPorts] = useState<string[]>([]);
+  const [midiCurrent, setMidiCurrent] = useState('');
+  const [audioDevices, setAudioDevices] = useState<{ name: string; channels: number }[]>([]);
+  const [audioCurrent, setAudioCurrent] = useState('');
+
+  const refreshPorts = useCallback(async () => {
+    try {
+      const mp = await (await fetch('/midi-ports')).json();
+      setMidiPorts(mp.ports ?? []);
+      setMidiCurrent(mp.current ?? '');
+      const ad = await (await fetch('/audio-devices')).json();
+      setAudioDevices(ad.devices ?? []);
+      setAudioCurrent(ad.current ?? '');
+    } catch (e) {
+      console.error('Ports indisponibles :', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showPorts) refreshPorts();
+  }, [showPorts, refreshPorts]);
+
+  const changeMidiPort = async (index: number) => {
+    try {
+      await fetch('/midi-port', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index }),
+      });
+    } catch (e) { console.error(e); }
+    refreshPorts();
+  };
+
+  const changeAudioDevice = async (device: string) => {
+    try {
+      await fetch('/audio-device', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device }),
+      });
+    } catch (e) { console.error(e); }
+    refreshPorts();
+  };
+
+  /** Lecture MIDI : envoie les notes (même fraîchement insérées) sur le port
+   * MIDI choisi, via /note (note-on → durée → note-off côté serveur). */
+  const playMidiViaPort = useCallback((notes: PianoNote[], channel: number) => {
+    if (!notes.length) return;
+    const tempoMs = (60 / tempo) * 1000;
+    const sorted = [...notes].sort((a, b) => a.startTime - b.startTime);
+    const t0 = sorted[0].startTime;
+    for (const n of sorted) {
+      const delay = Math.max(0, (n.startTime - t0) * tempoMs);
+      const dur = Math.max(80, Math.round(n.duration * tempoMs));
+      setTimeout(() => {
+        fetch('/note', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel, pitch: n.pitch, velocity: n.velocity || 100, duration_ms: dur }),
+        }).catch(() => {});
+      }, delay);
+    }
+  }, [tempo]);
+
   // ── Styles transport (tons sobres / studio) ─────────────────────
   const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
   const tBtnPlay = 'w-9 h-9 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
@@ -730,6 +793,7 @@ export default function DawView({
           >
             <Monitor className="w-3.5 h-3.5" /> Live
           </button>
+          <button onClick={() => setShowPorts(true)} title="Ports MIDI & Audio — choisir vers quoi brancher l'application" className={tBtn}><Settings className="w-3.5 h-3.5" /></button>
           <button onClick={onHelp} title="Aide" className={tBtn}><HelpCircle className="w-3.5 h-3.5" /></button>
         </div>
       </div>
@@ -920,6 +984,7 @@ export default function DawView({
                         tempo={tempo}
                         engine={engine}
                         onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
+                        onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
                       />
                     ) : (
                       <TrackLane
@@ -938,6 +1003,57 @@ export default function DawView({
           </div>
         </div>
       </div>
+
+      {/* ── Modal réglages : ports MIDI & Audio ── */}
+      {showPorts && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60"
+          onClick={() => setShowPorts(false)}
+        >
+          <div
+            className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl p-5 w-[460px] max-w-[92vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-gray-400" /> Ports MIDI & Audio</h3>
+              <button onClick={() => setShowPorts(false)} className="text-gray-500 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-800">✕ Fermer</button>
+            </div>
+
+            {/* Sortie MIDI */}
+            <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Sortie MIDI — instrument branché</label>
+            <select
+              value={midiCurrent}
+              onChange={(e) => changeMidiPort(midiPorts.indexOf(e.target.value))}
+              className="w-full bg-gray-800 text-gray-200 text-xs rounded border border-gray-700 px-2 py-2 mb-4"
+              title="Port MIDI vers lequel l'application envoie les notes (FluidSynth, Roland, …)"
+            >
+              {midiPorts.length === 0 && <option value="">Aucun port MIDI disponible</option>}
+              {midiPorts.map((p, i) => (
+                <option key={i} value={p}>{p.split(':')[0]}</option>
+              ))}
+            </select>
+
+            {/* Sortie audio */}
+            <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Sortie Audio — device de lecture</label>
+            <select
+              value={audioCurrent}
+              onChange={(e) => changeAudioDevice(e.target.value)}
+              className="w-full bg-gray-800 text-gray-200 text-xs rounded border border-gray-700 px-2 py-2 mb-4"
+              title="Device de sortie audio (lecture du rendu, clic)"
+            >
+              <option value="">Défaut système</option>
+              {audioDevices.map((d) => (
+                <option key={d.name} value={d.name}>{d.name}{d.channels > 2 ? ` (${d.channels} ch)` : ''}</option>
+              ))}
+            </select>
+
+            <p className="text-[10px] text-gray-600 leading-relaxed">
+              💡 Le port MIDI est utilisé par la <b className="text-gray-400">lecture « ▶ MIDI »</b> du PianoRoll intégré :
+              les notes (même les dernières insérées) partent sur l'instrument choisi. Le changement est appliqué immédiatement.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
