@@ -868,6 +868,49 @@ export default function ChordApp() {
     setStatusColor('text-green-400');
   };
 
+  /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
+   * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live. */
+  const playMidiAll = useCallback(async () => {
+    if (chords.length === 0) {
+      setStatus('❌ Grille vide — rien à jouer en MIDI'); setStatusColor('text-red-400');
+      return;
+    }
+    const sequence = chords.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time }));
+    const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
+      (notes as PianoNote[]).map(n => ({
+        channel: parseInt(ch), start_time: n.startTime, pitch: n.pitch,
+        duration: n.duration, velocity: n.velocity,
+      }))
+    );
+    const customChannels = Object.keys(pianoNotes).map(Number);
+    const body: Record<string, unknown> = {
+      sequence, tempo, pattern: drumPattern, walking: walkingBass, sig,
+      tracks: tracks.map(t => ({
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
+      })),
+      master_vol: volume,
+      custom_notes: customNotes.length > 0 ? customNotes : undefined,
+      custom_channels: customChannels.length > 0 ? customChannels : undefined,
+    };
+    try {
+      const resp = await fetch(`${API_BASE}/navig-play-midi`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const msg = await resp.text();
+        setStatus(`❌ MIDI : ${msg.slice(0, 120)}`); setStatusColor('text-red-400');
+        return;
+      }
+      const data = await resp.json();
+      setStatus(`🎹 MIDI : ${data.notes} notes sur le port choisi (${data.duration_sec}s)`);
+      setStatusColor('text-green-400');
+    } catch (e) {
+      setStatus('❌ MIDI : backend injoignable'); setStatusColor('text-red-400');
+    }
+  }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume]);
+
   /** Bounce multitrack → mode PostProd.
    * Rend chaque piste en WAV (avec ses effets MIDI) via /render-tracks, décode
    * les buffers et construit la session d'édition audio (1 clip plein par piste). */
@@ -1154,6 +1197,7 @@ export default function ChordApp() {
             onUpdateTrack={updateTrack}
             onReorderTracks={reorderTracks}
             onNotesChange={handlePianoRollChange}
+            onPlayMidiAll={playMidiAll}
             onHelp={() => setShowHelp(true)}
             engine={engineRef.current}
             input={input}

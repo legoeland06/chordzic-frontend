@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown, Settings } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown, Settings, Cable } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -86,6 +86,8 @@ interface DawViewProps {
   onReorderTracks: (from: number, to: number) => void;
   /** Met à jour les notes d'une piste (édition directe dans le PianoRoll intégré). */
   onNotesChange: (channel: number, notes: PianoNote[]) => void;
+  /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
+  onPlayMidiAll: () => void;
   onHelp: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
@@ -383,7 +385,7 @@ export default function DawView({
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
-  onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onHelp,
+  onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -706,6 +708,15 @@ export default function DawView({
         </button>
         <button onClick={doStop} title="Arrêter (Stop)" className={`${tBtn} hover:bg-[#8f3b3b] hover:border-[#a84a4a] hover:text-white`}><Square className="w-3 h-3" /></button>
         <button onClick={doPause} disabled={playState !== 'playing'} title="Pause (la tête se fige)" className={tBtn}><Pause className="w-3.5 h-3.5" /></button>
+
+        {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
+        <button
+          onClick={onPlayMidiAll}
+          className="h-8 px-2 flex items-center gap-1 rounded-md bg-[#2a4a2f] text-[#8fd8a8] border border-[#2f5a3a] hover:bg-[#335a3a] hover:text-white transition-colors shrink-0 text-[9px] font-bold"
+          title="Lecture MIDI — toutes les pistes sur le port MIDI choisi (ex. Roland), comme le mode Live (réglage : ⚙)"
+        >
+          <Cable className="w-3.5 h-3.5" /> MIDI
+        </button>
 
         <div className={tSep} />
 
