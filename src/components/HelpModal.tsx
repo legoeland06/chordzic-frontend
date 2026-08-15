@@ -368,7 +368,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b className="text-white">chevron ▶</b> à gauche les agrandit : le <b className="text-white">Piano Roll intégré</b>{' '}
               s'affiche directement dans la piste (édition complète : créer, déplacer, redimensionner, sélectionner,
               vélocité, couper/copier/coller, undo/redo, audition locale) — ses <b className="text-white">contrôles sont
-              dans la barre du haut</b> (juste au-dessus de la table de mixage, polices réduites) — <b className="text-white">▼</b> les réduit.
+              dans la barre du haut</b> (juste au-dessus de la table de mixage, polices réduites). La <b className="text-white">table
+              de mixage se masque automatiquement</b> pendant l'édition pour laisser la place, et revient quand la piste
+              est réduite — <b className="text-white">▼</b> les réduit.
               Un <b className="text-white">clic sur le nom</b> d'une piste fait la même chose (agrandir/réduire le Piano Roll intégré).
               À <b className="text-white">droite du nom</b> de chaque piste, un <b className="text-white">mini-vumètre</b>
               (4 petits tirets vert/jaune/rouge) indique l'activité de la piste pendant la lecture.

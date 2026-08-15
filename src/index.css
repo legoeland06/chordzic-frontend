@@ -12,7 +12,7 @@
   color: #6b7280;
   background: #0e1016;
   border-bottom: 1px solid #1f2937;
-  max-height: 44px;
+  max-height: 140px;
   overflow-y: auto;
 }
 .pianoroll-toolbar-embedded button {

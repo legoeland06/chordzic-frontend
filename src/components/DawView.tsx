@@ -613,6 +613,12 @@ export default function DawView({
     setExpandedCh(prev => (prev === ch ? null : ch));
   };
 
+  // Quand une piste est agrandie (PianoRoll intégré), la table de mixage se
+  // masque pour libérer la place verticale ; elle revient quand la piste est réduite.
+  useEffect(() => {
+    setMixerOpen(expandedCh === null);
+  }, [expandedCh]);
+
   // ── Styles transport (tons sobres / studio) ─────────────────────
   const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
   const tBtnPlay = 'w-9 h-9 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
