@@ -96,6 +96,9 @@ interface PianoRollProps {
   /** Mode embarqué (intégré dans une lane) : masque le bouton ✕ Fermer,
    * Échap ne ferme pas. La fermeture se fait par le repli de la lane. */
   embedded?: boolean;
+  /** Durée totale GLOBALE (beats) — en mode embarqué, le piano roll doit
+   * s'aligner sur l'échelle des lanes (pas de fit-to-width local). */
+  totalBeats?: number;
   /** Remonte le snap courant (unité + actif) — partagé avec les locators. */
   onSnapChange?: (unit: number, enabled: boolean) => void;
   /** Appelé quand la modal se ferme. Optionnel en mode embarqué. */
@@ -130,6 +133,7 @@ export default function PianoRoll({
   tempo,
   engine,
   onSnapChange,
+  totalBeats,
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** Canvas de la colonne clavier (fixe à droite, hors du scroll). */
@@ -1455,12 +1459,18 @@ export default function PianoRoll({
   const groupCount = new Set(notes.filter(n => n.groupId).map(n => n.groupId)).size;
 
   // ── Barre d'outils ──
-  const totalBeats = Math.max(
+  // Durée totale : la GLOBALE des lanes si fournie (mode embarqué → même
+  // échelle que les pistes compactes), sinon la fin des notes locales.
+  const localTotalBeats = Math.max(
     16, // minimum 4 mesures
     ...notes.map(n => n.startTime + n.duration),
   );
+  const effTotalBeats = totalBeats && totalBeats > 0 ? totalBeats : localTotalBeats;
   // ── Zoom minimum DYNAMIQUE (fit-to-width) : voir TOUTE la piste d'un coup ──
-  const fitZoom = Math.max(0.02, (viewportW - 40) / Math.max(1, totalBeats * pixelsPerBeat));
+  // En mode EMBARQUÉ, PAS de fit : l'échelle des lanes est la référence (le
+  // fit local étirait différemment selon les notes de chaque piste → grilles
+  // décalées entre pistes).
+  const fitZoom = embedded ? 1 : Math.max(0.02, (viewportW - 40) / Math.max(1, effTotalBeats * pixelsPerBeat));
   const fitZoomRef = useRef(fitZoom);
   fitZoomRef.current = fitZoom;
   /** Borne le zoom entre le fit-to-width (min) et 4× (max). */
@@ -1487,7 +1497,7 @@ export default function PianoRoll({
       : Math.max(0, rect.width / 2);
     // Le beat sous le point d'ancrage reste fixe à l'écran
     const beat = (anchor + scrollLeftRef.current) / ppb0;
-    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 - viewportW);
+    const maxScroll = Math.max(0, effTotalBeats * ppb1 + (embedded ? 0 : 200) - viewportW);
     const newScroll = Math.min(maxScroll, Math.max(0, beat * ppb1 - anchor));
     // Mise à jour IMMÉDIATE de la ref (les wheel events suivants du même
     // geste enchaînent sans attendre le re-render → point souris stable)
@@ -1497,8 +1507,8 @@ export default function PianoRoll({
   // Re-clamp quand la durée ou le viewport changent (grille chargée, resize)
   useEffect(() => {
     setZoom(z => (z < fitZoomRef.current ? fitZoomRef.current : z));
-  }, [totalBeats, viewportW]);
-  const contentWidth = totalBeats * effectivePixelsPerBeat + 200;
+  }, [effTotalBeats, viewportW]);
+  const contentWidth = effTotalBeats * effectivePixelsPerBeat + (embedded ? 0 : 200);
 
   /** Barre d'outils — en mode embarqué, rendue dans la zone transport de
    * DawView (portal vers #pianoroll-toolbar-slot) ; sinon rendue dans la modal. */

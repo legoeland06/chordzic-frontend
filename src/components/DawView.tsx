@@ -1329,6 +1329,7 @@ export default function DawView({
                           channel={t.channel}
                           isDrum={t.channel === 9 || !!t.drums}
                           pixelsPerBeat={laneEffectivePpb}
+                          totalBeats={totalBeats}
                           height={LANE_PIANOROLL_H}
                           tempo={tempo}
                           engine={engine}
