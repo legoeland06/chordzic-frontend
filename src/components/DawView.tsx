@@ -397,6 +397,39 @@ function TrackLane({
 
 // ─── Composant principal ───────────────────────────────────────────────
 
+/** Poignée draggable d'un locator (L ou R) — composant STABLE (module-level) :
+ * défini dans le corps de DawView, il serait REMONTÉ à chaque render pendant
+ * le drag → perte de la capture du pointeur → déplacements par à-coups. */
+function LocatorHandle({ side, beat, contentW, totalBeats, color, onMove }: {
+  side: 'L' | 'R'; beat: number; contentW: number; totalBeats: number;
+  color: string; onMove: (clientX: number) => void;
+}) {
+  return (
+    <div
+      className="absolute top-0 bottom-0 z-10 cursor-ew-resize select-none touch-none"
+      style={{ left: (beat * contentW) / Math.max(1, totalBeats) - 6, width: 12 }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) onMove(e.clientX);
+      }}
+      onPointerUp={(e) => {
+        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+          (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+      }}
+    >
+      <div className="w-[3px] h-full rounded-full" style={{ background: color }} />
+      <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-bold" style={{ color }}>
+        {side}
+      </span>
+    </div>
+  );
+}
+
 export default function DawView({
   tracks, pianoNotes, playing, hasWav, tempo, loopOn, locL, locR, onLocatorsChange, sig, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
@@ -490,30 +523,6 @@ export default function DawView({
       if (v !== locR) onLocatorsChange(locL, v);
     }
   };
-
-  /** Poignée draggable d'un locator (L ou R). */
-  const LocatorHandle = ({ side, beat, color }: { side: 'L' | 'R'; beat: number; color: string }) => (
-    <div
-      className="absolute top-0 bottom-0 z-10 cursor-ew-resize select-none touch-none"
-      style={{ left: (beat * locContentW) / Math.max(1, totalBeats) - 6, width: 12 }}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      }}
-      onPointerMove={(e) => {
-        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) moveLocator(side, e.clientX);
-      }}
-      onPointerUp={(e) => {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      }}
-    >
-      <div className="w-[3px] h-full rounded-full" style={{ background: color }} />
-      <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-bold" style={{ color }}>
-        {side}
-      </span>
-    </div>
-  );
 
   /** Ppb minimum pour montrer TOUTE la piste (fit-to-width). Le panneau
    * de scroll ne contient que le CONTENU (labels séparés, fixes à gauche). */
@@ -959,6 +968,30 @@ export default function DawView({
         >
           <Repeat className="w-3.5 h-3.5" />
         </button>
+
+        {/* Locators [L, R[ — champs numériques (précision, spinners) */}
+        <div className="flex items-center gap-1 shrink-0 px-1" title="Locators [L, R[ : intervalle de boucle du repeat, en temps (snap-to-grid)">
+          <span className="text-[9px] font-bold text-[#7dd3fc]">L</span>
+          <input
+            type="number" min={0} max={Math.max(0, locR - 1)} step={1}
+            value={locL}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(parseInt(e.target.value || '0', 10) || 0, locR - 1));
+              onLocatorsChange(v, locR);
+            }}
+            className="w-11 bg-[#0a0c10] border border-[#1f2733] rounded text-[10px] font-mono text-[#7dd3fc] text-center py-0.5 focus:outline-none focus:border-[#3f5f8f]"
+          />
+          <span className="text-[9px] font-bold text-[#fbbf24]">R</span>
+          <input
+            type="number" min={locL + 1} max={Math.max(locL + 1, Math.ceil(totalBeats))} step={1}
+            value={locR}
+            onChange={(e) => {
+              const v = Math.max(locL + 1, Math.min(parseInt(e.target.value || '0', 10) || 0, Math.ceil(totalBeats)));
+              onLocatorsChange(locL, v);
+            }}
+            className="w-11 bg-[#0a0c10] border border-[#1f2733] rounded text-[10px] font-mono text-[#fbbf24] text-center py-0.5 focus:outline-none focus:border-[#3f5f8f]"
+          />
+        </div>
         <button onClick={onExtractWav} disabled={!hasWav} title="Extraire le dernier rendu WAV" className={tBtn}>
           <Download className="w-3.5 h-3.5" />
         </button>
@@ -1191,7 +1224,7 @@ export default function DawView({
             {/* Barre des LOCATORS [L, R[ — au-dessus de la zone de contenu :
                 intervalle de boucle du repeat, draggable avec snap-to-grid,
                 synchronisée au scroll horizontal des lanes. */}
-            <div ref={locBarRef} className="relative overflow-hidden border-b border-gray-800/60 select-none" style={{ height: 20 }}>
+            <div ref={locBarRef} className="relative z-30 overflow-hidden border-b border-gray-800/60 select-none" style={{ height: 20 }}>
               <div
                 className="absolute inset-y-0 left-0"
                 style={{ width: locContentW, transform: `translateX(${-lanesScrollLeft}px)` }}
@@ -1202,8 +1235,8 @@ export default function DawView({
                     style={{ left: (locL * locContentW) / Math.max(1, totalBeats), width: ((locR - locL) * locContentW) / Math.max(1, totalBeats) }}
                   />
                 )}
-                <LocatorHandle side="L" beat={locL} color="#7dd3fc" />
-                <LocatorHandle side="R" beat={locR} color="#fbbf24" />
+                <LocatorHandle side="L" beat={locL} contentW={locContentW} totalBeats={totalBeats} color="#7dd3fc" onMove={(x) => moveLocator('L', x)} />
+                <LocatorHandle side="R" beat={locR} contentW={locContentW} totalBeats={totalBeats} color="#fbbf24" onMove={(x) => moveLocator('R', x)} />
               </div>
             </div>
             <div ref={lanesScrollRef} className="overflow-x-auto" onScroll={(e) => setLanesScrollLeft(e.currentTarget.scrollLeft)}>
