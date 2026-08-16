@@ -80,7 +80,7 @@ interface DawViewProps {
   sig: string;                          // signature rythmique (compteur de mesures)
   input: string;                        // signature du contenu (re-rendu si modifié)
   engine: AudioEngine;                  // lecture / pause / seek
-  onPlay: () => void;                   // rend le WAV + joue depuis 0 (via ChordApp)
+  onPlay: (startAtBeats?: number) => void; // rend le WAV + joue (départ optionnel, ex. locator gauche)
   onStop: () => void;
   onExtractWav: () => void;
   onTempoChange: (t: number) => void;
@@ -406,7 +406,7 @@ function LocatorHandle({ side, beat, contentW, totalBeats, color, onMove }: {
 }) {
   return (
     <div
-      className="absolute top-0 bottom-0 z-10 cursor-ew-resize select-none touch-none"
+      className="absolute top-0 bottom-0 z-10 cursor-ew-resize select-none touch-none flex items-center justify-center"
       style={{ left: (beat * contentW) / Math.max(1, totalBeats) - 6, width: 12 }}
       onPointerDown={(e) => {
         e.preventDefault();
@@ -708,17 +708,20 @@ export default function DawView({
     const clickSig = getClickSig();
     let clickSeparated = false;
     try { clickSeparated = !!(JSON.parse(clickSig) as { out_device?: string | null }).out_device; } catch { /* ignore */ }
+    // Démarrage : si le repeat boucle un intervalle [L, R[ et que la tête
+    // est HORS de l'intervalle, la lecture commence au locator gauche.
+    const startBeats = (loopOn && locR > locL && (posBeats < locL || posBeats >= locR)) ? locL : posBeats;
     if (clickSeparated || contentSig !== renderSigRef.current || clickSig !== renderClickSigRef.current) {
       renderSigRef.current = contentSig;
       renderClickSigRef.current = clickSig;
-      setPosBeats(0);
-      onPlay();
+      setPosBeats(startBeats);
+      onPlay(startBeats);
     } else {
       // Buffer déjà rendu → jouer depuis la position de la tête
-      engine.playNavigFrom((posBeats * 60) / tempo, loopOn);
+      engine.playNavigFrom((startBeats * 60) / tempo, loopOn);
     }
     setPlayState('playing');
-  }, [playState, contentSig, engine, onPlay, posBeats, tempo, loopOn]);
+  }, [playState, contentSig, engine, onPlay, posBeats, tempo, loopOn, locL, locR]);
 
   const doPause = useCallback(() => {
     engine.pausePianoRoll();
@@ -895,7 +898,7 @@ export default function DawView({
 
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
-          onClick={() => (midiPlaying ? stopMidi() : startMidi(posBeats))}
+          onClick={() => (midiPlaying ? stopMidi() : startMidi(loopOn && locR > locL && (posBeats < locL || posBeats >= locR) ? locL : posBeats))}
           className={`h-7 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
             midiPlaying
               ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'

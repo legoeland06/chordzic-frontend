@@ -600,7 +600,7 @@ export default function ChordApp() {
     });
   }, [tempo, volume, tracks, use432, drumPattern, sig, getEngine, walkingBass]);
 
-  const play = useCallback(async () => {
+  const play = useCallback(async (startAtBeats = 0) => {
     const engine = await getEngine();
     if (!engine) return;
 
@@ -651,7 +651,7 @@ export default function ChordApp() {
     // En mode Navig (rendu WAV), le WAV sera disponible à l'extraction
     if (browserAudio) setHasWav(true);
     engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined,
-      locR > locL ? { start: locL, end: locR } : undefined).then(() => {
+      locR > locL ? { start: locL, end: locR } : undefined, startAtBeats).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
     }).catch((e) => {

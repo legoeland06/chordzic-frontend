@@ -41,6 +41,9 @@ export interface RenderOptions {
   loopStart?: number;
   /** Locator droit (beats) — intervalle de boucle [L, R[ (repeat). */
   loopEnd?: number;
+  /** Position de départ (beats) — la lecture démarre à cet endroit (ex.
+   * locator gauche quand le repeat boucle un intervalle). */
+  startAtBeats?: number;
 }
 
 /** Configuration de la boucle sample (mode Navig) : un sample audio de
@@ -337,6 +340,10 @@ export class BrowserSynth {
         body.loop_start = opts.loopStart;
         body.loop_end = opts.loopEnd;
       }
+      // Départ décalé (locator gauche) : navig-play démarre à cet offset.
+      if (opts.startAtBeats !== undefined && opts.startAtBeats > 0) {
+        body.start_at = opts.startAtBeats;
+      }
     }
     // Config du clic (source de vérité : le serveur) — mode Navig
     await this._applyClickConfig(body);
@@ -411,7 +418,9 @@ export class BrowserSynth {
       this._lastNavBody = body;
       this._lastNavTempo = Number(body.tempo) || 120;
       this._sepActive = true;
-      this._sepStartMs = performance.now();
+      // Départ décalé (start_at) : l'estimateur part de cette position.
+      const startSec = (Number(body.start_at) || 0) * 60 / Math.max(1, this._lastNavTempo);
+      this._sepStartMs = performance.now() - Math.max(0, startSec) * 1000;
       this._sepTotalSec = typeof data.total_duration_sec === 'number'
         ? data.total_duration_sec
         : (typeof data.duration_sec === 'number' ? data.duration_sec : 0);
@@ -439,7 +448,14 @@ export class BrowserSynth {
     const ctx = await this.getContext();
     const buffer = await ctx.decodeAudioData(wavData);
     this._buffer = buffer;
-    this._playBuffer(buffer, doLoop);
+    // Départ décalé (locator gauche) : jouer depuis cet offset (le buffer
+    // reste complet — la boucle [L, R[ est appliquée par loopStart/End).
+    const startSec = (Number(body.start_at) || 0) * 60 / Math.max(1, Number(body.tempo) || 120);
+    if (startSec > 0) {
+      this.playBufferFrom(startSec, doLoop);
+    } else {
+      this._playBuffer(buffer, doLoop);
+    }
   }
 
   /** Récupère les notes générées par le mode classique (base PianoRoll).

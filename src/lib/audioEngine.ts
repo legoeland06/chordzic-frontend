@@ -271,7 +271,7 @@ export class AudioEngine {
   /**
    * Joue une grille complète d'accords, avec ou sans boucle.
    */
-  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[], loopInterval?: { start: number; end: number }): Promise<void> {
+  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[], loopInterval?: { start: number; end: number }, startAtBeats?: number): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
@@ -289,6 +289,7 @@ export class AudioEngine {
         customNotes,
         customChannels,
         ...(loopInterval ? { loopStart: loopInterval.start, loopEnd: loopInterval.end } : {}),
+        ...(startAtBeats && startAtBeats > 0 ? { startAtBeats } : {}),
       });
     } else {
       const sequence = grille.chords.map(c => ({
