@@ -51,6 +51,7 @@ import {
   endInteraction,
   deleteNote,
   hitTest,
+  autoFitRange,
   MouseCoord,
 } from '../lib/pianoRollEngine';
 import type { AudioEngine } from '../lib/audioEngine';
@@ -234,18 +235,17 @@ export default function PianoRoll({
   // TOUTES les notes de la piste (insérées par l'utilisateur ou pré-remplies
   // automatiquement). Il ne se resserre jamais tout seul — l'utilisateur
   // garde la main avec les sliders Reg:.
+  // ⚠️ Dès que l'utilisateur TOUCHE les sliders Reg, l'auto-fit s'efface :
+  // sinon il ré-étendait la plage dès qu'une note dépassait le nouveau bord
+  // (réglage annulé) et CHANGEAIT userMaxPitch entre le clic et le dessin
+  // (note insérée au mauvais endroit — observé sur Lead, pas Drums).
+  const rangeTouchedRef = useRef(false);
   useEffect(() => {
-    let mn = userMinPitch, mx = userMaxPitch;
-    let changed = false;
-    for (const n of notes) {
-      if (n.pitch < mn) { mn = n.pitch - 2; changed = true; }
-      if (n.pitch > mx) { mx = n.pitch + 2; changed = true; }
-    }
-    if (!changed) return;
-    mn = Math.max(0, Math.min(mn, userMaxPitch - 12));
-    mx = Math.min(127, Math.max(mx, userMinPitch + 12));
-    if (mn !== userMinPitch) setUserMinPitch(mn);
-    if (mx !== userMaxPitch) setUserMaxPitch(mx);
+    if (rangeTouchedRef.current) return;
+    const fit = autoFitRange(notes, userMinPitch, userMaxPitch);
+    if (!fit) return;
+    if (fit.minPitch !== userMinPitch) setUserMinPitch(fit.minPitch);
+    if (fit.maxPitch !== userMaxPitch) setUserMaxPitch(fit.maxPitch);
   }, [notes, userMinPitch, userMaxPitch]);
 
   // Recalculer la hauteur totale en fonction des touches visibles
@@ -1563,12 +1563,12 @@ export default function PianoRoll({
           <div className="pr-group pr-sliders">
             <span className="pr-lbl">Reg</span>
             <input type="range" min={0} max={127} value={userMinPitch}
-              onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
+              onChange={(e) => { rangeTouchedRef.current = true; setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12)); }}
               className="accent-blue-500" title="Bord bas du registre visible" />
             <span className="pr-val">{pitchLabel(userMinPitch)}</span>
             <span className="pr-lbl">→</span>
             <input type="range" min={0} max={127} value={userMaxPitch}
-              onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
+              onChange={(e) => { rangeTouchedRef.current = true; setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12)); }}
               className="accent-blue-500" title="Bord haut du registre visible" />
             <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
           </div>
@@ -1753,7 +1753,7 @@ export default function PianoRoll({
         <span className="text-gray-400">Reg:</span>
         <input
           type="range" min={0} max={127} value={userMinPitch}
-          onChange={(e) => setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12))}
+          onChange={(e) => { rangeTouchedRef.current = true; setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12)); }}
           className="w-14 sm:w-20 accent-blue-500"
           title="Bord bas du registre visible (plage grave)"
         />
@@ -1761,7 +1761,7 @@ export default function PianoRoll({
         <span className="text-gray-600">→</span>
         <input
           type="range" min={0} max={127} value={userMaxPitch}
-          onChange={(e) => setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12))}
+          onChange={(e) => { rangeTouchedRef.current = true; setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12)); }}
           className="w-14 sm:w-20 accent-blue-500"
           title="Bord haut du registre visible (plage aiguë)"
         />

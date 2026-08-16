@@ -236,3 +236,33 @@ export function endInteraction(
 export function deleteNote(notes: PianoNote[], id: string): PianoNote[] {
   return notes.filter(n => n.id !== id);
 }
+
+/**
+ * Registre auto-couvrant : étend [minPitch, maxPitch] pour couvrir TOUTES
+ * les notes (+2 de marge), sans jamais resserrer. Retourne le nouveau
+ * registre, ou null si aucun ajustement n'est nécessaire.
+ *
+ * ⚠️ Utilisé par le PianoRoll AVANT toute manipulation manuelle des sliders
+ * Reg (l'auto-fit ne doit JAMAIS ré-étendre une plage choisie par
+ * l'utilisateur : ça annulait son réglage ET décalait l'insertion des notes,
+ * car userMaxPitch changeait entre le clic et le dessin).
+ */
+export function autoFitRange(
+  notes: PianoNote[],
+  minPitch: number,
+  maxPitch: number,
+): { minPitch: number; maxPitch: number } | null {
+  let mn = minPitch;
+  let mx = maxPitch;
+  let changed = false;
+  for (const n of notes) {
+    if (n.pitch < mn) { mn = n.pitch - 2; changed = true; }
+    if (n.pitch > mx) { mx = n.pitch + 2; changed = true; }
+  }
+  if (!changed) return null;
+  // Garde-fous : écart minimal d'une octave, bornes MIDI
+  mn = Math.max(0, Math.min(mn, maxPitch - 12));
+  mx = Math.min(127, Math.max(mx, minPitch + 12));
+  if (mn === minPitch && mx === maxPitch) return null;
+  return { minPitch: mn, maxPitch: mx };
+}
