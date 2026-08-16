@@ -571,13 +571,21 @@ export default function DawView({
       const elapsedSec = (performance.now() - midiStartRef.current) / 1000;
       const beats = midiFromRef.current + (elapsedSec * tempo) / 60;
       if (beats >= totalBeats) {
+        if (loopOn) {
+          // BOUCLE (repeat) : la tête repart au début et la lecture CONTINUE
+          // — le backend (navig-play-midi) boucle déjà ; NE PAS appeler
+          // stopMidi() ici (ça tuait la boucle à la fin du 1er passage).
+          const b = beats % totalBeats;
+          setPosBeats(b);
+          return;
+        }
         setPosBeats(totalBeats);
         stopMidi();
         return;
       }
       setPosBeats(beats);
     }, 50);
-  }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState]);
+  }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn]);
 
   const doStop = useCallback(() => {
     stopMidi();
