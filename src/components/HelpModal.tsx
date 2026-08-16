@@ -189,7 +189,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               Le <b className="text-amber-400">Clic</b> (vue 📱 Navig, barre de transport) est un{' '}
               <b className="text-white">métronome intégré au rendu WAV</b> : un tick par temps, accentué
-              sur le 1ᵉʳ temps de chaque mesure. Deux modes au choix :
+              sur le 1ᵉʳ temps de chaque mesure. Le bouton <b className="text-white">🔇</b> coupe le clic
+              (mute) et le réactive au dernier volume. Deux modes au choix :
             </p>
             <Row k="Dans le rendu" v={<>
               Cochez pour <b className="text-white">mélanger le clic au WAV</b> rendu — synchronisation{' '}

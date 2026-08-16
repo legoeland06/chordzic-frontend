@@ -8,9 +8,11 @@
  * L'état vit côté SERVEUR (/click) — source de vérité unique au moment du
  * rendu (plus aucun aller-retour de mode nécessaire).
  */
-import { Metronome } from 'lucide-react';
+import { Metronome, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { setClickSig } from '../lib/clickPrefs';
+
+const API_BASE = 'http://localhost:4000';
 
 type ClickCfg = {
   volume: number;
@@ -25,9 +27,11 @@ export default function ClickControl() {
   const [cfg, setCfg] = useState<ClickCfg | null>(null);
   const [sounds, setSounds] = useState<{ id: number; name: string }[]>([]);
   const [devices, setDevices] = useState<{ name: string; channels: number }[]>([]);
+  /** Dernier volume non nul (pour restaurer après un mute). */
+  const [lastVol, setLastVol] = useState(80);
 
   useEffect(() => {
-    fetch('/click')
+    fetch(`${API_BASE}/click`)
       .then((r) => r.json())
       .then((d) => {
         setCfg({
@@ -35,9 +39,10 @@ export default function ClickControl() {
           in_render: d.in_render, out_device: d.out_device || null, delay_ms: d.delay_ms || 0,
         });
         setSounds(d.sounds || []);
+        if (d.volume > 0) setLastVol(d.volume);
       })
       .catch(() => {});
-    fetch('/audio-devices')
+    fetch(`${API_BASE}/audio-devices`)
       .then((r) => r.json())
       .then((d) => setDevices(d.devices || []))
       .catch(() => {});
@@ -45,7 +50,7 @@ export default function ClickControl() {
 
   const save = (c: ClickCfg) => {
     setClickSig(JSON.stringify(c)); // signature pour forcer le re-rendu au Play
-    fetch('/click', {
+    fetch(`${API_BASE}/click`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...c, out_device: c.out_device || '' }),
@@ -67,6 +72,14 @@ export default function ClickControl() {
   const onDeviceChange = (name: string) => {
     // Choisir une sortie = mode séparé → on décoche le mix
     apply({ out_device: name || null, in_render: false });
+  };
+  const onMuteToggle = () => {
+    if ((cfg?.volume ?? 0) === 0) {
+      apply({ volume: lastVol || 80 });
+    } else {
+      if (cfg) setLastVol(cfg.volume);
+      apply({ volume: 0 });
+    }
   };
 
   if (!cfg) return null;
@@ -115,10 +128,19 @@ export default function ClickControl() {
         ))}
       </select>
 
+      {/* Mute du clic (volume 0 / restaure le dernier volume) */}
+      <button
+        onClick={onMuteToggle}
+        title={cfg.volume === 0 ? 'Réactiver le clic' : 'Couper le clic (mute)'}
+        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors shrink-0 ${cfg.volume === 0 ? 'bg-[#8f3b3b] text-white' : 'text-amber-400 hover:bg-[#1a2230]'}`}
+      >
+        {cfg.volume === 0 ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+      </button>
+
       {/* Volume */}
       <input
         type="range" min={0} max={100} value={cfg.volume}
-        onChange={(e) => apply({ volume: parseInt(e.target.value) })}
+        onChange={(e) => { const v = parseInt(e.target.value); if (v > 0) setLastVol(v); apply({ volume: v }); }}
         title={`Volume du clic (${cfg.volume})`}
         className="w-12 accent-amber-500"
       />
