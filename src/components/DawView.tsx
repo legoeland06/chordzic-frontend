@@ -738,7 +738,9 @@ export default function DawView({
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3">
       {/* ── Barre de transport (compacte, style studio) ── */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-3 py-1.5 px-2 bg-[#12141a] border border-[#262a34] rounded-lg">
+      <div className="flex flex-col gap-1.5 mb-3 py-1.5 px-2 bg-[#12141a] border border-[#262a34] rounded-lg">
+        {/* Rangée 1 — transport & position */}
+        <div className="flex flex-wrap items-center gap-1.5">
         {/* Transport : begin / play / stop / pause */}
         <button onClick={doBegin} title="Revenir au début (Begin)" className={tBtn}><SkipBack className="w-3.5 h-3.5" /></button>
         <button
@@ -807,6 +809,9 @@ export default function DawView({
 
         <div className={tSep} />
 
+        </div>
+        {/* Rangée 2 — clic & boucles */}
+        <div className="flex flex-wrap items-center gap-1.5">
         {/* Piste de clic (métronome + sortie dédiée + rendu) */}
         <ClickControl />
 
@@ -830,6 +835,9 @@ export default function DawView({
 
         <div className={tSep} />
 
+        </div>
+        {/* Rangée 3 — fichiers & vues */}
+        <div className="flex flex-wrap items-center gap-1.5">
         {/* Fichiers */}
         <button onClick={onSave} title="Sauvegarder la grille (Save)" className={tBtn}><Save className="w-3.5 h-3.5" /></button>
         <button onClick={onLoad} title="Charger une grille (Load)" className={tBtn}><FolderOpen className="w-3.5 h-3.5" /></button>
@@ -855,6 +863,7 @@ export default function DawView({
           </button>
           <button onClick={() => setShowPorts(true)} title="Ports MIDI & Audio — choisir vers quoi brancher l'application" className={tBtn}><Settings className="w-3.5 h-3.5" /></button>
           <button onClick={onHelp} title="Aide" className={tBtn}><HelpCircle className="w-3.5 h-3.5" /></button>
+        </div>
         </div>
       </div>
 
