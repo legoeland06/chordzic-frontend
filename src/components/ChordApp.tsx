@@ -886,6 +886,7 @@ export default function ChordApp() {
     const customChannels = Object.keys(pianoNotes).map(Number);
     const body: Record<string, unknown> = {
       sequence, tempo, pattern: drumPattern, walking: walkingBass, sig,
+      loop_enabled: loopOn,
       tracks: tracks.map(t => ({
         channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
         drums: t.drums ?? false, bank_msb: t.bankMsb ?? 0, bank_lsb: t.bankLsb ?? 0, effects: t.fx ?? FX_ZERO,
@@ -911,7 +912,7 @@ export default function ChordApp() {
     } catch (e) {
       setStatus('❌ MIDI : backend injoignable'); setStatusColor('text-red-400');
     }
-  }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume]);
+  }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume, loopOn]);
 
   /** Bounce multitrack → mode PostProd.
    * Rend chaque piste en WAV (avec ses effets MIDI) via /render-tracks, décode

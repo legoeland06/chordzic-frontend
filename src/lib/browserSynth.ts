@@ -294,7 +294,7 @@ export class BrowserSynth {
     sequence: { notes: string[]; beats: number }[],
     tempo: number, doLoop: boolean, opts?: RenderOptions,
   ): Promise<void> {
-    const body: Record<string, unknown> = { sequence, tempo };
+    const body: Record<string, unknown> = { sequence, tempo, loop_enabled: doLoop };
     if (opts) {
       if (opts.pattern) body.pattern = opts.pattern;
       if (opts.walking !== undefined) body.walking = opts.walking;
