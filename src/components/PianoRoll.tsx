@@ -1897,14 +1897,21 @@ export default function PianoRoll({
                 />
               </div>
             </div>
-            {/* Clavier de piano : colonne FIXE (calque au-dessus de la zone
-                d'édition), toujours visible à droite, immobile au scroll. */}
-            <div
-              className="shrink-0 relative z-10 border-l border-gray-800/60"
-              style={{ width: PIANO_KEYBOARD_WIDTH, height: canvasHeight }}
-            >
-              <canvas ref={keysCanvasRef} className="block w-full h-full" />
-            </div>
+            {/* Clavier de piano : en mode INTÉGRÉ, porté dans le slot fixe de
+                DawView (à droite de l'écran, calque au-dessus, immobile au
+                scroll) ; sinon colonne inline à droite du piano roll. */}
+            {!embedded && (
+              <div
+                className="shrink-0 relative z-10 border-l border-gray-800/60"
+                style={{ width: PIANO_KEYBOARD_WIDTH, height: canvasHeight }}
+              >
+                <canvas ref={keysCanvasRef} className="block w-full h-full" />
+              </div>
+            )}
+            {embedded && createPortal(
+              <canvas ref={keysCanvasRef} className="block w-full h-full" />,
+              document.getElementById('pianoroll-keys-slot') ?? document.body,
+            )}
           </div>
           {/* Barre de défilement horizontale tactile (mobile) */}
           <div

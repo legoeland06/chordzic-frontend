@@ -20,6 +20,7 @@ import PianoRoll from './PianoRoll';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
+import { PIANO_KEYBOARD_WIDTH } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
@@ -405,6 +406,8 @@ export default function DawView({
   /** Canal dont la lane est AGRANDIE (PianoRoll intégré). Une seule à la
    * fois : la barre d'outils (dans la zone transport) pilote cette piste. */
   const [expandedCh, setExpandedCh] = useState<number | null>(null);
+  /** Index de la piste agrandie (pour aligner le slot clavier sur sa lane). */
+  const expandedIndex = tracks.findIndex(t => t.channel === expandedCh);
   /** Table de mixage rétractable (comme modProd) — état local, ouvert par défaut. */
   const [mixerOpen, setMixerOpen] = useState(true);
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
@@ -1074,42 +1077,58 @@ export default function DawView({
             )}
           </div>
           {/* Panneau DROIT : contenu des pistes (seul le contenu est zoomé/défilé) */}
-          <div ref={lanesScrollRef} className="overflow-x-auto flex-1 min-w-0">
-            <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
-              {tracks.map(t => {
-                const isExpanded = expandedCh === t.channel;
-                const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
-                return (
-                  <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
-                    {isExpanded ? (
-                      <PianoRoll
-                        embedded
-                        notes={pianoNotes[t.channel] ?? []}
-                        onNotesChange={(notes) => onNotesChange(t.channel, notes)}
-                        trackLabel={t.label}
-                        channel={t.channel}
-                        isDrum={t.channel === 9 || !!t.drums}
-                        pixelsPerBeat={lanePpb}
-                        height={LANE_PIANOROLL_H}
-                        tempo={tempo}
-                        engine={engine}
-                        onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
-                        onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
-                      />
-                    ) : (
-                      <TrackLane
-                        track={t}
-                        notes={pianoNotes[t.channel] ?? []}
-                        totalBeats={totalBeats}
-                        posBeats={posBeats}
-                        compact
-                        onScrub={doScrub}
-                      />
-                    )}
-                  </div>
-                );
-              })}
+          <div className="relative flex-1 min-w-0">
+            <div ref={lanesScrollRef} className="overflow-x-auto">
+              <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
+                {tracks.map(t => {
+                  const isExpanded = expandedCh === t.channel;
+                  const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
+                  return (
+                    <div key={t.channel} className="border-b border-gray-800/40" style={{ height: h + 4 }}>
+                      {isExpanded ? (
+                        <PianoRoll
+                          embedded
+                          notes={pianoNotes[t.channel] ?? []}
+                          onNotesChange={(notes) => onNotesChange(t.channel, notes)}
+                          trackLabel={t.label}
+                          channel={t.channel}
+                          isDrum={t.channel === 9 || !!t.drums}
+                          pixelsPerBeat={lanePpb}
+                          height={LANE_PIANOROLL_H}
+                          tempo={tempo}
+                          engine={engine}
+                          onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
+                          onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
+                        />
+                      ) : (
+                        <TrackLane
+                          track={t}
+                          notes={pianoNotes[t.channel] ?? []}
+                          totalBeats={totalBeats}
+                          posBeats={posBeats}
+                          compact
+                          onScrub={doScrub}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+            {/* Slot du CLAVIER de piano (rempli par portal depuis le PianoRoll
+                agrandi) : calque fixe à droite de l'ÉCRAN — toujours visible,
+                immobile au scroll horizontal, aligné sur la piste agrandie. */}
+            {expandedCh !== null && (
+              <div
+                id="pianoroll-keys-slot"
+                className="absolute right-0 z-20 border-l border-gray-800/60"
+                style={{
+                  top: expandedIndex * (LANE_COMPACT_H + 4),
+                  width: PIANO_KEYBOARD_WIDTH,
+                  height: LANE_PIANOROLL_H + 4,
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
