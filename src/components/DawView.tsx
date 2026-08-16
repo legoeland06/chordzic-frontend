@@ -51,6 +51,15 @@ const trackColor = (ch: number) =>
 const trackIcon = (ch: number) =>
   ch === 0 ? '🎹' : ch === 2 ? '🎸' : ch === 3 ? '🎻' : ch === 9 ? '🥁' : '🎼';
 
+/** Kits de percussion du Roland JUNO-D6/D7/D8 (ZEN-Core) — banques MIDI
+ * (MSB/LSB) + program. Noms par défaut : PR-A / COMMON / USER + numéro
+ * (identifiables à l'oreille sur le synthé). */
+const JUNO_DRUM_KITS = [
+  ...Array.from({ length: 37 }, (_, i) => ({ key: `pra:${i + 1}`, label: `JUNO PR-A ${String(i + 1).padStart(2, '0')}`, msb: 70, lsb: 74, program: i + 1 })),
+  ...Array.from({ length: 74 }, (_, i) => ({ key: `common:${i + 1}`, label: `JUNO COMMON ${String(i + 1).padStart(2, '0')}`, msb: 86, lsb: 65, program: i + 1 })),
+  ...Array.from({ length: 16 }, (_, i) => ({ key: `user:${i + 1}`, label: `JUNO USER ${String(i + 1).padStart(2, '0')}`, msb: 70, lsb: 7, program: i + 1 })),
+];
+
 // ─── Props ─────────────────────────────────────────────────────────────
 
 interface DawViewProps {
@@ -904,21 +913,28 @@ export default function DawView({
                   spellCheck={false}
                 />
                 {t.channel === 9 || !!t.drums ? (
-                  <div className="flex items-center gap-1 w-full" title="Kit drums : banque MSB/LSB + kit (program) — accès aux kits alternatifs du synthé (ex. Roland)">
-                    <span className="text-[8px] text-gray-500 shrink-0">Bq</span>
-                    <input type="number" min={0} max={127} value={t.bankMsb ?? 0}
-                      onChange={(e) => onUpdateTrack(t.channel, { bankMsb: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
-                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
-                      title="Bank MSB (CC0)" />
-                    <input type="number" min={0} max={127} value={t.bankLsb ?? 0}
-                      onChange={(e) => onUpdateTrack(t.channel, { bankLsb: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
-                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
-                      title="Bank LSB (CC32)" />
-                    <input type="number" min={0} max={127} value={t.program}
-                      onChange={(e) => onUpdateTrack(t.channel, { program: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
-                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
-                      title="Kit (program change)" />
-                  </div>
+                  <select
+                    value={(() => {
+                      const m = t.bankMsb ?? 0, l = t.bankLsb ?? 0, p = t.program;
+                      const k = JUNO_DRUM_KITS.find(x => x.msb === m && x.lsb === l && x.program === p);
+                      return k ? k.key : 'default';
+                    })()}
+                    onChange={(e) => {
+                      if (e.target.value === 'default') {
+                        onUpdateTrack(t.channel, { bankMsb: 0, bankLsb: 0, program: 1 });
+                        return;
+                      }
+                      const k = JUNO_DRUM_KITS.find(x => x.key === e.target.value);
+                      if (k) onUpdateTrack(t.channel, { bankMsb: k.msb, bankLsb: k.lsb, program: k.program });
+                    }}
+                    className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300"
+                    title="Kit de percussion — banque (MSB/LSB) + program envoyés au synthé MIDI (ex. JUNO-D)"
+                  >
+                    <option value="default">🥁 Kit standard</option>
+                    {JUNO_DRUM_KITS.map(k => (
+                      <option key={k.key} value={k.key}>{k.label}</option>
+                    ))}
+                  </select>
                 ) : (
                 <select
                   value={t.program}
