@@ -25,6 +25,7 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 // ─── Constantes d'affichage ────────────────────────────────────────────
 
 /** Pixels par beat dans les lanes (zoom lecture compact, notes en pixels). */
+const API_BASE = 'http://localhost:4000';
 const LANE_PPB = 24;
 /** Zoom horizontal des lanes : plage 0.25× – 8× (6 à 192 px/beat). */
 const LANE_ZOOM_MIN = LANE_PPB * 0.25;
@@ -546,7 +547,7 @@ export default function DawView({
       clearInterval(midiTimerRef.current);
       midiTimerRef.current = null;
     }
-    try { await fetch('/navig-stop-midi', { method: 'POST' }); } catch { /* ignore */ }
+    try { await fetch(`${API_BASE}/navig-stop-midi`, { method: 'POST' }); } catch { /* ignore */ }
   }, []);
 
   const startMidi = useCallback((fromBeats = 0) => {
@@ -681,10 +682,10 @@ export default function DawView({
 
   const refreshPorts = useCallback(async () => {
     try {
-      const mp = await (await fetch('/midi-ports')).json();
+      const mp = await (await fetch(`${API_BASE}/midi-ports`)).json();
       setMidiPorts(mp.ports ?? []);
       setMidiCurrent(mp.current ?? '');
-      const ad = await (await fetch('/audio-devices')).json();
+      const ad = await (await fetch(`${API_BASE}/audio-devices`)).json();
       setAudioDevices(ad.devices ?? []);
       setAudioCurrent(ad.current ?? '');
     } catch (e) {
@@ -698,7 +699,7 @@ export default function DawView({
 
   const changeMidiPort = async (index: number) => {
     try {
-      await fetch('/midi-port', {
+      await fetch(`${API_BASE}/midi-port`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ index }),
       });
@@ -708,7 +709,7 @@ export default function DawView({
 
   const changeAudioDevice = async (device: string) => {
     try {
-      await fetch('/audio-device', {
+      await fetch(`${API_BASE}/audio-device`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ device }),
       });
@@ -727,7 +728,7 @@ export default function DawView({
       const delay = Math.max(0, (n.startTime - t0) * tempoMs);
       const dur = Math.max(80, Math.round(n.duration * tempoMs));
       setTimeout(() => {
-        fetch('/note', {
+        fetch(`${API_BASE}/note`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ channel, pitch: n.pitch, velocity: n.velocity || 100, duration_ms: dur }),
         }).catch(() => {});
