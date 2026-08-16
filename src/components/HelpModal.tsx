@@ -294,7 +294,15 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut — mode Live uniquement." />
             <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — <b>tête de lecture synchronisée</b>, arrêt par re-clic (⏹) ou Stop, clic sur une piste pour relancer depuis là. Réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
-            <Row k="🔁 Loop" v="Répète la grille en boucle (désactivé pendant la lecture)." />
+            <Row k="🔁 Loop" v={<>
+              Répète la grille en boucle (désactivé pendant la lecture). Avec les{' '}
+              <b className="text-white">locators L/R</b> (barre au-dessus des pistes, mode 📱 Navig.), la boucle couvre{' '}
+              <b className="text-white">uniquement l'intervalle [L, R[</b> — en lecture WAV <b className="text-white">et</b> en lecture MIDI
+              (🔌 MIDI). Les locators sont <b className="text-white">draggables</b> avec <b className="text-white">snap-to-grid</b>
+              (alignement au temps entier) : L (bleu) = début, R (orange) = fin de l'intervalle — la zone est
+              surlignée en bleu. Par défaut L=0 et R=fin du morceau (boucle complète). Le clic sur une piste
+              (déplacement de la tête) reste libre : au wrap, la lecture revient à L.
+            </>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />

@@ -20,6 +20,7 @@ import PianoRoll from './PianoRoll';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
+import { wrapLoopPositionSec } from '../lib/navPosition';
 import { PIANO_KEYBOARD_WIDTH } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -71,6 +72,11 @@ interface DawViewProps {
   hasWav: boolean;
   tempo: number;
   loopOn: boolean;
+  /** Locators [L, R[ (beats) — intervalle de boucle du repeat. R ≤ L = pas
+   * d'intervalle (boucle complète du morceau). */
+  locL: number;
+  locR: number;
+  onLocatorsChange: (l: number, r: number) => void;
   sig: string;                          // signature rythmique (compteur de mesures)
   input: string;                        // signature du contenu (re-rendu si modifié)
   engine: AudioEngine;                  // lecture / pause / seek
@@ -392,7 +398,7 @@ function TrackLane({
 // ─── Composant principal ───────────────────────────────────────────────
 
 export default function DawView({
-  tracks, pianoNotes, playing, hasWav, tempo, loopOn, sig, input, engine,
+  tracks, pianoNotes, playing, hasWav, tempo, loopOn, locL, locR, onLocatorsChange, sig, input, engine,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
@@ -440,6 +446,65 @@ export default function DawView({
   const [lanePpb, setLanePpb] = useState(LANE_PPB);
   const lanePpbRef = useRef(LANE_PPB);
   const lanesScrollRef = useRef<HTMLDivElement>(null);
+
+  // ── Locators [L, R[ : barre de boucle au-dessus des lanes, synchronisée
+  // au scroll horizontal (même échelle beats→px que la zone de contenu). ──
+  const [lanesScrollLeft, setLanesScrollLeft] = useState(0);
+  const locBarRef = useRef<HTMLDivElement>(null);
+  const [locBarW, setLocBarW] = useState(0);
+  useEffect(() => {
+    const el = locBarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setLocBarW(el.clientWidth));
+    ro.observe(el);
+    setLocBarW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  /** Largeur réelle du contenu des lanes (étiré si plus court que le viewport). */
+  const locContentW = Math.max(totalBeats * lanePpb, locBarW || 1);
+
+  /** Déplace un locator (drag) : pointeur → beat avec snap-to-grid (entier).
+   * Le contenu translaté : getBoundingClientRect inclut le translate →
+   * clientX − rect.left = position dans le contenu, sans gérer le scroll. */
+  const moveLocator = (side: 'L' | 'R', clientX: number) => {
+    const el = locBarRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const raw = ((clientX - rect.left) * Math.max(1, totalBeats)) / Math.max(1, locContentW);
+    const snapped = Math.round(raw); // snap-to-grid : beat entier
+    if (side === 'L') {
+      const v = Math.max(0, Math.min(snapped, locR - 1));
+      if (v !== locL) onLocatorsChange(v, locR);
+    } else {
+      const v = Math.max(locL + 1, Math.min(snapped, Math.ceil(totalBeats)));
+      if (v !== locR) onLocatorsChange(locL, v);
+    }
+  };
+
+  /** Poignée draggable d'un locator (L ou R). */
+  const LocatorHandle = ({ side, beat, color }: { side: 'L' | 'R'; beat: number; color: string }) => (
+    <div
+      className="absolute top-0 bottom-0 z-10 cursor-ew-resize select-none touch-none"
+      style={{ left: (beat * locContentW) / Math.max(1, totalBeats) - 6, width: 12 }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) moveLocator(side, e.clientX);
+      }}
+      onPointerUp={(e) => {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      }}
+    >
+      <div className="w-[3px] h-full rounded-full" style={{ background: color }} />
+      <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-bold" style={{ color }}>
+        {side}
+      </span>
+    </div>
+  );
 
   /** Ppb minimum pour montrer TOUTE la piste (fit-to-width). Le panneau
    * de scroll ne contient que le CONTENU (labels séparés, fixes à gauche). */
@@ -575,13 +640,16 @@ export default function DawView({
     midiTimerRef.current = window.setInterval(() => {
       const elapsedSec = (performance.now() - midiStartRef.current) / 1000;
       const beats = midiFromRef.current + (elapsedSec * tempo) / 60;
-      if (beats >= totalBeats) {
+      // Intervalle de boucle (locators) : la tête wrappe dans [L, R[ —
+      // même référentiel que le backend (navig-play-midi boucle [L, R[).
+      const loopEnd = locR > locL ? locR : totalBeats;
+      const loopStart = locR > locL ? locL : 0;
+      if (beats >= loopEnd) {
         if (loopOn) {
-          // BOUCLE (repeat) : la tête repart au début et la lecture CONTINUE
-          // — le backend (navig-play-midi) boucle déjà ; NE PAS appeler
+          // BOUCLE (repeat) : la tête repart au début de l'intervalle et la
+          // lecture CONTINUE — le backend boucle déjà ; NE PAS appeler
           // stopMidi() ici (ça tuait la boucle à la fin du 1er passage).
-          const b = beats % totalBeats;
-          setPosBeats(b);
+          setPosBeats(loopStart + ((beats - loopStart) % (loopEnd - loopStart)));
           return;
         }
         setPosBeats(totalBeats);
@@ -590,7 +658,7 @@ export default function DawView({
       }
       setPosBeats(beats);
     }, 50);
-  }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn]);
+  }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn, locL, locR]);
 
   const doStop = useCallback(() => {
     stopMidi();
@@ -662,6 +730,18 @@ export default function DawView({
       const raw = engine.getPianoRollPositionRaw();
       const dur = engine.getPianoRollDuration();
       if (raw < 0 || dur <= 0) return;
+      // Intervalle de boucle (locators) : la tête wrappe dans [L, R[ — même
+      // comportement que la lecture serveur (mode séparé) et le loop Web
+      // Audio (mode « Dans le rendu »).
+      const loopStartSec = locR > locL ? (locL * 60) / Math.max(40, tempo) : 0;
+      const loopEndSec = locR > locL ? (locR * 60) / Math.max(40, tempo) : dur;
+      if (loopOn && loopEndSec > loopStartSec && raw >= loopEndSec - 0.05) {
+        const wrapped = wrapLoopPositionSec(raw, loopStartSec, loopEndSec);
+        const b = (wrapped * tempo) / 60;
+        setPosBeats(b);
+        refreshLevels(b);
+        return;
+      }
       if (raw >= dur - 0.05) {
         // Fin naturelle du buffer (hors boucle)
         if (!loopOn) { doStopRef.current(); return; }
@@ -675,7 +755,15 @@ export default function DawView({
       refreshLevels(b);
     }, 40);
     return () => clearInterval(id);
-  }, [playState, engine, tempo, loopOn, refreshLevels]);
+  }, [playState, engine, tempo, loopOn, refreshLevels, locL, locR]);
+
+  // Intervalle de boucle (locators) → moteur Web Audio : loopStart/loopEnd
+  // des sources locales (mode « Dans le rendu ») + wrap de position.
+  useEffect(() => {
+    const secL = (locL * 60) / Math.max(40, tempo);
+    const secR = (locR * 60) / Math.max(40, tempo);
+    engine.setLoopInterval(locR > locL ? secL : 0, locR > locL ? secR : 0);
+  }, [engine, locL, locR, tempo]);
 
   // Quand ChordApp arrête la lecture (stop externe, édition…)
   useEffect(() => {
@@ -1091,7 +1179,25 @@ export default function DawView({
           </div>
           {/* Panneau DROIT : contenu des pistes (seul le contenu est zoomé/défilé) */}
           <div className="relative flex-1 min-w-0">
-            <div ref={lanesScrollRef} className="overflow-x-auto">
+            {/* Barre des LOCATORS [L, R[ — au-dessus de la zone de contenu :
+                intervalle de boucle du repeat, draggable avec snap-to-grid,
+                synchronisée au scroll horizontal des lanes. */}
+            <div ref={locBarRef} className="relative overflow-hidden border-b border-gray-800/60 select-none" style={{ height: 20 }}>
+              <div
+                className="absolute inset-y-0 left-0"
+                style={{ width: locContentW, transform: `translateX(${-lanesScrollLeft}px)` }}
+              >
+                {locR > locL && (
+                  <div
+                    className="absolute inset-y-0 bg-sky-500/15 border-x border-sky-400/40"
+                    style={{ left: (locL * locContentW) / Math.max(1, totalBeats), width: ((locR - locL) * locContentW) / Math.max(1, totalBeats) }}
+                  />
+                )}
+                <LocatorHandle side="L" beat={locL} color="#7dd3fc" />
+                <LocatorHandle side="R" beat={locR} color="#fbbf24" />
+              </div>
+            </div>
+            <div ref={lanesScrollRef} className="overflow-x-auto" onScroll={(e) => setLanesScrollLeft(e.currentTarget.scrollLeft)}>
               <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
                 {tracks.map(t => {
                   const isExpanded = expandedCh === t.channel;

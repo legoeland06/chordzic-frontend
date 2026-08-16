@@ -28,3 +28,16 @@ export function beatsFromSeconds(sec: number, tempo: number): number {
 export function navStartAtBeats(seconds: number, tempo: number): number {
   return beatsFromSeconds(seconds, tempo);
 }
+
+/** Position de tête dans une boucle [loopStartSec, loopEndSec[ : wrap la
+ * position linéaire dans l'intervalle (même comportement que la lecture
+ * serveur et le loop Web Audio). Tant que la position n'a pas atteint le
+ * locator droit, elle reste telle quelle (la lecture peut commencer avant
+ * L — le 1ᵉʳ passage joue de start à R, puis la boucle [L, R[). */
+export function wrapLoopPositionSec(sec: number, loopStartSec: number, loopEndSec: number): number {
+  if (!(loopEndSec > loopStartSec)) return sec;
+  if (sec < loopStartSec) return sec;
+  const len = loopEndSec - loopStartSec;
+  if (len <= 0) return sec;
+  return loopStartSec + ((sec - loopStartSec) % len);
+}

@@ -10,7 +10,7 @@
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { computeSamplePhase, fitSampleToGrid, measureDurationSec } from './sampleLoop';
-import { estimatePositionSec, navStartAtBeats } from './navPosition';
+import { estimatePositionSec, navStartAtBeats, wrapLoopPositionSec } from './navPosition';
 
 export interface TrackCfg {
   channel: number;
@@ -37,6 +37,10 @@ export interface RenderOptions {
   customChannels?: number[];
   /** Intégrer le clic (métronome) au WAV rendu — synchro parfaite. */
   click_in_render?: boolean;
+  /** Locator gauche (beats) — intervalle de boucle [L, R[ (repeat). */
+  loopStart?: number;
+  /** Locator droit (beats) — intervalle de boucle [L, R[ (repeat). */
+  loopEnd?: number;
 }
 
 /** Configuration de la boucle sample (mode Navig) : un sample audio de
@@ -76,6 +80,11 @@ export class BrowserSynth {
   private ctxTimeAtStart = 0;
   private _loopTimer: ReturnType<typeof setTimeout> | null = null;
   private sources: AudioBufferSourceNode[] = [];
+  /** Intervalle de boucle (locators) en SECONDES — appliqué aux sources Web
+   * Audio locales quand loop=true (mode « Dans le rendu ») et au wrap de
+   * position. 0 = pas d'intervalle (boucle complète). */
+  private _loopStartSec = 0;
+  private _loopEndSec = 0;
   /** Boucle sample (mode Navig) : config + objets Web Audio dédiés. */
   private _sampleLoop: SampleLoopCfg | null = null;
   private _sampleBuffer: AudioBuffer | null = null;
@@ -264,6 +273,21 @@ export class BrowserSynth {
     // Le volume est géré par le rendu backend (master_vol)
   }
 
+  /** Configure l'intervalle de boucle (locators, en secondes) : appliqué
+   * aux sources Web Audio locales (loopStart/loopEnd) et au wrap de position.
+   * 0/0 = pas d'intervalle (boucle complète du buffer). */
+  setLoopInterval(startSec: number, endSec: number): void {
+    this._loopStartSec = Math.max(0, startSec);
+    this._loopEndSec = endSec > this._loopStartSec ? endSec : 0;
+    // Applique immédiatement si une source en boucle tourne déjà
+    if (this.source && this.source.loop && this._buffer) {
+      this.source.loopStart = this._loopStartSec;
+      this.source.loopEnd = this._loopEndSec > 0
+        ? Math.min(this._loopEndSec, this._buffer.duration)
+        : this._buffer.duration;
+    }
+  }
+
   /** Retourne ou crée le AudioContext (et le resume si suspendu). */
   private async getContext(): Promise<AudioContext> {
     if (!this.audioCtx) {
@@ -306,6 +330,12 @@ export class BrowserSynth {
       }
       if (opts.customChannels && opts.customChannels.length > 0) {
         body.custom_channels = opts.customChannels;
+      }
+      // Intervalle de boucle (locators) : le serveur boucle [L, R[ au lieu
+      // du morceau complet quand loop_enabled.
+      if (opts.loopEnd !== undefined && opts.loopStart !== undefined && opts.loopEnd > opts.loopStart) {
+        body.loop_start = opts.loopStart;
+        body.loop_end = opts.loopEnd;
       }
     }
     // Config du clic (source de vérité : le serveur) — mode Navig
@@ -445,12 +475,18 @@ export class BrowserSynth {
       if (this._sepActive) {
         const dur = this._sepTotalSec;
         const raw = estimatePositionSec(this._sepStartMs, performance.now());
+        if (this._loopEndSec > this._loopStartSec) {
+          return wrapLoopPositionSec(raw, this._loopStartSec, this._loopEndSec);
+        }
         if (dur > 0) return ((raw % dur) + dur) % dur;
         return raw;
       }
       return 0;
     }
     const elapsed = this.audioCtx.currentTime - this.ctxTimeAtStart;
+    if (this._loopEndSec > this._loopStartSec) {
+      return wrapLoopPositionSec(elapsed, this._loopStartSec, this._loopEndSec);
+    }
     return ((elapsed % this._buffer.duration) + this._buffer.duration) % this._buffer.duration;
   }
 
@@ -565,6 +601,11 @@ export class BrowserSynth {
     const source = ctx.createBufferSource();
     source.buffer = this._buffer;
     source.loop = loop;
+    if (loop && this._loopEndSec > this._loopStartSec) {
+      // Locators : la boucle Web Audio couvre [L, R[ au lieu du buffer entier
+      source.loopStart = this._loopStartSec;
+      source.loopEnd = Math.min(this._loopEndSec, this._buffer.duration);
+    }
     source.connect(gainNode);
     this.ctxTimeAtStart = ctx.currentTime + whenSec - Math.max(0, seconds);
     source.start(whenSec, Math.max(0, seconds));
@@ -606,6 +647,11 @@ export class BrowserSynth {
     const source = ctx.createBufferSource();
     source.buffer = this._buffer;
     source.loop = loop;
+    if (loop && this._loopEndSec > this._loopStartSec) {
+      // Locators : la boucle Web Audio couvre [L, R[ au lieu du buffer entier
+      source.loopStart = this._loopStartSec;
+      source.loopEnd = Math.min(this._loopEndSec, this._buffer.duration);
+    }
     source.connect(gainNode);
     this.ctxTimeAtStart = ctx.currentTime - Math.max(0, seconds);
     source.start(0, Math.max(0, seconds));

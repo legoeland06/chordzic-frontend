@@ -203,6 +203,14 @@ export default function ChordApp() {
 
   // ── État : options musicales ─────────────────────────────────────
   const [loopOn, setLoopOn] = useState(false);
+  // Locators [L, R[ (beats) — intervalle de boucle du repeat. R ≤ L =
+  // pas d'intervalle (boucle complète du morceau).
+  const [locL, setLocL] = useState(0);
+  const [locR, setLocR] = useState(0);
+  const handleLocatorsChange = useCallback((l: number, r: number) => {
+    setLocL(l);
+    setLocR(r);
+  }, []);
   const [walkingBass, setWalkingBass] = useState(false);
   const [drumPattern, setDrumPattern] = useState('rock');
   const [sig, setSig] = useState('4/4');
@@ -642,14 +650,15 @@ export default function ChordApp() {
     const grille = { titre: 'Session', tempo, chords: chordsToPlay };
     // En mode Navig (rendu WAV), le WAV sera disponible à l'extraction
     if (browserAudio) setHasWav(true);
-    engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined).then(() => {
+    engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined,
+      locR > locL ? { start: locL, end: locR } : undefined).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
     }).catch((e) => {
       setPlaying(false);
       setStatus(`❌ Erreur: ${e.message}`); setStatusColor('text-red-400');
     });
-  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input, browserAudio, pianoNotes]);
+  }, [chords, tempo, volume, tracks, use432, drumPattern, sig, getEngine, loopOn, input, browserAudio, pianoNotes, locL, locR]);
 
   const stop = () => {
     if (engineRef.current) engineRef.current.stop();
@@ -895,6 +904,9 @@ export default function ChordApp() {
       custom_notes: customNotes.length > 0 ? customNotes : undefined,
       custom_channels: customChannels.length > 0 ? customChannels : undefined,
       start_at: startAtBeats > 0 ? startAtBeats : undefined,
+      // Locators [L, R[ : le repeat boucle l'intervalle au lieu du morceau
+      // complet (le backend ne les utilise que si loop_enabled).
+      ...(locR > locL ? { loop_start: locL, loop_end: locR } : {}),
     };
     try {
       const resp = await fetch(`${API_BASE}/navig-play-midi`, {
@@ -912,7 +924,7 @@ export default function ChordApp() {
     } catch (e) {
       setStatus('❌ MIDI : backend injoignable'); setStatusColor('text-red-400');
     }
-  }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume, loopOn]);
+  }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume, loopOn, locL, locR]);
 
   /** Bounce multitrack → mode PostProd.
    * Rend chaque piste en WAV (avec ses effets MIDI) via /render-tracks, décode
@@ -1182,6 +1194,9 @@ export default function ChordApp() {
             hasWav={hasWav}
             tempo={tempo}
             loopOn={loopOn}
+            locL={locL}
+            locR={locR}
+            onLocatorsChange={handleLocatorsChange}
             onPlay={play}
             onStop={stop}
             onExtractWav={handleExtractWav}

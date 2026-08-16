@@ -4,6 +4,7 @@ import {
   estimatePositionSec,
   navStartAtBeats,
   secondsFromBeats,
+  wrapLoopPositionSec,
 } from './navPosition';
 
 describe('navPosition — position de lecture mode Navig', () => {
@@ -28,5 +29,21 @@ describe('navPosition — position de lecture mode Navig', () => {
     expect(navStartAtBeats(0, 120)).toBe(0);
     expect(navStartAtBeats(2, 120)).toBe(4);
     expect(navStartAtBeats(2.5, 123)).toBeCloseTo(5.125, 6);
+  });
+
+  it('wrap la position dans l\'intervalle [L, R[ (locators)', () => {
+    // Pas d'intervalle → position inchangée
+    expect(wrapLoopPositionSec(5, 0, 0)).toBe(5);
+    expect(wrapLoopPositionSec(5, 3, 3)).toBe(5);
+    // Avant L : inchangée (le 1er passage joue de start à R)
+    expect(wrapLoopPositionSec(2, 4, 8)).toBe(2);
+    // Dans l'intervalle : inchangée
+    expect(wrapLoopPositionSec(5, 4, 8)).toBe(5);
+    expect(wrapLoopPositionSec(7.999, 4, 8)).toBeCloseTo(7.999, 6);
+    // À R et au-delà : wrap dans [L, R[
+    expect(wrapLoopPositionSec(8, 4, 8)).toBe(4);
+    expect(wrapLoopPositionSec(9.5, 4, 8)).toBeCloseTo(5.5, 6);
+    expect(wrapLoopPositionSec(12, 4, 8)).toBe(4);
+    expect(wrapLoopPositionSec(20, 4, 8)).toBe(4);
   });
 });

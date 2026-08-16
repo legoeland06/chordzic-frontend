@@ -271,7 +271,7 @@ export class AudioEngine {
   /**
    * Joue une grille complète d'accords, avec ou sans boucle.
    */
-  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[]): Promise<void> {
+  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[], loopInterval?: { start: number; end: number }): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
@@ -288,6 +288,7 @@ export class AudioEngine {
         })),
         customNotes,
         customChannels,
+        ...(loopInterval ? { loopStart: loopInterval.start, loopEnd: loopInterval.end } : {}),
       });
     } else {
       const sequence = grille.chords.map(c => ({
@@ -419,6 +420,12 @@ export class AudioEngine {
   /** Joue le buffer Navig courant depuis une position (scrub + lecture). */
   playNavigFrom(seconds: number, loop: boolean): void {
     this.browserSynth.playBufferFrom(seconds, loop);
+  }
+
+  /** Intervalle de boucle (locators) en secondes — appliqué aux sources
+   * Web Audio locales (loopStart/loopEnd) et au wrap de position. */
+  setLoopInterval(startSec: number, endSec: number): void {
+    this.browserSynth.setLoopInterval(startSec, endSec);
   }
 
   /** Déplace la tête de lecture du rendu Navig courant (lecture ou pause). */
