@@ -25,6 +25,9 @@ import {
   Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings,
 } from 'lucide-react';
 import {
+  xFromBeat, isInKeyboardZone, keyboardLeftEdge, clipToKeyboard,
+} from '../lib/pianoRollCoords';
+import {
   PianoNote,
   DEFAULT_PIXELS_PER_BEAT,
   SNAP_UNIT,
@@ -295,7 +298,8 @@ export default function PianoRoll({
     ctx.fillStyle = '#1a1b26';
     ctx.fillRect(0, 0, w, h);
 
-    // ── Grille temps (lignes verticales) ──
+    // ── Grille temps (lignes verticales) — origine à 0, ALIGNÉE avec les
+    // lanes compactes des autres pistes (le clavier est un overlay à droite).
     const gridStartBeat = Math.max(0, Math.floor(scrollLeft / ppb));
     const gridEndBeat = Math.ceil((scrollLeft + w - PIANO_KEYBOARD_WIDTH) / ppb) + 1;
 
@@ -303,8 +307,8 @@ export default function PianoRoll({
     ctx.lineWidth = 1;
 
     for (let beat = gridStartBeat; beat <= gridEndBeat; beat++) {
-      const x = beat * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
-      if (x < PIANO_KEYBOARD_WIDTH || x > w) continue;
+      const x = xFromBeat(beat, ppb, scrollLeft);
+      if (x < 0 || x > w) continue;
 
       const isMeasure = beat % 4 === 0;
       ctx.strokeStyle = isMeasure ? '#3a3b5e' : '#2a2b3e';
@@ -332,8 +336,8 @@ export default function PianoRoll({
       ctx.lineWidth = 0.5;
       for (let beat = gridStartBeat; beat <= gridEndBeat; beat++) {
         for (let k = 1; k < steps; k++) {
-          const x = (beat + k * snapUnit) * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
-          if (x < PIANO_KEYBOARD_WIDTH || x > w) continue;
+          const x = xFromBeat(beat + k * snapUnit, ppb, scrollLeft);
+          if (x < 0 || x > w) continue;
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, h);
@@ -342,30 +346,31 @@ export default function PianoRoll({
       }
     }
 
-    // ── Clavier de piano (gauche) ──
+    // ── Clavier de piano (overlay DROIT, toujours visible) ──
+    const kx = keyboardLeftEdge(w);
     for (let pitch = userMaxPitch; pitch >= userMinPitch; pitch--) {
       const y = (userMaxPitch - pitch) * WHITE_KEY_HEIGHT;
       const isBlack = isBlackKey(pitch);
 
       // Fond de la touche
       ctx.fillStyle = isBlack ? '#2d2d3f' : '#3a3a4e';
-      ctx.fillRect(0, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
+      ctx.fillRect(kx, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
 
       // Bordure
       ctx.strokeStyle = '#4a4a5e';
       ctx.lineWidth = 0.5;
-      ctx.strokeRect(0, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
+      ctx.strokeRect(kx, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
 
       // Étiquette pour les Do
       if (pitch % 12 === 0) {
         ctx.fillStyle = '#8a8aae';
         ctx.font = '8px monospace';
         const label = noteName(pitch) + (Math.floor(pitch / 12) - 1);
-        ctx.fillText(label, 4, y + WHITE_KEY_HEIGHT - 3);
+        ctx.fillText(label, kx + 4, y + WHITE_KEY_HEIGHT - 3);
       }
     }
 
-    // ── Rangées de notes (lignes horizontales) ──
+    // ── Rangées de notes (lignes horizontales) — s'arrêtent au clavier ──
     ctx.strokeStyle = '#222233';
     ctx.lineWidth = 0.5;
     for (let pitch = userMinPitch; pitch <= userMaxPitch; pitch++) {
@@ -378,17 +383,21 @@ export default function PianoRoll({
         ctx.lineWidth = 0.5;
       }
       ctx.beginPath();
-      ctx.moveTo(PIANO_KEYBOARD_WIDTH, y);
-      ctx.lineTo(w, y);
+      ctx.moveTo(0, y);
+      ctx.lineTo(kx, y);
       ctx.stroke();
     }
 
-    // ── Dessiner les notes ──
+    // ── Dessiner les notes (clippées pour ne pas passer sous le clavier droit) ──
     const drawNote = (note: PianoNote, isCreating: boolean) => {
-      const x = note.startTime * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+      const x0 = xFromBeat(note.startTime, ppb, scrollLeft);
       const y = (userMaxPitch - note.pitch) * WHITE_KEY_HEIGHT;
-      const noteW = Math.max(3, note.duration * ppb);
+      const noteW0 = Math.max(3, note.duration * ppb);
       const noteH = WHITE_KEY_HEIGHT - 1;
+      const clip = clipToKeyboard(x0, noteW0, w);
+      if (!clip) return; // entièrement sous le clavier → invisible
+      const x = clip.x;
+      const noteW = clip.width;
       const isSel = selectedIds.has(note.id);
       const isGrouped = !!note.groupId;
 
@@ -439,22 +448,27 @@ export default function PianoRoll({
       drawNote(creating, true);
     }
 
-    // ── Rectangle de sélection (marquee) ──
+    // ── Rectangle de sélection (marquee) — clippé au clavier droit ──
     if (marquee) {
       const mx = Math.min(marquee.x0, marquee.x1);
       const my = Math.min(marquee.y0, marquee.y1);
-      const mw = Math.abs(marquee.x1 - marquee.x0);
+      const mw0 = Math.abs(marquee.x1 - marquee.x0);
       const mh = Math.abs(marquee.y1 - marquee.y0);
-      ctx.fillStyle = 'rgba(251,191,36,0.10)';
-      ctx.fillRect(mx, my, mw, mh);
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(mx, my, mw, mh);
+      const mclip = clipToKeyboard(mx, mw0, w);
+      if (mclip) {
+        ctx.fillStyle = 'rgba(251,191,36,0.10)';
+        ctx.fillRect(mclip.x, my, mclip.width, mh);
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mclip.x, my, mclip.width, mh);
+      }
     }
 
-    // ── Curseur de lecture (ligne verticale + repère en haut) ──
+    // ── Curseur de lecture (ligne verticale + repère en haut) — ne dépasse
+    // pas sous le clavier droit ──
     if (pianoPlaying !== 'idle' || playPosRef.current > 0) {
-      const playX = playPosRef.current * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+      const rawX = xFromBeat(playPosRef.current, ppb, scrollLeft);
+      const playX = Math.min(rawX, keyboardLeftEdge(w) - 1);
       ctx.strokeStyle = '#f87171';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -511,6 +525,9 @@ export default function PianoRoll({
     };
   };
 
+  /** Largeur courante du canvas (pour la zone clavier OVERLAY à droite). */
+  const canvasW = () => canvasRef.current?.getBoundingClientRect().width ?? 0;
+
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const canvas = canvasRef.current;
@@ -546,9 +563,9 @@ export default function PianoRoll({
     if (last && now - last.t < 300 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30 && rect0) {
       lastTapRef.current = null;
       const cpx = e.clientX - rect0.left;
-      if (cpx >= PIANO_KEYBOARD_WIDTH) {
+      if (!isInKeyboardZone(cpx, canvasW())) {
         const adj: MouseCoord = {
-          px: cpx + scrollLeft - PIANO_KEYBOARD_WIDTH,
+          px: cpx + scrollLeft,
           py: e.clientY - rect0.top,
         };
         const hit = hitTest(localNotesRef.current, adj, effectivePixelsPerBeat, userMaxPitch);
@@ -571,12 +588,12 @@ export default function PianoRoll({
 
     const coord = getCoord(e);
 
-    // Ignorer les clics sur le clavier de piano (colonne gauche)
-    if (coord.px < PIANO_KEYBOARD_WIDTH) return;
+    // Ignorer les clics sur le clavier de piano (overlay droit)
+    if (isInKeyboardZone(coord.px, canvasW())) return;
 
     // Ajuster les coordonnées pour le scroll
     const adjustedCoord: MouseCoord = {
-      px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+      px: coord.px + scrollLeft,
       py: coord.py,
     };
 
@@ -688,8 +705,8 @@ export default function PianoRoll({
         const ppb0 = pixelsPerBeat * pinch.zoom0;
         const ppb1 = pixelsPerBeat * newZoom;
         // Le beat sous le milieu des doigts reste à la même position écran
-        const beatAtMid = (pinch.midX0 - rect.left + pinch.scroll0 - PIANO_KEYBOARD_WIDTH) / ppb0;
-        const newScroll = Math.max(0, beatAtMid * ppb1 - (midX - rect.left) + PIANO_KEYBOARD_WIDTH);
+        const beatAtMid = (pinch.midX0 - rect.left + pinch.scroll0) / ppb0;
+        const newScroll = Math.max(0, beatAtMid * ppb1 - (midX - rect.left));
         setZoom(newZoom);
         scrollLeftRef.current = newScroll;
         setScrollLeft(newScroll);
@@ -711,9 +728,9 @@ export default function PianoRoll({
     if (!inCanvas) {
       setHoverInfo(null);
       if (canvasEl) canvasEl.style.cursor = '';
-    } else if (coord.px >= PIANO_KEYBOARD_WIDTH) {
+    } else if (!isInKeyboardZone(coord.px, canvasW())) {
       const hAdj: MouseCoord = {
-        px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+        px: coord.px + scrollLeft,
         py: coord.py,
       };
       const h = hitTest(localNotesRef.current, hAdj, effectivePixelsPerBeat, userMaxPitch);
@@ -754,7 +771,7 @@ export default function PianoRoll({
           else return;
         }
         const { startPx, startPy, orig } = dragSelRef.current;
-        const dBeat = (coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH - startPx) / effectivePixelsPerBeat;
+        const dBeat = (coord.px + scrollLeft - startPx) / effectivePixelsPerBeat;
         // Canvas : y décroît quand le pitch monte → delta inversé
         const dPitch = -Math.round((coord.py - startPy) / WHITE_KEY_HEIGHT);
         if (dBeat !== 0 || dPitch !== 0) {
@@ -778,7 +795,7 @@ export default function PianoRoll({
     if (ctxRef.current.state === 'IDLE') return;
 
     const adjustedCoord: MouseCoord = {
-      px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+      px: coord.px + scrollLeft,
       py: coord.py,
     };
 
@@ -873,7 +890,7 @@ export default function PianoRoll({
     if (ctx.state === 'IDLE') return;
 
     const adjustedCoord: MouseCoord = {
-      px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+      px: coord.px + scrollLeft,
       py: coord.py,
     };
 
@@ -942,10 +959,10 @@ export default function PianoRoll({
     // En mode sélection, la suppression passe par Suppr/Couper
     if (tool === 'select') return;
     const coord = getCoord(e);
-    if (coord.px < PIANO_KEYBOARD_WIDTH) return;
+    if (isInKeyboardZone(coord.px, canvasW())) return;
 
     const adjustedCoord: MouseCoord = {
-      px: coord.px + scrollLeft - PIANO_KEYBOARD_WIDTH,
+      px: coord.px + scrollLeft,
       py: coord.py,
     };
 
@@ -1079,7 +1096,7 @@ export default function PianoRoll({
     const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
     const ppb = effectivePixelsPerBeat;
     return list.filter(n => {
-      const nx = n.startTime * ppb - scrollLeft + PIANO_KEYBOARD_WIDTH;
+      const nx = n.startTime * ppb - scrollLeft;
       const nw = Math.max(3, n.duration * ppb);
       const ny = (userMaxPitch - n.pitch) * WHITE_KEY_HEIGHT;
       const nh = WHITE_KEY_HEIGHT - 1;
@@ -1371,7 +1388,7 @@ export default function PianoRoll({
         // Auto-scroll : suivre le curseur quand il sort à droite
         const el = containerRef.current;
         if (el) {
-          const x = beats * effectivePixelsPerBeat - el.scrollLeft + PIANO_KEYBOARD_WIDTH;
+          const x = beats * effectivePixelsPerBeat - el.scrollLeft;
           const margin = 80;
           if (x > el.clientWidth - margin) {
             el.scrollLeft += x - (el.clientWidth - margin);
@@ -1466,11 +1483,12 @@ export default function PianoRoll({
     const ppb0 = pixelsPerBeat * oldZ;
     const ppb1 = pixelsPerBeat * newZ;
     const anchor = anchorX !== undefined
-      ? Math.max(0, anchorX - rect.left - PIANO_KEYBOARD_WIDTH)
+      ? Math.max(0, anchorX - rect.left)
       : Math.max(0, (rect.width - PIANO_KEYBOARD_WIDTH) / 2);
     // Le beat sous le point d'ancrage reste fixe à l'écran
     const beat = (anchor + scrollLeftRef.current) / ppb0;
-    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 - viewportW);
+    // Le contenu peut défiler jusqu'au bord gauche du clavier droit
+    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 + PIANO_KEYBOARD_WIDTH - viewportW);
     const newScroll = Math.min(maxScroll, Math.max(0, beat * ppb1 - anchor));
     // Mise à jour IMMÉDIATE de la ref (les wheel events suivants du même
     // geste enchaînent sans attendre le re-render → point souris stable)
