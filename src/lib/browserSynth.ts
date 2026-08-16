@@ -102,6 +102,9 @@ export class BrowserSynth {
   /** Dernier body envoyé à /navig-play (pour relancer depuis une position). */
   private _lastNavBody: Record<string, unknown> | null = null;
   private _lastNavTempo = 120;
+  /** Génération des scrubs séparés : seul le DERNIER clic gagne (un scrub
+   * plus lent qui répond après un plus récent n'écrase pas sa position). */
+  private _seekGen = 0;
 
   get isPlaying() { return this._playing; }
 
@@ -609,6 +612,7 @@ export class BrowserSynth {
   /** Relance la lecture SÉPARÉE (serveur, double canaux) depuis `seconds`. */
   private _seekSeparate(seconds: number) {
     const body = this._lastNavBody;
+    const gen = ++this._seekGen;
     if (!body) {
       this._moveSeparateHead(seconds);
       return;
@@ -621,15 +625,19 @@ export class BrowserSynth {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(next),
         });
-        if (!resp.ok) { this._moveSeparateHead(seconds); return; }
+        if (!resp.ok) {
+          if (gen === this._seekGen) this._moveSeparateHead(seconds);
+          return;
+        }
         const data = await resp.json();
+        if (gen !== this._seekGen) return; // un scrub plus récent a gagné
         // Le serveur repart de `seconds` (durée restante renvoyée) →
         // l'estimateur repart de cette position, le clic continue.
         this._sepActive = true;
         this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
         if (typeof data.duration_sec === 'number') this._sepDurSec = data.duration_sec;
       } catch {
-        this._moveSeparateHead(seconds);
+        if (gen === this._seekGen) this._moveSeparateHead(seconds);
       }
     })();
   }
@@ -669,6 +677,7 @@ export class BrowserSynth {
     // Fin du mode séparé : plus d'estimateur, plus de body de relance
     this._sepActive = false;
     this._lastNavBody = null;
+    this._seekGen++; // invalide tout scrub séparé en vol
     this._stopLocalSources();
     // Arrêter aussi le clic séparé joué par le serveur
     fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
