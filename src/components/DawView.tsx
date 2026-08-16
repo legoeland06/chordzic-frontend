@@ -551,6 +551,13 @@ export default function DawView({
   }, []);
 
   const startMidi = useCallback((fromBeats = 0) => {
+    // Toggle exclusif : la lecture MIDI remplace la lecture WAV (sinon le
+    // WAV — et son clic mixé — continue de tourner par-dessus le MIDI).
+    if (playState === 'playing') {
+      engine.stop();
+      setPlayState('idle');
+      setLevels({});
+    }
     onPlayMidiAll(fromBeats);
     setMidiPlaying(true);
     midiStartRef.current = performance.now();
@@ -567,7 +574,7 @@ export default function DawView({
       }
       setPosBeats(beats);
     }, 50);
-  }, [onPlayMidiAll, tempo, totalBeats, stopMidi]);
+  }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState]);
 
   const doStop = useCallback(() => {
     stopMidi();
