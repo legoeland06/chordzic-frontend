@@ -463,6 +463,15 @@ export default function DawView({
   /** Largeur réelle du contenu des lanes (étiré si plus court que le viewport). */
   const locContentW = Math.max(totalBeats * lanePpb, locBarW || 1);
 
+  // Initialisation : locators jamais touchés (0/0) → R = fin du morceau
+  // (zone [0, totalBeats[ = boucle complète, poignées aux extrémités).
+  useEffect(() => {
+    if (locR <= locL && totalBeats > 0) {
+      onLocatorsChange(0, totalBeats);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalBeats]);
+
   /** Déplace un locator (drag) : pointeur → beat avec snap-to-grid (entier).
    * Le contenu translaté : getBoundingClientRect inclut le translate →
    * clientX − rect.left = position dans le contenu, sans gérer le scroll. */
