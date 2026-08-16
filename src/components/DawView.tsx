@@ -531,6 +531,23 @@ export default function DawView({
   const [lanesScrollLeft, setLanesScrollLeft] = useState(0);
   const locBarRef = useRef<HTMLDivElement>(null);
   const [locBarW, setLocBarW] = useState(0);
+  /** Contenu TRANSLATÉ de la barre (pour la conversion pointeur→beat : son
+   * rect inclut le translate → la position dans le contenu est exacte,
+   * scroll horizontal compris). */
+  const locContentRef = useRef<HTMLDivElement>(null);
+  /** Largeur RÉELLE du contenu des lanes (mesurée) : la barre doit être sur
+   * la MÊME échelle que les lanes, quel que soit le zoom/l'étirement. */
+  const lanesContentRef = useRef<HTMLDivElement>(null);
+  const [lanesContentW, setLanesContentW] = useState(0);
+  useEffect(() => {
+    const el = lanesContentRef.current;
+    if (!el) return;
+    const measure = () => setLanesContentW(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
   // Snap des locators : celui du PianoRoll intégré (même snap que les notes
   // insérées) — remonté via onSnapChange. Défaut : snap du PianoRoll.
   const [locSnapUnit, setLocSnapUnit] = useState(DEFAULT_SNAP_UNIT);
@@ -547,8 +564,9 @@ export default function DawView({
     setLocBarW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
-  /** Largeur réelle du contenu des lanes (étiré si plus court que le viewport). */
-  const locContentW = Math.max(totalBeats * lanePpb, locBarW || 1);
+  /** Largeur réelle du contenu des lanes (étiré si plus court que le
+   * viewport) — MESURÉE pour rester pile sur l'échelle des lanes après zoom. */
+  const locContentW = lanesContentW || Math.max(totalBeats * lanePpb, locBarW || 1);
 
   // Initialisation : locators jamais touchés (0/0) → R = fin du morceau
   // (zone [0, totalBeats[ = boucle complète, poignées aux extrémités).
@@ -563,11 +581,14 @@ export default function DawView({
    * Le contenu translaté : getBoundingClientRect inclut le translate →
    * clientX − rect.left = position dans le contenu, sans gérer le scroll. */
   const moveLocator = (side: 'L' | 'R', clientX: number) => {
-    const el = locBarRef.current;
+    const el = locContentRef.current;
     if (!el) return;
+    // Rect du contenu TRANSLATÉ : clientX − rect.left = position dans le
+    // contenu (le translate −scrollLeft est inclus) → aucun décalage au drag
+    // même après un scroll horizontal.
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0) return;
-    const raw = ((clientX - rect.left) * Math.max(1, totalBeats)) / Math.max(1, locContentW);
+    const raw = ((clientX - rect.left) * Math.max(1, totalBeats)) / Math.max(1, rect.width);
     // Snap-to-grid : le MÊME snap que les notes insérées (PianoRoll intégré),
     // pas seulement le temps entier.
     const snapped = locSnapEnabled ? snapToGrid(raw, locSnapUnit) : raw;
@@ -1273,6 +1294,7 @@ export default function DawView({
                 synchronisée au scroll horizontal des lanes. */}
             <div ref={locBarRef} className="relative z-30 overflow-hidden border-b border-gray-800/60 select-none" style={{ height: LOC_BAR_H }}>
               <div
+                ref={locContentRef}
                 className="absolute inset-y-0 left-0"
                 style={{ width: locContentW, transform: `translateX(${-lanesScrollLeft}px)` }}
               >
@@ -1287,7 +1309,7 @@ export default function DawView({
               </div>
             </div>
             <div ref={lanesScrollRef} className="overflow-x-auto" onScroll={(e) => setLanesScrollLeft(e.currentTarget.scrollLeft)}>
-              <div style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
+              <div ref={lanesContentRef} style={{ width: Math.max(totalBeats * lanePpb, 1), minWidth: '100%' }}>
                 {tracks.map(t => {
                   const isExpanded = expandedCh === t.channel;
                   const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
