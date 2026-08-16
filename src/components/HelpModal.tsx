@@ -343,6 +343,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               Horizontale, dans le <b>même ordre que les pistes</b> : fader-vumètre, pan L/R, Mute/Solo par
               piste, master à droite. Le chevron <b className="text-amber-400">▲/▼</b> ouvre/ferme la table.
+              Pour une piste <b className="text-white">🥁 drums</b>, les champs <b className="text-white">Bq</b> (MSB/LSB/Kit)
+              choisissent la <b>banque + kit de percussion</b> envoyés au synthé MIDI (ex. kits alternatifs du Roland) —
+              au lieu du kit Standard par défaut.
             </p>
             <p className="font-bold text-white mt-2">Importer un fichier audio</p>
             <p>

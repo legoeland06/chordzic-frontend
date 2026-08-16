@@ -29,6 +29,10 @@ export interface TrackConfig {
   /** Piste percussion (kit drums) sur un canal ≠ 9 : banque percussion GM2
    * (bank 128) + kit Standard. Sélecteur d'instrument désactivé. */
   drums?: boolean;
+  /** Bank select drums (CC0 MSB / CC32 LSB) — kits alternatifs (ex. Roland).
+   * 0/0 = kit par défaut. */
+  bankMsb?: number;
+  bankLsb?: number;
   /** Effets de piste (0-100 chacun), appliqués au rendu WAV (mode Navig). */
   fx?: TrackFx;
 }

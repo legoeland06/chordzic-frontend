@@ -687,7 +687,7 @@ export default function ChordApp() {
       Object.values(pianoNotes).some(notes => notes.length > 0);
     return {
       type: 'chordJAVA-grille', version: 3, input, tempo, sig,
-      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, fx: t.fx ?? FX_ZERO })),
+      tracks: tracks.map(t => ({ channel: t.channel, program: t.program, volume: t.volume, mute: t.mute, label: t.label, drums: t.drums ?? false, bank_msb: t.bankMsb ?? 0, bank_lsb: t.bankLsb ?? 0, fx: t.fx ?? FX_ZERO })),
       pattern: drumPattern, use432Hz: use432,
       loopOn, walkingBass,
       sampleLoop,
@@ -888,7 +888,7 @@ export default function ChordApp() {
       sequence, tempo, pattern: drumPattern, walking: walkingBass, sig,
       tracks: tracks.map(t => ({
         channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
-        drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
+        drums: t.drums ?? false, bank_msb: t.bankMsb ?? 0, bank_lsb: t.bankLsb ?? 0, effects: t.fx ?? FX_ZERO,
       })),
       master_vol: volume,
       custom_notes: customNotes.length > 0 ? customNotes : undefined,
@@ -937,7 +937,7 @@ export default function ChordApp() {
         sequence, tempo, pattern: drumPattern, walking: walkingBass, sig,
         tracks: tracks.map(t => ({
           channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
-          drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
+          drums: t.drums ?? false, bank_msb: t.bankMsb ?? 0, bank_lsb: t.bankLsb ?? 0, effects: t.fx ?? FX_ZERO,
         })),
         master_vol: volume,
         custom_notes: customNotes.length > 0 ? customNotes : undefined,

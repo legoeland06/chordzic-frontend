@@ -894,17 +894,34 @@ export default function DawView({
                   title="Renommer la piste"
                   spellCheck={false}
                 />
+                {t.channel === 9 || !!t.drums ? (
+                  <div className="flex items-center gap-1 w-full" title="Kit drums : banque MSB/LSB + kit (program) — accès aux kits alternatifs du synthé (ex. Roland)">
+                    <span className="text-[8px] text-gray-500 shrink-0">Bq</span>
+                    <input type="number" min={0} max={127} value={t.bankMsb ?? 0}
+                      onChange={(e) => onUpdateTrack(t.channel, { bankMsb: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
+                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
+                      title="Bank MSB (CC0)" />
+                    <input type="number" min={0} max={127} value={t.bankLsb ?? 0}
+                      onChange={(e) => onUpdateTrack(t.channel, { bankLsb: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
+                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
+                      title="Bank LSB (CC32)" />
+                    <input type="number" min={0} max={127} value={t.program}
+                      onChange={(e) => onUpdateTrack(t.channel, { program: Math.max(0, Math.min(127, parseInt(e.target.value) || 0)) })}
+                      className="w-9 bg-gray-900 text-[10px] rounded border border-gray-700 px-1 py-0.5 text-gray-300 text-center"
+                      title="Kit (program change)" />
+                  </div>
+                ) : (
                 <select
                   value={t.program}
                   onChange={(e) => onUpdateTrack(t.channel, { program: parseInt(e.target.value) })}
-                  disabled={t.channel === 9 || !!t.drums}
-                  className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300 disabled:opacity-40"
-                  title={t.channel === 9 || t.drums ? 'Kit drums fixe' : 'Instrument GM'}
+                  className="w-full bg-gray-900 text-[10px] rounded border border-gray-700 outline-none px-1 py-0.5 text-gray-300"
+                  title="Instrument GM"
                 >
                   {AudioEngine.INSTRUMENTS.map((name, i) => (
                     <option key={i} value={i}>{name}</option>
                   ))}
                 </select>
+                )}
               </div>
 
               {/* Fader-vumètre pleine hauteur, entouré des potards FX */}
