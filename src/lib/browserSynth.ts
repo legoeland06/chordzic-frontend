@@ -174,13 +174,11 @@ export class BrowserSynth {
   private _syncSampleLoop() {
     const cfg = this._sampleLoop;
     const ctx = this.audioCtx;
-    // Mode SÉPARÉ : la lecture est SERVEUR (double canaux) — le sample n'est
-    // pas dans le flux serveur, on ne le joue JAMAIS côté navigateur (il
-    // sortirait en double, désynchronisé).
-    if (this._sepActive) {
-      this._stopSampleLoop();
-      return;
-    }
+    // En mode SÉPARÉ, la lecture principale est SERVEUR (double canaux) mais
+    // le sample, lui, reste joué par le NAVIGATEUR (Web Audio) : il sort sur
+    // le même device via PipeWire (même horloge matérielle) et sa phase est
+    // alignée sur la position ESTIMÉE (performance.now). C'est le
+    // comportement historique de la boucle sample — ne pas le couper.
     if (!cfg || !cfg.enabled || !cfg.sample || !ctx || !this._playing) {
       this._stopSampleLoop();
       return;
@@ -383,6 +381,9 @@ export class BrowserSynth {
       this._sepDurSec = typeof data.duration_sec === 'number' ? data.duration_sec : 0;
       this._lastWavBlob = null;
       this._playing = true;
+      // Démarrer la boucle sample (navigateur) alignée sur la position
+      // estimée — comme en mode mixé, le sample accompagne la lecture.
+      this._syncSampleLoop();
       await new Promise<void>((resolve) => {
         this._navPlayResolver = resolve;
       });
@@ -636,6 +637,8 @@ export class BrowserSynth {
         this._sepActive = true;
         this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
         if (typeof data.duration_sec === 'number') this._sepDurSec = data.duration_sec;
+        // Re-synchroniser la boucle sample sur la nouvelle position.
+        this._syncSampleLoop();
       } catch {
         if (gen === this._seekGen) this._moveSeparateHead(seconds);
       }
@@ -646,6 +649,7 @@ export class BrowserSynth {
    * répond pas) : la tête bouge, la lecture serveur continue telle quelle. */
   private _moveSeparateHead(seconds: number) {
     this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
+    this._syncSampleLoop();
   }
 
   /** Arrêt LOCAL des sources Web Audio (sans toucher au clic séparé serveur).
