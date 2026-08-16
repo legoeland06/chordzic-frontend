@@ -567,6 +567,11 @@ export default function DawView({
   /** Largeur réelle du contenu des lanes (étiré si plus court que le
    * viewport) — MESURÉE pour rester pile sur l'échelle des lanes après zoom. */
   const locContentW = lanesContentW || Math.max(totalBeats * lanePpb, locBarW || 1);
+  /** Échelle effective des lanes (px/beat) : les lanes compactes dessinent
+   * avec largeur_réelle/totalBeats (étirées) — le PianoRoll intégré doit
+   * utiliser la MÊME échelle, sinon sa grille est décalée des autres pistes
+   * (et les locators ne tombent plus sur sa grille). */
+  const laneEffectivePpb = lanesContentW > 0 ? lanesContentW / Math.max(1, totalBeats) : lanePpb;
 
   // Initialisation : locators jamais touchés (0/0) → R = fin du morceau
   // (zone [0, totalBeats[ = boucle complète, poignées aux extrémités).
@@ -1323,7 +1328,7 @@ export default function DawView({
                           trackLabel={t.label}
                           channel={t.channel}
                           isDrum={t.channel === 9 || !!t.drums}
-                          pixelsPerBeat={lanePpb}
+                          pixelsPerBeat={laneEffectivePpb}
                           height={LANE_PIANOROLL_H}
                           tempo={tempo}
                           engine={engine}
