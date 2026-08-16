@@ -869,8 +869,9 @@ export default function ChordApp() {
   };
 
   /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
-   * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live. */
-  const playMidiAll = useCallback(async () => {
+   * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
+   * `startAtBeats` : position de départ (0 = début). */
+  const playMidiAll = useCallback(async (startAtBeats = 0) => {
     if (chords.length === 0) {
       setStatus('❌ Grille vide — rien à jouer en MIDI'); setStatusColor('text-red-400');
       return;
@@ -892,6 +893,7 @@ export default function ChordApp() {
       master_vol: volume,
       custom_notes: customNotes.length > 0 ? customNotes : undefined,
       custom_channels: customChannels.length > 0 ? customChannels : undefined,
+      start_at: startAtBeats > 0 ? startAtBeats : undefined,
     };
     try {
       const resp = await fetch(`${API_BASE}/navig-play-midi`, {

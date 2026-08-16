@@ -87,7 +87,7 @@ interface DawViewProps {
   /** Met à jour les notes d'une piste (édition directe dans le PianoRoll intégré). */
   onNotesChange: (channel: number, notes: PianoNote[]) => void;
   /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
-  onPlayMidiAll: () => void;
+  onPlayMidiAll: (startAtBeats?: number) => void;
   onHelp: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
@@ -525,19 +525,55 @@ export default function DawView({
     });
   }, [tracks, pianoNotes]);
 
+  // ── Lecture MIDI globale (transport) : état, tête de lecture, stop ──
+  const [midiPlaying, setMidiPlaying] = useState(false);
+  const midiTimerRef = useRef<number | null>(null);
+  const midiStartRef = useRef(0);
+  const midiFromRef = useRef(0);
+
+  const stopMidi = useCallback(async () => {
+    setMidiPlaying(false);
+    if (midiTimerRef.current !== null) {
+      clearInterval(midiTimerRef.current);
+      midiTimerRef.current = null;
+    }
+    try { await fetch('/navig-stop-midi', { method: 'POST' }); } catch { /* ignore */ }
+  }, []);
+
+  const startMidi = useCallback((fromBeats = 0) => {
+    onPlayMidiAll(fromBeats);
+    setMidiPlaying(true);
+    midiStartRef.current = performance.now();
+    midiFromRef.current = fromBeats;
+    setPosBeats(fromBeats);
+    if (midiTimerRef.current !== null) clearInterval(midiTimerRef.current);
+    midiTimerRef.current = window.setInterval(() => {
+      const elapsedSec = (performance.now() - midiStartRef.current) / 1000;
+      const beats = midiFromRef.current + (elapsedSec * tempo) / 60;
+      if (beats >= totalBeats) {
+        setPosBeats(totalBeats);
+        stopMidi();
+        return;
+      }
+      setPosBeats(beats);
+    }, 50);
+  }, [onPlayMidiAll, tempo, totalBeats, stopMidi]);
+
   const doStop = useCallback(() => {
+    stopMidi();
     engine.stop();
     setPlayState('idle');
     setPosBeats(0);
     setLevels({});
-  }, [engine]);
+  }, [engine, stopMidi]);
 
   const doBegin = useCallback(() => {
+    stopMidi();
     engine.stop();
     setPlayState('idle');
     setPosBeats(0);
     setLevels({});
-  }, [engine]);
+  }, [engine, stopMidi]);
 
   const doPlay = useCallback(() => {
     if (playState === 'paused') {
@@ -570,13 +606,19 @@ export default function DawView({
     setPlayState('paused');
   }, [engine]);
 
-  /** Scrub : clic sur une lane → déplace la tête (lecture, pause ou arrêt). */
-  const doScrub = useCallback((beats: number) => {
+  /** Scrub : clic sur une lane → déplace la tête. En lecture MIDI, relance
+   * la lecture MIDI depuis la position cliquée. */
+  const doScrub = useCallback(async (beats: number) => {
     setPosBeats(beats);
+    if (midiPlaying) {
+      await stopMidi();
+      startMidi(beats);
+      return;
+    }
     if (playState === 'playing' || playState === 'paused') {
       engine.seekNavig((beats * 60) / tempo);
     }
-  }, [playState, engine, tempo]);
+  }, [playState, engine, tempo, midiPlaying, stopMidi, startMidi]);
 
   // Ticker : position de lecture → ligne verticale (+ détection de fin)
   const doStopRef = useRef(doStop);
@@ -684,6 +726,7 @@ export default function DawView({
     }
   }, [tempo]);
 
+
   // ── Styles transport (tons sobres / studio) ─────────────────────
   const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
   const tBtnPlay = 'w-9 h-9 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
@@ -711,11 +754,17 @@ export default function DawView({
 
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
-          onClick={onPlayMidiAll}
-          className="h-8 px-2 flex items-center gap-1 rounded-md bg-[#2a4a2f] text-[#8fd8a8] border border-[#2f5a3a] hover:bg-[#335a3a] hover:text-white transition-colors shrink-0 text-[9px] font-bold"
-          title="Lecture MIDI — toutes les pistes sur le port MIDI choisi (ex. Roland), comme le mode Live (réglage : ⚙)"
+          onClick={() => (midiPlaying ? stopMidi() : startMidi(posBeats))}
+          className={`h-8 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
+            midiPlaying
+              ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'
+              : 'bg-[#2a4a2f] text-[#8fd8a8] border-[#2f5a3a] hover:bg-[#335a3a] hover:text-white'
+          }`}
+          title={midiPlaying
+            ? 'Arrêter la lecture MIDI'
+            : 'Lecture MIDI — toutes les pistes sur le port MIDI choisi (ex. Roland), comme le mode Live (réglage : ⚙)'}
         >
-          <Cable className="w-3.5 h-3.5" /> MIDI
+          {midiPlaying ? <Square className="w-3.5 h-3.5" /> : <Cable className="w-3.5 h-3.5" />} {midiPlaying ? 'STOP' : 'MIDI'}
         </button>
 
         <div className={tSep} />

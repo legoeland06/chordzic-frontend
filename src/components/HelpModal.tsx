@@ -281,7 +281,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Actif par défaut — mode Live uniquement." />
-            <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
+            <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — <b>tête de lecture synchronisée</b>, arrêt par re-clic (⏹) ou Stop, clic sur une piste pour relancer depuis là. Réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
             <Row k="🔁 Loop" v="Répète la grille en boucle (désactivé pendant la lecture)." />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
