@@ -10,6 +10,7 @@
 import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { computeSamplePhase, fitSampleToGrid, measureDurationSec } from './sampleLoop';
+import { estimatePositionSec, navStartAtBeats } from './navPosition';
 
 export interface TrackCfg {
   channel: number;
@@ -91,6 +92,16 @@ export class BrowserSynth {
    * Un _syncSampleLoop lancé avec une ancienne génération abandonne après
    * son await (fetch) — un changement de config plus récent a gagné. */
   private _sampleLoopGen = 0;
+  /** Mode SÉPARÉ (lecture serveur, double canaux) : pas de buffer local —
+   * la position de la tête de lecture est ESTIMÉE (horloge locale) car le
+   * navigateur ne joue aucun son. start = performance.now() au lancement,
+   * durée = duration_sec restant renvoyé par /navig-play. */
+  private _sepActive = false;
+  private _sepStartMs = 0;
+  private _sepDurSec = 0;
+  /** Dernier body envoyé à /navig-play (pour relancer depuis une position). */
+  private _lastNavBody: Record<string, unknown> | null = null;
+  private _lastNavTempo = 120;
 
   get isPlaying() { return this._playing; }
 
@@ -160,6 +171,13 @@ export class BrowserSynth {
   private _syncSampleLoop() {
     const cfg = this._sampleLoop;
     const ctx = this.audioCtx;
+    // Mode SÉPARÉ : la lecture est SERVEUR (double canaux) — le sample n'est
+    // pas dans le flux serveur, on ne le joue JAMAIS côté navigateur (il
+    // sortirait en double, désynchronisé).
+    if (this._sepActive) {
+      this._stopSampleLoop();
+      return;
+    }
     if (!cfg || !cfg.enabled || !cfg.sample || !ctx || !this._playing) {
       this._stopSampleLoop();
       return;
@@ -352,9 +370,14 @@ export class BrowserSynth {
       console.log('[Navig séparé]', data);
       // Informer l'UI du mode réel (channels / mixed_fallback)
       window.dispatchEvent(new CustomEvent('chordzic:click-mode', { detail: data }));
-      // Pas de lecture locale : le serveur joue main + clic. On reste en
-      // attente jusqu'au stop (les compteurs de position ne bougent pas
-      // dans ce mode — limite assumée, le clic est dans les oreilles).
+      // Pas de lecture locale : le serveur joue main + clic. La position de
+      // la tête de lecture est ESTIMÉE (horloge locale + durée restante) —
+      // le navigateur n'a pas de buffer, donc pas d'horloge audio.
+      this._lastNavBody = body;
+      this._lastNavTempo = Number(body.tempo) || 120;
+      this._sepActive = true;
+      this._sepStartMs = performance.now();
+      this._sepDurSec = typeof data.duration_sec === 'number' ? data.duration_sec : 0;
       this._lastWavBlob = null;
       this._playing = true;
       await new Promise<void>((resolve) => {
@@ -404,22 +427,41 @@ export class BrowserSynth {
     return data.notes ?? [];
   }
 
-  /** Position de lecture courante dans le buffer (0..duration), boucle comprise. */
+  /** Position de lecture courante dans le buffer (0..duration), boucle comprise.
+   * En mode séparé (pas de buffer) : position estimée modulo la durée restante. */
   getPosition(): number {
-    if (!this.source || !this.audioCtx || !this._buffer) return 0;
+    if (!this.audioCtx) return 0;
+    if (!this.source || !this._buffer) {
+      if (this._sepActive) {
+        const dur = this._sepDurSec;
+        const raw = estimatePositionSec(this._sepStartMs, performance.now());
+        if (dur > 0) return ((raw % dur) + dur) % dur;
+        return raw;
+      }
+      return 0;
+    }
     const elapsed = this.audioCtx.currentTime - this.ctxTimeAtStart;
     return ((elapsed % this._buffer.duration) + this._buffer.duration) % this._buffer.duration;
   }
 
-  /** Position brute (secondes depuis le début, sans modulo). -1 si pas de source. */
+  /** Position brute (secondes depuis le début, sans modulo). -1 si aucune source active.
+   * En mode séparé : position ESTIMÉE (le serveur joue, le navigateur n'a pas
+   * d'horloge audio) — la tête de lecture bouge quand même. */
   getPositionRaw(): number {
-    if (!this.source || !this.audioCtx || !this._buffer) return -1;
+    if (!this.source || !this.audioCtx || !this._buffer) {
+      if (this._sepActive) {
+        return estimatePositionSec(this._sepStartMs, performance.now());
+      }
+      return -1;
+    }
     return this.audioCtx.currentTime - this.ctxTimeAtStart;
   }
 
-  /** Durée du buffer audio courant (secondes). */
+  /** Durée du buffer audio courant (secondes), ou durée restante en mode séparé. */
   getDuration(): number {
-    return this._buffer?.duration ?? 0;
+    if (this._buffer) return this._buffer.duration;
+    if (this._sepActive) return this._sepDurSec;
+    return 0;
   }
 
   /** Dernier WAV rendu (blob brut), ou null si aucun rendu. */
@@ -523,16 +565,29 @@ export class BrowserSynth {
     };
   }
 
-  /** Scrub : déplace la tête de lecture (recrée le source à la position).
-   * En lecture ou pause → le buffer repart de `seconds` (la pause reste
-   * suspendue jusqu'à la reprise). En arrêt → ne fait rien (la position
-   * est gérée par l'UI). */
+  /** Scrub : déplace la tête de lecture.
+   *  - Mode SÉPARÉ (lecture serveur) : relance /navig-play depuis la position
+   *    (main + clic alignés, accents de mesure conservés) et déplace
+   *    l'estimateur local. Ne touche JAMAIS au clic serveur.
+   *  - Buffer local (mode mixé) : recrée la source à la position SANS couper
+   *    le clic séparé serveur (le clic mixé est dans le buffer, il continue).
+   *  - Sinon (lecture arrêtée, pas de buffer) : ne fait rien. */
   seekTo(seconds: number) {
+    // Mode séparé : pas de buffer local — relance le serveur depuis la
+    // position (un éventuel buffer obsolète d'une lecture précédente ne doit
+    // PAS être rejoué ni arrêter le clic serveur).
+    if (this._sepActive) {
+      this._seekSeparate(seconds);
+      return;
+    }
     if (!this._buffer || !this.audioCtx) return;
     const loop = this.source?.loop ?? false;
     const wasPlaying = this._playing;
     if (!wasPlaying) return; // arrêté : la position manuelle est gérée par l'UI
-    this.stop();
+    // Arrêt LOCAL uniquement (sources Web Audio) — l'ancien stop() coupait
+    // le clic séparé serveur au moindre scrub (bug « le clic disparaît »).
+    this._stopLocalSources();
+    this._stopSampleLoop();
     const ctx = this.audioCtx;
     const gainNode = ctx.createGain();
     gainNode.gain.value = 1.0;
@@ -549,6 +604,74 @@ export class BrowserSynth {
     source.onended = () => {
       if (this.source === source) { this._playing = false; this.source = null; }
     };
+  }
+
+  /** Relance la lecture SÉPARÉE (serveur, double canaux) depuis `seconds`. */
+  private _seekSeparate(seconds: number) {
+    const body = this._lastNavBody;
+    if (!body) {
+      this._moveSeparateHead(seconds);
+      return;
+    }
+    const next = { ...body, start_at: navStartAtBeats(seconds, this._lastNavTempo) };
+    void (async () => {
+      try {
+        const resp = await fetch(`${backendUrl()}/navig-play`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(next),
+        });
+        if (!resp.ok) { this._moveSeparateHead(seconds); return; }
+        const data = await resp.json();
+        // Le serveur repart de `seconds` (durée restante renvoyée) →
+        // l'estimateur repart de cette position, le clic continue.
+        this._sepActive = true;
+        this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
+        if (typeof data.duration_sec === 'number') this._sepDurSec = data.duration_sec;
+      } catch {
+        this._moveSeparateHead(seconds);
+      }
+    })();
+  }
+
+  /** Déplace uniquement l'estimateur de position (repli si le serveur ne
+   * répond pas) : la tête bouge, la lecture serveur continue telle quelle. */
+  private _moveSeparateHead(seconds: number) {
+    this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
+  }
+
+  /** Arrêt LOCAL des sources Web Audio (sans toucher au clic séparé serveur).
+   * Utilisé par le scrub : la lecture continue, seul le buffer est recréé. */
+  private _stopLocalSources() {
+    if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
+    // Arrêter TOUTES les sources actives (boucle crossfade inclus)
+    for (const s of this.sources) {
+      try { s.stop(); } catch {}
+      s.disconnect();
+    }
+    this.sources = [];
+    if (this.source) {
+      try { this.source.stop(); } catch {}
+      this.source.disconnect();
+      this.source = null;
+    }
+  }
+
+  stop() {
+    this._playing = false;
+    this._stopSampleLoop();
+    // Terminer la promesse du mode séparé (le serveur coupe le son)
+    if (this._navPlayResolver) {
+      const r = this._navPlayResolver;
+      this._navPlayResolver = null;
+      r();
+    }
+    // Fin du mode séparé : plus d'estimateur, plus de body de relance
+    this._sepActive = false;
+    this._lastNavBody = null;
+    this._stopLocalSources();
+    // Arrêter aussi le clic séparé joué par le serveur
+    fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
   }
 
   /** Lance la lecture d'un AudioBuffer. En boucle : `source.loop` simple
@@ -573,31 +696,6 @@ export class BrowserSynth {
     source.onended = () => {
       if (this.source === source) { this._playing = false; this.source = null; }
     };
-  }
-
-  stop() {
-    this._playing = false;
-    this._stopSampleLoop();
-    // Terminer la promesse du mode séparé (le serveur coupe le son)
-    if (this._navPlayResolver) {
-      const r = this._navPlayResolver;
-      this._navPlayResolver = null;
-      r();
-    }
-    if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
-    // Arrêter TOUTES les sources actives (boucle crossfade inclus)
-    for (const s of this.sources) {
-      try { s.stop(); } catch {}
-      s.disconnect();
-    }
-    this.sources = [];
-    if (this.source) {
-      try { this.source.stop(); } catch {}
-      this.source.disconnect();
-      this.source = null;
-    }
-    // Arrêter aussi le clic séparé joué par le serveur
-    fetch(`${backendUrl()}/navig-click-stop`, { method: 'POST' }).catch(() => {});
   }
 }
 
