@@ -98,7 +98,11 @@ export class BrowserSynth {
    * durée = duration_sec restant renvoyé par /navig-play. */
   private _sepActive = false;
   private _sepStartMs = 0;
-  private _sepDurSec = 0;
+  /** Durée TOTALE du morceau (référentiel absolu pour la tête de lecture :
+   * la position absolue doit être comparée/modulée contre la durée totale,
+   * PAS la durée restante après un scrub — sinon raw % restant ≈ 0 → la
+   * tête « retourne au début » alors que l'audio joue au bon endroit). */
+  private _sepTotalSec = 0;
   /** Dernier body envoyé à /navig-play (pour relancer depuis une position). */
   private _lastNavBody: Record<string, unknown> | null = null;
   private _lastNavTempo = 120;
@@ -378,7 +382,9 @@ export class BrowserSynth {
       this._lastNavTempo = Number(body.tempo) || 120;
       this._sepActive = true;
       this._sepStartMs = performance.now();
-      this._sepDurSec = typeof data.duration_sec === 'number' ? data.duration_sec : 0;
+      this._sepTotalSec = typeof data.total_duration_sec === 'number'
+        ? data.total_duration_sec
+        : (typeof data.duration_sec === 'number' ? data.duration_sec : 0);
       this._lastWavBlob = null;
       this._playing = true;
       // Démarrer la boucle sample (navigateur) alignée sur la position
@@ -437,7 +443,7 @@ export class BrowserSynth {
     if (!this.audioCtx) return 0;
     if (!this.source || !this._buffer) {
       if (this._sepActive) {
-        const dur = this._sepDurSec;
+        const dur = this._sepTotalSec;
         const raw = estimatePositionSec(this._sepStartMs, performance.now());
         if (dur > 0) return ((raw % dur) + dur) % dur;
         return raw;
@@ -461,10 +467,11 @@ export class BrowserSynth {
     return this.audioCtx.currentTime - this.ctxTimeAtStart;
   }
 
-  /** Durée du buffer audio courant (secondes), ou durée restante en mode séparé. */
+  /** Durée du buffer audio courant (secondes), ou durée TOTALE en mode séparé
+   * (référentiel absolu — cf. getPositionRaw). */
   getDuration(): number {
     if (this._buffer) return this._buffer.duration;
-    if (this._sepActive) return this._sepDurSec;
+    if (this._sepActive) return this._sepTotalSec;
     return 0;
   }
 
@@ -636,7 +643,11 @@ export class BrowserSynth {
         // l'estimateur repart de cette position, le clic continue.
         this._sepActive = true;
         this._sepStartMs = performance.now() - Math.max(0, seconds) * 1000;
-        if (typeof data.duration_sec === 'number') this._sepDurSec = data.duration_sec;
+        if (typeof data.total_duration_sec === 'number') this._sepTotalSec = data.total_duration_sec;
+        else if (typeof data.duration_sec === 'number') {
+          // Repli (ancien serveur) : durée restante + position = totale
+          this._sepTotalSec = data.duration_sec + Math.max(0, seconds);
+        }
         // Re-synchroniser la boucle sample sur la nouvelle position.
         this._syncSampleLoop();
       } catch {
