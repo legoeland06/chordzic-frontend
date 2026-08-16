@@ -96,6 +96,8 @@ interface PianoRollProps {
   /** Mode embarqué (intégré dans une lane) : masque le bouton ✕ Fermer,
    * Échap ne ferme pas. La fermeture se fait par le repli de la lane. */
   embedded?: boolean;
+  /** Remonte le snap courant (unité + actif) — partagé avec les locators. */
+  onSnapChange?: (unit: number, enabled: boolean) => void;
   /** Appelé quand la modal se ferme. Optionnel en mode embarqué. */
   onClose?: () => void;
   /** Audition en direct : joue la note édité (création, déplacement, resize). */
@@ -127,6 +129,7 @@ export default function PianoRoll({
   onPreviewNote,
   tempo,
   engine,
+  onSnapChange,
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** Canvas de la colonne clavier (fixe à droite, hors du scroll). */
@@ -202,6 +205,11 @@ export default function PianoRoll({
   const snapTime = useCallback((time: number) =>
     snapEnabled ? snapToGrid(time, snapUnit) : time,
   [snapEnabled, snapUnit]);
+  /** Remonte le snap courant (locators) — ne change pas le comportement
+   * local, informe juste le parent (DawView) du snap en vigueur. */
+  useEffect(() => {
+    onSnapChange?.(snapUnit, snapEnabled);
+  }, [snapUnit, snapEnabled, onSnapChange]);
   /** Durée minimale : un cran de grille en mode snap, très fine en mode libre. */
   const minDur = snapEnabled ? snapUnit : MIN_FREE_DURATION;
 

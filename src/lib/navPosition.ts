@@ -41,3 +41,22 @@ export function wrapLoopPositionSec(sec: number, loopStartSec: number, loopEndSe
   if (len <= 0) return sec;
   return loopStartSec + ((sec - loopStartSec) % len);
 }
+
+/** Beats → format « MMM.T » (mesure.temps) — même affichage que le compteur
+ * MES de la barre de transport. Cohérent avec la signature (temps/mesure). */
+export function locBeatToMes(beat: number, beatsPerBar: number): string {
+  const b = Math.max(0, Math.floor(beat));
+  const m = Math.floor(b / beatsPerBar) + 1;
+  const t = (b % beatsPerBar) + 1;
+  return `${String(m).padStart(3, '0')}.${t}`;
+}
+
+/** « MMM.T » → beats (null si invalide ou temps hors mesure). */
+export function locMesToBeat(text: string, beatsPerBar: number): number | null {
+  const m = text.trim().match(/^(\d{1,4})\.(\d{1,2})$/);
+  if (!m) return null;
+  const mes = parseInt(m[1], 10);
+  const t = parseInt(m[2], 10);
+  if (mes < 1 || t < 1 || t > beatsPerBar) return null;
+  return (mes - 1) * beatsPerBar + (t - 1);
+}

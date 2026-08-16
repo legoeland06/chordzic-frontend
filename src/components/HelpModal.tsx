@@ -300,8 +300,11 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b className="text-white">uniquement l'intervalle [L, R[</b> — en lecture WAV <b className="text-white">et</b> en lecture MIDI
               (🔌 MIDI). Les locators sont <b className="text-white">draggables</b> avec <b className="text-white">snap-to-grid</b>
               (alignement au temps entier) : L (bleu) = début, R (orange) = fin de l'intervalle — la zone est
-              surlignée en bleu. Deux champs <b className="text-white">L/R</b> dans la barre de transport permettent un réglage
-              précis au temps près (spinners). Par défaut L=0 et R=fin du morceau (boucle complète). Le clic sur une piste
+              surlignée en bleu. Les locators suivent le <b className="text-white">snap de la grille</b> (celui du Piano Roll
+              intégré : 1/32 → 1/1, triolets, sextolets) comme les notes insérées. Deux champs{' '}
+              <b className="text-white">L/R</b> dans la rangée supérieure du transport (entre Mes. et Temps) permettent un réglage
+              précis au format <b className="text-white">mesure.temps</b> (ex. <code className="text-gray-400">005.3</code> = 3ᵉ temps de la 5ᵉ mesure —
+              cohérent avec la signature), flèches ▲▼ = ±1 temps. Par défaut L=0 et R=fin du morceau (boucle complète). Le clic sur une piste
               (déplacement de la tête) reste libre : au wrap, la lecture revient à L.
             </>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />

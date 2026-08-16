@@ -20,8 +20,8 @@ import PianoRoll from './PianoRoll';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
-import { wrapLoopPositionSec } from '../lib/navPosition';
-import { PIANO_KEYBOARD_WIDTH } from '../lib/pianoRollTypes';
+import { wrapLoopPositionSec, locBeatToMes, locMesToBeat } from '../lib/navPosition';
+import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
@@ -395,6 +395,51 @@ function TrackLane({
   );
 }
 
+/** Champ locator éditable au format mesure.temps + flèches ▲▼ (±1 temps).
+ * La position interne reste en beats (le backend attend des beats). */
+function LocatorField({ label, color, value, beatsPerBar, min, max, onChange }: {
+  label: 'L' | 'R'; color: string; value: number; beatsPerBar: number;
+  min: number; max: number; onChange: (beat: number) => void;
+}) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const clamp = (v: number) => Math.max(min, Math.min(Math.round(v), max));
+  const commit = (text: string) => {
+    const b = locMesToBeat(text, beatsPerBar);
+    if (b !== null) onChange(clamp(b));
+    setEditing(null);
+  };
+  return (
+    <div className="flex items-center gap-0.5 shrink-0" title={`Locator ${label} — intervalle de boucle [L, R[ (format mesure.temps, snap de la grille)`}>
+      <span className="text-[9px] font-bold" style={{ color }}>{label}</span>
+      <div className="flex items-center bg-[#0a0c10] border border-[#1f2733] rounded overflow-hidden">
+        <input
+          className="w-12 bg-transparent text-[10px] font-mono text-center py-0.5 focus:outline-none focus:bg-[#10151d]"
+          style={{ color }}
+          value={editing ?? locBeatToMes(value, beatsPerBar)}
+          onChange={(e) => setEditing(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commit((e.target as HTMLInputElement).value);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+        <div className="flex flex-col border-l border-[#1f2733]">
+          <button
+            className="w-4 h-3 leading-none text-[7px] text-[#5c6472] hover:text-white hover:bg-[#1a2230]"
+            onClick={() => onChange(clamp(value + 1))}
+          >▲</button>
+          <button
+            className="w-4 h-3 leading-none text-[7px] text-[#5c6472] hover:text-white hover:bg-[#1a2230] border-t border-[#1f2733]"
+            onClick={() => onChange(clamp(value - 1))}
+          >▼</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Composant principal ───────────────────────────────────────────────
 
 /** Poignée draggable d'un locator (L ou R) — composant STABLE (module-level) :
@@ -482,9 +527,18 @@ export default function DawView({
 
   // ── Locators [L, R[ : barre de boucle au-dessus des lanes, synchronisée
   // au scroll horizontal (même échelle beats→px que la zone de contenu). ──
+  const LOC_BAR_H = 20; // hauteur de la barre des locators (px)
   const [lanesScrollLeft, setLanesScrollLeft] = useState(0);
   const locBarRef = useRef<HTMLDivElement>(null);
   const [locBarW, setLocBarW] = useState(0);
+  // Snap des locators : celui du PianoRoll intégré (même snap que les notes
+  // insérées) — remonté via onSnapChange. Défaut : snap du PianoRoll.
+  const [locSnapUnit, setLocSnapUnit] = useState(DEFAULT_SNAP_UNIT);
+  const [locSnapEnabled, setLocSnapEnabled] = useState(true);
+  const handleLocSnap = useCallback((unit: number, enabled: boolean) => {
+    setLocSnapUnit(unit);
+    setLocSnapEnabled(enabled);
+  }, []);
   useEffect(() => {
     const el = locBarRef.current;
     if (!el) return;
@@ -514,7 +568,9 @@ export default function DawView({
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0) return;
     const raw = ((clientX - rect.left) * Math.max(1, totalBeats)) / Math.max(1, locContentW);
-    const snapped = Math.round(raw); // snap-to-grid : beat entier
+    // Snap-to-grid : le MÊME snap que les notes insérées (PianoRoll intégré),
+    // pas seulement le temps entier.
+    const snapped = locSnapEnabled ? snapToGrid(raw, locSnapUnit) : raw;
     if (side === 'L') {
       const v = Math.max(0, Math.min(snapped, locR - 1));
       if (v !== locL) onLocatorsChange(v, locR);
@@ -924,6 +980,18 @@ export default function DawView({
           <span className={tLcdLabel}>Mes.</span>
           <span className={tLcdVal}>{String(measure).padStart(3, '0')}.{beatInBar}</span>
         </div>
+        {/* Locators [L, R[ — au format mesure.temps (comme le compteur MES),
+            flèches ▲▼ = ±1 temps, édition directe au format MMM.T */}
+        <LocatorField
+          label="L" color="#7dd3fc" value={locL} beatsPerBar={beatsPerBar}
+          min={0} max={Math.max(0, locR - 1)}
+          onChange={(v) => onLocatorsChange(v, locR)}
+        />
+        <LocatorField
+          label="R" color="#fbbf24" value={locR} beatsPerBar={beatsPerBar}
+          min={locL + 1} max={Math.max(locL + 1, Math.ceil(totalBeats))}
+          onChange={(v) => onLocatorsChange(locL, v)}
+        />
         <div className={tLcd} title="Temps écoulé depuis le début">
           <span className={tLcdLabel}>Temps</span>
           <span className={tLcdVal}>{fmtTime(elapsedSec)}</span>
@@ -971,30 +1039,6 @@ export default function DawView({
         >
           <Repeat className="w-3.5 h-3.5" />
         </button>
-
-        {/* Locators [L, R[ — champs numériques (précision, spinners) */}
-        <div className="flex items-center gap-1 shrink-0 px-1" title="Locators [L, R[ : intervalle de boucle du repeat, en temps (snap-to-grid)">
-          <span className="text-[9px] font-bold text-[#7dd3fc]">L</span>
-          <input
-            type="number" min={0} max={Math.max(0, locR - 1)} step={1}
-            value={locL}
-            onChange={(e) => {
-              const v = Math.max(0, Math.min(parseInt(e.target.value || '0', 10) || 0, locR - 1));
-              onLocatorsChange(v, locR);
-            }}
-            className="w-11 bg-[#0a0c10] border border-[#1f2733] rounded text-[10px] font-mono text-[#7dd3fc] text-center py-0.5 focus:outline-none focus:border-[#3f5f8f]"
-          />
-          <span className="text-[9px] font-bold text-[#fbbf24]">R</span>
-          <input
-            type="number" min={locL + 1} max={Math.max(locL + 1, Math.ceil(totalBeats))} step={1}
-            value={locR}
-            onChange={(e) => {
-              const v = Math.max(locL + 1, Math.min(parseInt(e.target.value || '0', 10) || 0, Math.ceil(totalBeats)));
-              onLocatorsChange(locL, v);
-            }}
-            className="w-11 bg-[#0a0c10] border border-[#1f2733] rounded text-[10px] font-mono text-[#fbbf24] text-center py-0.5 focus:outline-none focus:border-[#3f5f8f]"
-          />
-        </div>
         <button onClick={onExtractWav} disabled={!hasWav} title="Extraire le dernier rendu WAV" className={tBtn}>
           <Download className="w-3.5 h-3.5" />
         </button>
@@ -1227,7 +1271,7 @@ export default function DawView({
             {/* Barre des LOCATORS [L, R[ — au-dessus de la zone de contenu :
                 intervalle de boucle du repeat, draggable avec snap-to-grid,
                 synchronisée au scroll horizontal des lanes. */}
-            <div ref={locBarRef} className="relative z-30 overflow-hidden border-b border-gray-800/60 select-none" style={{ height: 20 }}>
+            <div ref={locBarRef} className="relative z-30 overflow-hidden border-b border-gray-800/60 select-none" style={{ height: LOC_BAR_H }}>
               <div
                 className="absolute inset-y-0 left-0"
                 style={{ width: locContentW, transform: `translateX(${-lanesScrollLeft}px)` }}
@@ -1263,6 +1307,7 @@ export default function DawView({
                           engine={engine}
                           onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
                           onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
+                          onSnapChange={handleLocSnap}
                         />
                       ) : (
                         <TrackLane
@@ -1287,7 +1332,7 @@ export default function DawView({
                 id="pianoroll-keys-slot"
                 className="absolute right-0 z-20 border-l border-gray-800/60"
                 style={{
-                  top: expandedIndex * (LANE_COMPACT_H + 4),
+                  top: LOC_BAR_H + expandedIndex * (LANE_COMPACT_H + 4),
                   width: PIANO_KEYBOARD_WIDTH,
                   height: LANE_PIANOROLL_H + 4,
                 }}
