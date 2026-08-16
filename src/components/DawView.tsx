@@ -420,11 +420,16 @@ export default function DawView({
   // ── Durée totale à afficher : la grille (input) + les notes, minimum 4 mesures
   const totalBeats = useMemo(() => {
     let max = MIN_BEATS;
-    // Durée de la grille d'accords (chaque accord de durée t dure 4/t beats)
+    // Durée TOTALE de la grille : SOMME des durées des accords (chaque
+    // accord de durée t dure 4/t beats) — l'ancien calcul prenait le MAX
+    // d'un seul accord (4/t) → totalBeats ≈ 1 ou MIN_BEATS → le ticker MIDI
+    // stoppait/enroulait la tête à MI-MORCEAU (son coupé au mauvais moment).
+    let sum = 0;
     for (const tok of input.split(/\s+/)) {
       const m = tok.match(/^(\d+):/);
-      if (m) max = Math.max(max, 4 / parseInt(m[1], 10));
+      if (m) sum += 4 / parseInt(m[1], 10);
     }
+    if (sum > 0) max = Math.max(max, sum);
     for (const list of Object.values(pianoNotes)) {
       for (const n of list) max = Math.max(max, n.startTime + n.duration);
     }
