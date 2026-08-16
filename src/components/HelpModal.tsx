@@ -221,6 +221,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b className="text-white">Taiko</b>.
             </>} />
             <Row k="Volume / Accent" v="Puissance du clic (0–100) et accentuation du 1ᵉʳ temps de mesure." />
+            <Row k="Décalage" v={<>
+              Plage <b className="text-white">−200…+200 ms</b> (slider + champ, ±1/±10 ms) : si le clic sort{' '}
+              <b className="text-white">en avance</b> (chemin USB direct vs PipeWire), augmentez (+) ; s'il sort{' '}
+              <b className="text-white">en retard</b>, diminuez (−). Lu <b className="text-white">en direct pendant la
+              lecture</b> — mode « Sortie » ET lecture MIDI (🔌) — comme le volume : le clic se cale à
+              l'oreille sans relancer.
+            </>} />
             <p className="text-xs text-gray-500">
               Le clic n'existe qu'en mode Navig (pas de clic live) — retiré car les deux horloges audio
               ne pouvaient pas rester synchronisées. « Dans le rendu » = synchro parfaite ; « Sortie » =
