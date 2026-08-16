@@ -212,8 +212,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (sortie intégrée + hub USB-C, horloge maîtresse = sortie intégrée) et choisis-le ici.
               Sur Linux : crée un appareil <b className="text-white">« multi » ALSA</b> dans ~/.asoundrc
               (2 sorties → 4 canaux, ex : sortie principale + Roland Piano) et choisis-le ici.
-              Le navigateur ne joue plus dans ce mode (les compteurs de position restent figés — le
-              clic est dans vos oreilles, c'est lui qui compte).
+              Le navigateur ne joue plus dans ce mode : la tête de lecture est <b className="text-white">estimée</b>
+              (horloge locale) et continue de bouger ; un clic sur une lane relance la lecture
+              depuis la position cliquée, <b className="text-white">sans couper le clic</b>.
             </>} />
             <Row k="Son" v={<>
               4 sons au choix : <b className="text-white">Métronome GM</b> (clic + cloche sur le 1ᵉʳ temps),
