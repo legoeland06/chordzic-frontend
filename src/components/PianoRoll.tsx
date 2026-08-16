@@ -25,7 +25,7 @@ import {
   Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings,
 } from 'lucide-react';
 import {
-  xFromBeat, isInKeyboardZone, keyboardLeftEdge, clipToKeyboard,
+  xFromBeat,
 } from '../lib/pianoRollCoords';
 import {
   PianoNote,
@@ -128,6 +128,8 @@ export default function PianoRoll({
   engine,
 }: PianoRollProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** Canvas de la colonne clavier (fixe à droite, hors du scroll). */
+  const keysCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ── Plage de pitch par canal : chaque instrument voit son registre utile ──
@@ -299,9 +301,9 @@ export default function PianoRoll({
     ctx.fillRect(0, 0, w, h);
 
     // ── Grille temps (lignes verticales) — origine à 0, ALIGNÉE avec les
-    // lanes compactes des autres pistes (le clavier est un overlay à droite).
+    // lanes compactes (le clavier est une colonne FIXE à droite).
     const gridStartBeat = Math.max(0, Math.floor(scrollLeft / ppb));
-    const gridEndBeat = Math.ceil((scrollLeft + w - PIANO_KEYBOARD_WIDTH) / ppb) + 1;
+    const gridEndBeat = Math.ceil((scrollLeft + w) / ppb) + 1;
 
     ctx.strokeStyle = '#2a2b3e';
     ctx.lineWidth = 1;
@@ -346,31 +348,7 @@ export default function PianoRoll({
       }
     }
 
-    // ── Clavier de piano (overlay DROIT, toujours visible) ──
-    const kx = keyboardLeftEdge(w);
-    for (let pitch = userMaxPitch; pitch >= userMinPitch; pitch--) {
-      const y = (userMaxPitch - pitch) * WHITE_KEY_HEIGHT;
-      const isBlack = isBlackKey(pitch);
-
-      // Fond de la touche
-      ctx.fillStyle = isBlack ? '#2d2d3f' : '#3a3a4e';
-      ctx.fillRect(kx, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
-
-      // Bordure
-      ctx.strokeStyle = '#4a4a5e';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(kx, y, PIANO_KEYBOARD_WIDTH - 1, WHITE_KEY_HEIGHT);
-
-      // Étiquette pour les Do
-      if (pitch % 12 === 0) {
-        ctx.fillStyle = '#8a8aae';
-        ctx.font = '8px monospace';
-        const label = noteName(pitch) + (Math.floor(pitch / 12) - 1);
-        ctx.fillText(label, kx + 4, y + WHITE_KEY_HEIGHT - 3);
-      }
-    }
-
-    // ── Rangées de notes (lignes horizontales) — s'arrêtent au clavier ──
+    // ── Rangées de notes (lignes horizontales) — pleine largeur d'édition ──
     ctx.strokeStyle = '#222233';
     ctx.lineWidth = 0.5;
     for (let pitch = userMinPitch; pitch <= userMaxPitch; pitch++) {
@@ -384,20 +362,16 @@ export default function PianoRoll({
       }
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(kx, y);
+      ctx.lineTo(w, y);
       ctx.stroke();
     }
 
-    // ── Dessiner les notes (clippées pour ne pas passer sous le clavier droit) ──
+    // ── Dessiner les notes ──
     const drawNote = (note: PianoNote, isCreating: boolean) => {
-      const x0 = xFromBeat(note.startTime, ppb, scrollLeft);
+      const x = xFromBeat(note.startTime, ppb, scrollLeft);
       const y = (userMaxPitch - note.pitch) * WHITE_KEY_HEIGHT;
-      const noteW0 = Math.max(3, note.duration * ppb);
+      const noteW = Math.max(3, note.duration * ppb);
       const noteH = WHITE_KEY_HEIGHT - 1;
-      const clip = clipToKeyboard(x0, noteW0, w);
-      if (!clip) return; // entièrement sous le clavier → invisible
-      const x = clip.x;
-      const noteW = clip.width;
       const isSel = selectedIds.has(note.id);
       const isGrouped = !!note.groupId;
 
@@ -448,27 +422,22 @@ export default function PianoRoll({
       drawNote(creating, true);
     }
 
-    // ── Rectangle de sélection (marquee) — clippé au clavier droit ──
+    // ── Rectangle de sélection (marquee) ──
     if (marquee) {
       const mx = Math.min(marquee.x0, marquee.x1);
       const my = Math.min(marquee.y0, marquee.y1);
-      const mw0 = Math.abs(marquee.x1 - marquee.x0);
+      const mw = Math.abs(marquee.x1 - marquee.x0);
       const mh = Math.abs(marquee.y1 - marquee.y0);
-      const mclip = clipToKeyboard(mx, mw0, w);
-      if (mclip) {
-        ctx.fillStyle = 'rgba(251,191,36,0.10)';
-        ctx.fillRect(mclip.x, my, mclip.width, mh);
-        ctx.strokeStyle = '#fbbf24';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(mclip.x, my, mclip.width, mh);
-      }
+      ctx.fillStyle = 'rgba(251,191,36,0.10)';
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx, my, mw, mh);
     }
 
-    // ── Curseur de lecture (ligne verticale + repère en haut) — ne dépasse
-    // pas sous le clavier droit ──
+    // ── Curseur de lecture (ligne verticale + repère en haut) ──
     if (pianoPlaying !== 'idle' || playPosRef.current > 0) {
-      const rawX = xFromBeat(playPosRef.current, ppb, scrollLeft);
-      const playX = Math.min(rawX, keyboardLeftEdge(w) - 1);
+      const playX = xFromBeat(playPosRef.current, ppb, scrollLeft);
       ctx.strokeStyle = '#f87171';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -490,6 +459,38 @@ export default function PianoRoll({
   useEffect(() => {
     draw();
   }, [draw]);
+
+  // ── Dessin de la colonne clavier (fixe à droite) ──
+  useEffect(() => {
+    const c = keysCanvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = c.getBoundingClientRect();
+    c.width = rect.width * dpr;
+    c.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const w = rect.width;
+    ctx.fillStyle = '#1a1b26';
+    ctx.fillRect(0, 0, w, rect.height);
+    for (let pitch = userMaxPitch; pitch >= userMinPitch; pitch--) {
+      const y = (userMaxPitch - pitch) * WHITE_KEY_HEIGHT;
+      const isBlack = isBlackKey(pitch);
+      ctx.fillStyle = isBlack ? '#2d2d3f' : '#3a3a4e';
+      ctx.fillRect(0, y, w - 1, WHITE_KEY_HEIGHT);
+      ctx.strokeStyle = '#4a4a5e';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(0, y, w - 1, WHITE_KEY_HEIGHT);
+      // Étiquette pour les Do
+      if (pitch % 12 === 0) {
+        ctx.fillStyle = '#8a8aae';
+        ctx.font = '8px monospace';
+        const label = noteName(pitch) + (Math.floor(pitch / 12) - 1);
+        ctx.fillText(label, 4, y + WHITE_KEY_HEIGHT - 3);
+      }
+    }
+  }, [userMinPitch, userMaxPitch, canvasHeight, height]);
 
   // ── Redimensionnement du canvas ──
   useEffect(() => {
@@ -524,9 +525,6 @@ export default function PianoRoll({
       py: e.clientY - rect.top,
     };
   };
-
-  /** Largeur courante du canvas (pour la zone clavier OVERLAY à droite). */
-  const canvasW = () => canvasRef.current?.getBoundingClientRect().width ?? 0;
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -563,7 +561,7 @@ export default function PianoRoll({
     if (last && now - last.t < 300 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30 && rect0) {
       lastTapRef.current = null;
       const cpx = e.clientX - rect0.left;
-      if (!isInKeyboardZone(cpx, canvasW())) {
+      {
         const adj: MouseCoord = {
           px: cpx + scrollLeft,
           py: e.clientY - rect0.top,
@@ -588,10 +586,8 @@ export default function PianoRoll({
 
     const coord = getCoord(e);
 
-    // Ignorer les clics sur le clavier de piano (overlay droit)
-    if (isInKeyboardZone(coord.px, canvasW())) return;
-
-    // Ajuster les coordonnées pour le scroll
+    // Toute la surface du canvas est éditable (le clavier est une colonne
+    // fixe à DROITE, hors de la zone scrollable)
     const adjustedCoord: MouseCoord = {
       px: coord.px + scrollLeft,
       py: coord.py,
@@ -728,7 +724,7 @@ export default function PianoRoll({
     if (!inCanvas) {
       setHoverInfo(null);
       if (canvasEl) canvasEl.style.cursor = '';
-    } else if (!isInKeyboardZone(coord.px, canvasW())) {
+    } else {
       const hAdj: MouseCoord = {
         px: coord.px + scrollLeft,
         py: coord.py,
@@ -747,9 +743,6 @@ export default function PianoRoll({
         else if (tool === 'edit' && h?.region === 'body') canvasEl.style.cursor = 'grab';
         else canvasEl.style.cursor = '';
       }
-    } else {
-      setHoverInfo(null);
-      if (canvasEl) canvasEl.style.cursor = '';
     }
 
     // ── Mode sélection, ou drag de groupe initié en mode édition :
@@ -959,7 +952,6 @@ export default function PianoRoll({
     // En mode sélection, la suppression passe par Suppr/Couper
     if (tool === 'select') return;
     const coord = getCoord(e);
-    if (isInKeyboardZone(coord.px, canvasW())) return;
 
     const adjustedCoord: MouseCoord = {
       px: coord.px + scrollLeft,
@@ -1460,7 +1452,7 @@ export default function PianoRoll({
     ...notes.map(n => n.startTime + n.duration),
   );
   // ── Zoom minimum DYNAMIQUE (fit-to-width) : voir TOUTE la piste d'un coup ──
-  const fitZoom = Math.max(0.02, (viewportW - PIANO_KEYBOARD_WIDTH - 40) / Math.max(1, totalBeats * pixelsPerBeat));
+  const fitZoom = Math.max(0.02, (viewportW - 40) / Math.max(1, totalBeats * pixelsPerBeat));
   const fitZoomRef = useRef(fitZoom);
   fitZoomRef.current = fitZoom;
   /** Borne le zoom entre le fit-to-width (min) et 4× (max). */
@@ -1484,11 +1476,10 @@ export default function PianoRoll({
     const ppb1 = pixelsPerBeat * newZ;
     const anchor = anchorX !== undefined
       ? Math.max(0, anchorX - rect.left)
-      : Math.max(0, (rect.width - PIANO_KEYBOARD_WIDTH) / 2);
+      : Math.max(0, rect.width / 2);
     // Le beat sous le point d'ancrage reste fixe à l'écran
     const beat = (anchor + scrollLeftRef.current) / ppb0;
-    // Le contenu peut défiler jusqu'au bord gauche du clavier droit
-    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 + PIANO_KEYBOARD_WIDTH - viewportW);
+    const maxScroll = Math.max(0, totalBeats * ppb1 + 200 - viewportW);
     const newScroll = Math.min(maxScroll, Math.max(0, beat * ppb1 - anchor));
     // Mise à jour IMMÉDIATE de la ref (les wheel events suivants du même
     // geste enchaînent sans attendre le re-render → point souris stable)
@@ -1868,38 +1859,51 @@ export default function PianoRoll({
             dessus sont TOUJOURS de l'édition (jamais de scroll parasite) ;
             le défilement se fait sur la barre en bas. */}
         <div className="flex-1 flex flex-col overflow-hidden" style={{ maxHeight: embedded ? undefined : 'calc(90vh - 100px)' }}>
-          <div
-            ref={containerRef}
-            className="overflow-x-auto"
-            onWheel={handleWheel}
-            onScroll={handleScroll}
-          >
+          <div className="flex flex-1 min-h-0">
+            {/* Zone d'édition scrollable — le clavier est une COLONNE FIXE à
+                droite : la grille garde l'origine à 0, alignée avec les lanes
+                compactes, et le repère reste visible sans scroller. */}
             <div
-              className="relative"
-              style={{
-                width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW),
-                height: canvasHeight,
-              }}
+              ref={containerRef}
+              className="flex-1 min-w-0 overflow-x-auto"
+              onWheel={handleWheel}
+              onScroll={handleScroll}
             >
-              <canvas
-                ref={canvasRef}
-                className="block cursor-crosshair sticky left-0 top-0"
+              <div
+                className="relative"
                 style={{
-                  width: viewportW,
+                  width: Math.max(contentWidth, viewportW),
                   height: canvasHeight,
-                  touchAction: 'none',
                 }}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
-                onPointerLeave={() => {
-                  setHoverInfo(null);
-                  const c = canvasRef.current;
-                  if (c) c.style.cursor = '';
-                }}
-                onDoubleClick={handleDoubleClick}
-              />
+              >
+                <canvas
+                  ref={canvasRef}
+                  className="block cursor-crosshair sticky left-0 top-0"
+                  style={{
+                    width: viewportW,
+                    height: canvasHeight,
+                    touchAction: 'none',
+                  }}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerCancel}
+                  onPointerLeave={() => {
+                    setHoverInfo(null);
+                    const c = canvasRef.current;
+                    if (c) c.style.cursor = '';
+                  }}
+                  onDoubleClick={handleDoubleClick}
+                />
+              </div>
+            </div>
+            {/* Clavier de piano : colonne FIXE (calque au-dessus de la zone
+                d'édition), toujours visible à droite, immobile au scroll. */}
+            <div
+              className="shrink-0 relative z-10 border-l border-gray-800/60"
+              style={{ width: PIANO_KEYBOARD_WIDTH, height: canvasHeight }}
+            >
+              <canvas ref={keysCanvasRef} className="block w-full h-full" />
             </div>
           </div>
           {/* Barre de défilement horizontale tactile (mobile) */}
@@ -1908,7 +1912,7 @@ export default function PianoRoll({
             className="shrink-0 h-10 sm:h-2.5 overflow-x-auto border-t border-gray-800 bg-gray-900"
             onScroll={handleScroll}
           >
-            <div style={{ width: Math.max(contentWidth + PIANO_KEYBOARD_WIDTH, viewportW), height: '100%' }} />
+            <div style={{ width: Math.max(contentWidth, viewportW), height: '100%' }} />
           </div>
         </div>
 
