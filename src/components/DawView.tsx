@@ -727,18 +727,18 @@ export default function DawView({
   }, [tempo]);
 
 
-  // ── Styles transport (tons sobres / studio) ─────────────────────
-  const tBtn = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#1d212b] text-[#9aa3b2] border border-[#2c313d] hover:text-white hover:bg-[#2a2f3b] transition-colors disabled:opacity-30 shrink-0';
-  const tBtnPlay = 'w-9 h-9 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
-  const tSep = 'w-px h-6 bg-[#262a34] shrink-0';
-  const tLcd = 'flex flex-col items-center justify-center px-2 py-0.5 bg-[#0a0c10] border border-[#23272f] rounded-md min-w-[3.6rem] shrink-0';
+  // ── Styles transport (style « studio » harmonisé avec la toolbar PianoRoll) ──
+  const tBtn = 'w-7 h-7 flex items-center justify-center rounded-md text-[#9aa3b2] hover:text-white hover:bg-[#1a2230] transition-colors disabled:opacity-30 shrink-0';
+  const tBtnPlay = 'w-8 h-8 flex items-center justify-center rounded-md bg-[#2f6ba8] text-white border border-[#3a7ab8] hover:bg-[#3a7ab8] transition-colors disabled:opacity-40 shrink-0';
+  const tSep = 'w-px h-5 bg-[#242c3a] shrink-0';
+  const tLcd = 'flex flex-col items-center justify-center px-2 py-0.5 bg-[#0a0c10] border border-[#1f2733] rounded-md min-w-[3.2rem] shrink-0';
   const tLcdLabel = 'text-[8px] uppercase tracking-widest text-[#5c6472] leading-none';
-  const tLcdVal = 'font-mono text-[13px] text-[#d9b25f] leading-tight';
+  const tLcdVal = 'font-mono text-[12px] text-[#d9b25f] leading-tight';
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3">
       {/* ── Barre de transport (compacte, style studio) ── */}
-      <div className="flex flex-col gap-1.5 mb-3 py-1.5 px-2 bg-[#12141a] border border-[#262a34] rounded-lg">
+      <div className="flex flex-col gap-1.5 mb-3 py-1.5 px-2 bg-[#0d1117] border border-[#1f2733] rounded-lg">
         {/* Rangée 1 — transport & position */}
         <div className="flex flex-wrap items-center gap-1.5">
         {/* Transport : begin / play / stop / pause */}
@@ -757,7 +757,7 @@ export default function DawView({
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
           onClick={() => (midiPlaying ? stopMidi() : startMidi(posBeats))}
-          className={`h-8 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
+          className={`h-7 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
             midiPlaying
               ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'
               : 'bg-[#2a4a2f] text-[#8fd8a8] border-[#2f5a3a] hover:bg-[#335a3a] hover:text-white'
@@ -849,14 +849,14 @@ export default function DawView({
           <button
             onClick={onPostProd}
             disabled={bouncing}
-            className="px-2.5 h-8 flex items-center gap-1.5 rounded-md bg-[#1d2118] text-[#c9a45c] border border-[#c9a45c]/40 hover:bg-[#2a2a1e] text-[11px] font-semibold transition-colors shrink-0 disabled:opacity-50"
+            className="px-2.5 h-7 flex items-center gap-1.5 rounded-md bg-[#1d2118] text-[#c9a45c] border border-[#c9a45c]/40 hover:bg-[#2a2a1e] text-[10.5px] font-semibold transition-colors shrink-0 disabled:opacity-50"
             title="Bouncer les pistes MIDI en audio (WAV, avec leurs effets) et ouvrir le mode PostProd"
           >
             {bouncing ? '⏳ Bounce…' : '🎚 PostProd'}
           </button>
           <button
             onClick={onSetLive}
-            className="px-2.5 h-8 flex items-center gap-1.5 rounded-md bg-[#223a5a] text-[#8fb8e8] border border-[#2f4a6e] hover:bg-[#2a4a70] text-[11px] font-semibold transition-colors shrink-0"
+            className="px-2.5 h-7 flex items-center gap-1.5 rounded-md bg-[#223a5a] text-[#8fb8e8] border border-[#2f4a6e] hover:bg-[#2a4a70] text-[10.5px] font-semibold transition-colors shrink-0"
             title="Revenir au mode Live (MIDI temps réel)"
           >
             <Monitor className="w-3.5 h-3.5" /> Live
