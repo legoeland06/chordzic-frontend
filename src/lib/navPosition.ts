@@ -42,6 +42,19 @@ export function wrapLoopPositionSec(sec: number, loopStartSec: number, loopEndSe
   return loopStartSec + ((sec - loopStartSec) % len);
 }
 
+/** Position de départ de la lecture quand le repeat boucle [L, R[ :
+ * - tête AU-DELÀ de R (ou égale) → retour au locator gauche (la lecture
+ *   tomberait dans le vide) ;
+ * - tête AVANT L (dont 0 par défaut) → on joue depuis la tête : un
+ *   premier Play avec L ≠ 0 doit jouer le morceau depuis le début, pas
+ *   sauter le début (bug : « les modifications au début ne sont pas
+ *   entendues » quand le locator gauche n'est pas à 001.1) ;
+ * - tête dans [L, R[ → la tête. */
+export function computeStartBeats(loopOn: boolean, locL: number, locR: number, posBeats: number): number {
+  if (loopOn && locR > locL && posBeats >= locR) return locL;
+  return posBeats;
+}
+
 /** Beats → format « MMM.T » (mesure.temps) — même affichage que le compteur
  * MES de la barre de transport. Cohérent avec la signature (temps/mesure). */
 export function locBeatToMes(beat: number, beatsPerBar: number): string {

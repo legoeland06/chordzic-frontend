@@ -20,7 +20,7 @@ import PianoRoll from './PianoRoll';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
-import { wrapLoopPositionSec, locBeatToMes, locMesToBeat } from '../lib/navPosition';
+import { wrapLoopPositionSec, locBeatToMes, locMesToBeat, computeStartBeats } from '../lib/navPosition';
 import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
@@ -792,9 +792,11 @@ export default function DawView({
     const clickSig = getClickSig();
     let clickSeparated = false;
     try { clickSeparated = !!(JSON.parse(clickSig) as { out_device?: string | null }).out_device; } catch { /* ignore */ }
-    // Démarrage : si le repeat boucle un intervalle [L, R[ et que la tête
-    // est HORS de l'intervalle, la lecture commence au locator gauche.
-    const startBeats = (loopOn && locR > locL && (posBeats < locL || posBeats >= locR)) ? locL : posBeats;
+    // Démarrage : si le repeat boucle [L, R[ et que la tête est AU-DELÀ de
+    // l'intervalle, la lecture revient au locator gauche. Une tête avant L
+    // (dont 0 par défaut) joue depuis la tête — le premier Play doit
+    // entendre le début du morceau, pas sauter à L (bug locator L ≠ 001.1).
+    const startBeats = computeStartBeats(loopOn, locL, locR, posBeats);
     if (clickSeparated || contentSig !== renderSigRef.current || clickSig !== renderClickSigRef.current) {
       renderSigRef.current = contentSig;
       renderClickSigRef.current = clickSig;
@@ -982,7 +984,7 @@ export default function DawView({
 
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
-          onClick={() => (midiPlaying ? stopMidi() : startMidi(loopOn && locR > locL && (posBeats < locL || posBeats >= locR) ? locL : posBeats))}
+          onClick={() => (midiPlaying ? stopMidi() : startMidi(computeStartBeats(loopOn, locL, locR, posBeats)))}
           className={`h-7 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
             midiPlaying
               ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'
@@ -1062,7 +1064,7 @@ export default function DawView({
         <button
           onClick={() => onSetLoop(!loopOn)}
           disabled={playState === 'playing'}
-          className={loopOn ? `${tBtn} bg-[#2f4a6e] border-[#3f5f8f] text-[#a8c8e8]` : tBtn}
+          className={loopOn ? `${tBtn} bg-purple-900/40 border-purple-500 text-purple-400` : tBtn}
           title="Lecture en boucle"
         >
           <Repeat className="w-3.5 h-3.5" />

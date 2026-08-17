@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beatsFromSeconds,
+  computeStartBeats,
   estimatePositionSec,
   locBeatToMes,
   locMesToBeat,
@@ -68,5 +69,27 @@ describe('navPosition — position de lecture mode Navig', () => {
     expect(locMesToBeat('005', 4)).toBeNull();
     expect(locMesToBeat('000.1', 4)).toBeNull(); // mesure 0
     expect(locMesToBeat('005.0', 4)).toBeNull(); // temps 0
+  });
+
+  it('computeStartBeats : le premier Play avec L ≠ 0 joue depuis le début', () => {
+    // Loop activé, L = 8, tête à 0 (position par défaut) → on joue depuis 0
+    // (bug corrigé : avant, on démarrait à L → début sauté / silence).
+    expect(computeStartBeats(true, 8, 16, 0)).toBe(0);
+    // Tête avant L (scrub à 4) → depuis la tête
+    expect(computeStartBeats(true, 8, 16, 4)).toBe(4);
+    // Tête dans [L, R[ → la tête
+    expect(computeStartBeats(true, 8, 16, 10)).toBe(10);
+    // Tête au-delà de R → retour au locator gauche
+    expect(computeStartBeats(true, 8, 16, 16)).toBe(8);
+    expect(computeStartBeats(true, 8, 16, 20)).toBe(8);
+    // Loop désactivé → la tête, toujours
+    expect(computeStartBeats(false, 8, 16, 0)).toBe(0);
+    expect(computeStartBeats(false, 8, 16, 20)).toBe(20);
+    // Intervalle invalide (L ≥ R) → la tête
+    expect(computeStartBeats(true, 8, 8, 0)).toBe(0);
+    expect(computeStartBeats(true, 0, 0, 12)).toBe(12);
+    // L = 0 : comportement inchangé
+    expect(computeStartBeats(true, 0, 16, 20)).toBe(0);
+    expect(computeStartBeats(true, 0, 16, 5)).toBe(5);
   });
 });
