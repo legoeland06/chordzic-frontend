@@ -8,7 +8,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import PianoKeyboard from './PianoKeyboard';
-import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, getNoteColor } from '../types/chord';
+import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, durationLabel, getNoteColor } from '../types/chord';
 import { getSuggestions as getAutocompleteSuggestions, QUALITY_NAMES } from '../lib/autocomplete';
 import { notesWithOctave } from '../lib/chordUtils';
 
@@ -212,7 +212,7 @@ export default function ChordDetailModal({
           </div>
           <div className="bg-gray-800/60 rounded-lg px-3 py-2">
             <div className="text-[10px] text-gray-500 uppercase">Durée</div>
-            <div className="text-gray-300 font-bold font-mono">{chord.time} temps</div>
+            <div className="text-gray-300 font-bold font-mono">{durationLabel(chord.time)}</div>
           </div>
         </div>
 

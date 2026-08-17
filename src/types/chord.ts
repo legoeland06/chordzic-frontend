@@ -317,18 +317,19 @@ export function parseRepeat(token: string): { base: string; repeat: number } {
   return { base: token, repeat: 1 };
 }
 
-/** Figures rythmiques pour les mentions discrètes de durée.
- * 1t = ronde, 2t = blanche, 3t = noire pointée, 4t = noire,
- * 6t = croche pointée, 8t = croche, 12t = triolet, 16t = double croche,
- * 24t = sextolet, 32t = triple croche, 64t = quadruple croche.
- * Les valeurs sans figure standard (5, 7…) gardent « N t ». */
+/** Figures rythmiques pour la notation de durée (N = diviseur de la mesure).
+ * Dans une mesure de 4 temps : 1 = ronde (4 t), 2 = blanche (2 t),
+ * 4 = noire (1 t), 6 = triolet de noire (2/3 t), 8 = croche (1/2 t),
+ * 12 = triolet de croche (1/3 t), 16 = double croche, 24 = sextolet,
+ * 32 = triple croche, 64 = quadruple croche.
+ * Les diviseurs sans figure standard (3, 5, 7…) → « N par mesure ». */
 export function durationLabel(time: number): string {
   const figures: Record<number, string> = {
-    1: 'ronde', 2: 'blanche', 3: 'noire pointée', 4: 'noire',
-    6: 'croche pointée', 8: 'croche', 12: 'triolet',
-    16: 'double croche', 24: 'sextolet', 32: 'triple croche', 64: 'quadruple croche',
+    1: 'ronde', 2: 'blanche', 4: 'noire', 8: 'croche',
+    16: 'double croche', 32: 'triple croche', 64: 'quadruple croche',
+    3: '3 par mesure', 6: 'triolet de noire', 12: 'triolet de croche', 24: 'sextolet de croche',
   };
-  return figures[time] ?? `${time} t`;
+  return figures[time] ?? `${time} par mesure`;
 }
 
 // ─── Couleurs ───────────────────────────────────────────────────────────

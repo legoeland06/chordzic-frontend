@@ -144,19 +144,19 @@ describe('durationLabel — figures rythmiques des mentions discrètes', () => {
   it('table complète', () => {
     expect(durationLabel(1)).toBe('ronde');
     expect(durationLabel(2)).toBe('blanche');
-    expect(durationLabel(3)).toBe('noire pointée');
+    expect(durationLabel(3)).toBe('3 par mesure');
     expect(durationLabel(4)).toBe('noire');
-    expect(durationLabel(6)).toBe('croche pointée');
+    expect(durationLabel(6)).toBe('triolet de noire');
     expect(durationLabel(8)).toBe('croche');
-    expect(durationLabel(12)).toBe('triolet');
+    expect(durationLabel(12)).toBe('triolet de croche');
     expect(durationLabel(16)).toBe('double croche');
-    expect(durationLabel(24)).toBe('sextolet');
+    expect(durationLabel(24)).toBe('sextolet de croche');
     expect(durationLabel(32)).toBe('triple croche');
     expect(durationLabel(64)).toBe('quadruple croche');
   });
 
-  it('valeurs sans figure standard → « N t »', () => {
-    expect(durationLabel(5)).toBe('5 t');
-    expect(durationLabel(7)).toBe('7 t');
+  it('valeurs sans figure standard → « N par mesure »', () => {
+    expect(durationLabel(5)).toBe('5 par mesure');
+    expect(durationLabel(7)).toBe('7 par mesure');
   });
 });
