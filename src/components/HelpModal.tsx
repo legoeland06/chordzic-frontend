@@ -321,7 +321,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               reste est une <b>basse imposée</b> (jamais une note d'accord) — si elle diffère de la fondamentale, elle est
               notifiée après un <code>/</code> (ex. <code>C/G</code>, <code>Am7/D</code>). <b className="text-white">Insertion</b> : clic sur l'accord
               (ou « + Grille ») immédiat, ou <b>⏱ timer indépendant</b> — un accord tenu ≥ 3 s (réglable 1/2/3/5 s
-              sur le badge) est inséré automatiquement, sans lâcher le clavier. Insertion à 4 temps.
+              sur le badge) est inséré automatiquement, sans lâcher le clavier. Insertion en <b className="text-white">1 temps (ronde)</b> — éditable ensuite.
               Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
             </>} />
             <p className="text-xs text-gray-500">

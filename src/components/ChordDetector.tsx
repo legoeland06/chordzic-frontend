@@ -106,7 +106,7 @@ export default function ChordDetector({ onInsert }: Props) {
               : detected === null
                 ? 'En attente de notes…'
                 : canInsert
-                  ? 'Clique pour insérer dans la grille (4 temps)'
+                  ? 'Clique pour insérer dans la grille (1 ronde)'
                   : 'Accord non identifié (notes seules)'
           }
           className={`text-2xl font-bold font-mono leading-tight transition-colors ${
@@ -132,7 +132,7 @@ export default function ChordDetector({ onInsert }: Props) {
         <button
           onClick={() => onInsert(detected!.label)}
           className="shrink-0 text-xs px-2 py-1 rounded-md bg-green-900/40 border border-green-700/40 text-green-300 hover:bg-green-800/40 transition-colors"
-          title="Insérer l'accord dans la grille (4 temps)"
+          title="Insérer l'accord dans la grille (1 ronde)"
         >
           + Grille
         </button>
