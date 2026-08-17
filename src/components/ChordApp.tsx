@@ -10,7 +10,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Sparkles, Music } from 'lucide-react';
 
-import { parseGrille, ChordData } from '../types/chord';
+import { parseChord, parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
@@ -1127,13 +1127,20 @@ export default function ChordApp() {
   }, [input, tempo]);
 
   const handleUpdateChord = useCallback((idx: number, newText: string) => {
-    const tokens = input.trim().split(/\s+/);
-    if (idx >= 0 && idx < tokens.length) {
-      tokens[idx] = newText;
-      setInput(tokens.join(' '));
-      try { const grille = parseGrille(tokens.join(' '), tempo); setChords(grille.chords); if (grille.chords.length > 0 && idx < grille.chords.length) setSelectedChord(grille.chords[idx]); } catch {}
-    }
-  }, [input, tempo]);
+    // Réécriture complète depuis la liste des accords (et non remplacement
+    // du token brut) : avec la notation de répétition « xN », l'index de la
+    // liste ne correspond plus à l'index des tokens du texte — éditer une
+    // occurrence éclate proprement le xN en forme longue.
+    try {
+      const updated = parseChord(newText);
+      const newChords = [...chords];
+      if (idx >= 0 && idx < newChords.length) newChords[idx] = updated;
+      setChords(newChords);
+      setInput(newChords.map(c => `${c.time}:${c.chiffrage}`).join(' '));
+      setLastChiffrage(newChords[newChords.length - 1]?.chiffrage ?? '');
+      if (newChords.length > 0 && idx < newChords.length) setSelectedChord(newChords[idx]);
+    } catch { /* token invalide : on ignore */ }
+  }, [chords]);
 
   // ─── Rendu JSX ─────────────────────────────────────────────────────
 

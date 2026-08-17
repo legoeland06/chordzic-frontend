@@ -155,7 +155,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <div className="bg-gray-800/60 rounded-lg px-3 py-2 font-mono text-xs text-green-300">
               4:Cm7 2:FM7 4:G7 4:C
             </div>
-            <Row k="durée" v={<>nombre de <b>temps</b> avant les deux-points (défaut : 4). Un accord de durée <code>2</code> dure 2 temps, soit une blanche en 4/4.</>} />
+            <Row k="durée" v={<>nombre de <b>temps</b> avant les deux-points (défaut : 4). Un accord de durée <code>2</code> dure 2 temps, soit une blanche en 4/4. Dans la grille, la durée est indiquée discrètement à côté de l'accord par sa <b>figure rythmique</b> : <code>1</code> ronde · <code>2</code> blanche · <code>3</code> noire pointée · <code>4</code> noire · <code>6</code> croche pointée · <code>8</code> croche · <code>12</code> triolet · <code>16</code> double croche · <code>32</code> triple croche.</>} />
+            <Row k="répétition" v={<><code>xN</code> après l'accord : répète l'accord (avec sa durée) N fois. Ex. <code className="text-yellow-300 bg-gray-800 px-1 py-0.5 rounded text-xs">2:Cm7x3</code> = <code className="text-yellow-300 bg-gray-800 px-1 py-0.5 rounded text-xs">2:Cm7 2:Cm7 2:Cm7</code>.</>} />
+            <Row k="affichage" v={<>les accords majeurs simples s'affichent sans suffixe (<code>C</code>, <code>F#</code>…), et le <code>/</code> n'apparaît que pour une basse alternative (ex. <code>Am7/D</code>).</>} />
             <Row k="fondamentale" v={<>note de <code>A</code> à <code>G</code>, avec dièse <code>#</code> ou bémol <code>b</code> (ex. <code>F#</code>, <code>Bb</code>).</>} />
             <Row k="qualité" v={<>plus de 70 types : triades (<code>m</code>, <code>dim</code>, <code>sus4</code>…), 7tes (<code>7</code>, <code>m7</code>, <code>M7</code>, <code>7#9</code>…), 9/11/13 (<code>9</code>, <code>m9</code>, <code>13b9</code>…), <code>ø</code>, <code>°</code>, <code>add9</code>… Vide ou inconnu → accord <b>majeur</b>.</>} />
             <Row k="basse alt." v={<>après <code>/</code> (ex. <code>Cm7/Bb</code>) : la basse joue la note indiquée (octave grave).</>} />

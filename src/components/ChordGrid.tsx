@@ -12,7 +12,7 @@
  * Le drag & drop est désactivé pendant la lecture.
  */
 import { GripVertical } from 'lucide-react';
-import { ChordData, getChordColor, getNoteColor } from '../types/chord';
+import { ChordData, durationLabel, getChordColor, getNoteColor } from '../types/chord';
 
 interface ChordGridProps {
   chords: ChordData[];
@@ -81,7 +81,7 @@ export default function ChordGrid({
               <span className="text-lg font-bold font-mono" style={{ color: getChordColor(idx) }}>
                 {c.chiffrage === '_' ? '—' : c.chiffrage}
               </span>
-              <span className="text-xs text-gray-500 ml-2">{c.time}t</span>
+              <span className="text-xs text-gray-500 ml-2">{durationLabel(c.time)}</span>
             </button>
 
             {/* Notes de l'accord (pastilles colorées) */}

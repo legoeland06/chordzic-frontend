@@ -21,6 +21,7 @@ import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
 import { wrapLoopPositionSec, locBeatToMes, locMesToBeat } from '../lib/navPosition';
+import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 
@@ -510,8 +511,9 @@ export default function DawView({
     // stoppait/enroulait la tête à MI-MORCEAU (son coupé au mauvais moment).
     let sum = 0;
     for (const tok of input.split(/\s+/)) {
-      const m = tok.match(/^(\d+):/);
-      if (m) sum += 4 / parseInt(m[1], 10);
+      const { base, repeat } = parseRepeat(tok);
+      const m = base.match(/^(\d+):/);
+      if (m) sum += (4 / parseInt(m[1], 10)) * repeat;
     }
     if (sum > 0) max = Math.max(max, sum);
     for (const list of Object.values(pianoNotes)) {

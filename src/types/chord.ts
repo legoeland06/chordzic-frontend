@@ -242,7 +242,18 @@ export function parseChord(input: string): ChordData {
   // Noms des notes (en 0-11 pour l'affichage, mais on garde l'octave pour le MIDI)
   const notes = rawValues.map((v: number) => NOTE_NAMES[v % 12]);
 
-  const chiffrage = `${name}${quality}${bass !== name ? '/' + bass : ''}`;
+  // ── Chiffrage d'affichage propre ──
+  // 1. Pas de « / » tant que l'utilisateur ne spécifie pas une basse
+  //    alternative (ex. "1:Am7/D") — un simple "2:G7" s'affiche "G7",
+  //    plus jamais "G7/".
+  // 2. Les triades majeures s'affichent sans suffixe : "C", "C#", "D"…
+  //    (plus de "CM" / "C#M"). Les extensions (M7, M9…) gardent leur
+  //    suffixe : "CM7" reste "CM7".
+  const ql = quality.toLowerCase();
+  const isMajorTriad = quality === '' || quality === 'M' || ql === 'maj';
+  const displayQuality = isMajorTriad ? '' : quality;
+  const hasBass = bass !== '' && bass !== name;
+  const chiffrage = `${name}${displayQuality}${hasBass ? '/' + bass : ''}`;
 
   return {
     time, name, quality, bass: bassNote, chiffrage, notes, midiValues: rawValues,
@@ -273,12 +284,51 @@ function resolveQuality(q: string): number[] {
 
 /**
  * Parse une grille complète (espacement des accords).
- * Format : "4:Cm7 4:F7 2:G7 4:C"
+ * Format : "4:Cm7 4:F7 2:G7 4:C".
+ *
+ * La notation de répétition « xN » est supportée : "2:Cm7x3" est
+ * équivalent à "2:Cm7 2:Cm7 2:Cm7" (N ≥ 1 ; x0 est clampé à 1).
  */
 export function parseGrille(input: string, tempo: number = 120): GrilleData {
   const parts = input.trim().split(/\s+/);
-  const chords = parts.map(p => parseChord(p));
+  const chords: ChordData[] = [];
+  for (const p of parts) {
+    const { base, repeat } = parseRepeat(p);
+    const c = parseChord(base);
+    for (let i = 0; i < repeat; i++) {
+      // Copie profonde : chaque occurrence est indépendante (notes et
+      // midiValues ne sont jamais mutés, mais autant être propre).
+      chords.push({ ...c, notes: [...c.notes], midiValues: [...c.midiValues] });
+    }
+  }
   return { titre: 'Session', tempo, chords };
+}
+
+/**
+ * Extrait le facteur de répétition « xN » d'un token de grille.
+ * Ex. "2:Cm7x3" → { base: "2:Cm7", repeat: 3 }. Sans « xN » : repeat 1.
+ * N est clampé à ≥ 1 (x0 = 1 fois, jamais d'accord qui disparaît).
+ */
+export function parseRepeat(token: string): { base: string; repeat: number } {
+  const m = token.match(/^(.*)x(\d+)$/);
+  if (m) {
+    return { base: m[1], repeat: Math.max(1, parseInt(m[2], 10)) };
+  }
+  return { base: token, repeat: 1 };
+}
+
+/** Figures rythmiques pour les mentions discrètes de durée.
+ * 1t = ronde, 2t = blanche, 3t = noire pointée, 4t = noire,
+ * 6t = croche pointée, 8t = croche, 12t = triolet, 16t = double croche,
+ * 24t = sextolet, 32t = triple croche, 64t = quadruple croche.
+ * Les valeurs sans figure standard (5, 7…) gardent « N t ». */
+export function durationLabel(time: number): string {
+  const figures: Record<number, string> = {
+    1: 'ronde', 2: 'blanche', 3: 'noire pointée', 4: 'noire',
+    6: 'croche pointée', 8: 'croche', 12: 'triolet',
+    16: 'double croche', 24: 'sextolet', 32: 'triple croche', 64: 'quadruple croche',
+  };
+  return figures[time] ?? `${time} t`;
 }
 
 // ─── Couleurs ───────────────────────────────────────────────────────────
