@@ -317,7 +317,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b>Reconnaissance d'accords en temps réel</b> : le badge écoute le clavier MIDI (ex. Roland) et affiche
               l'accord plaqué — <code>2 notes</code> : reconnaissance stricte ; <code>3 notes et +</code> : tolérance
               (notes ajoutées acceptées, ex. CM9) ; <code>1 note</code> : la note seule. La basse réelle départage les
-              accords relatifs (C6 vs Am7). <b className="text-white">Clic sur l'accord (ou « + Grille ») pour l'insérer</b> dans la
+              accords relatifs (C6 vs Am7). <b className="text-white">Convention de basse</b> : une note grave à ≥ 1 octave du
+              reste est une <b>basse imposée</b> (jamais une note d'accord) — si elle diffère de la fondamentale, elle est
+              notifiée après un <code>/</code> (ex. <code>C/G</code>, <code>Am7/D</code>). <b className="text-white">Clic sur l'accord (ou « + Grille ») pour l'insérer</b> dans la
               grille à 4 temps. Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
             </>} />
             <p className="text-xs text-gray-500">

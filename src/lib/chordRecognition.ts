@@ -13,6 +13,13 @@
  * - Basse réelle (note la plus basse) pour départager les accords relatifs
  *   (ex. C6 vs Am7 : C en basse → C6, A en basse → Am7)
  * - Aucun accord connu  → notes brutes affichées (le clavier est capté)
+ *
+ * Convention d'harmonie (demandée par Eric) :
+ * - La note la plus grave, quand elle est à ≥ 1 octave (BASS_GAP) de la
+ *   suivante, est une BASSE IMPOSÉE (choix délibéré du pianiste), jamais
+ *   une note de l'accord (quinte, sixte, septième, neuvième…).
+ * - Si cette basse ≠ fondamentale de l'accord reconnu → notation « Accord/Basse »
+ *   (ex. C/E, C/G, Am7/D) ; si elle est la fondamentale → accord seul (C).
  */
 import { NOTE_NAMES, QUALITY_INTERVALS, parseChord } from '../types/chord';
 
@@ -21,9 +28,9 @@ export interface RecognizedChord {
   root: number;
   /** Nom canonique de la qualité ('' = triade majeure). */
   quality: string;
-  /** Chiffrage d'affichage propre (ex. "C", "Cm7", "CM7", "C6"). */
+  /** Chiffrage d'affichage propre (ex. "C", "Cm7", "CM7", "C6", "C/G"). */
   label: string;
-  /** Classes de hauteur tenues (triées, uniques). */
+  /** Classes de hauteur tenues (triées, uniques, basse incluse). */
   classes: number[];
   /** Match exact (false = inclusion ou notes brutes). */
   exact: boolean;
@@ -31,7 +38,14 @@ export interface RecognizedChord {
   noteOnly: boolean;
   /** L'accord peut être inséré dans la grille (accord identifié). */
   insertable: boolean;
+  /** Basse imposée (note grave détachée) — null si aucune. */
+  bass: string | null;
 }
+
+/** Écart minimal (demi-tons) entre la note la plus grave et la suivante
+ * pour la considérer comme une basse imposée (main gauche) et non comme
+ * une note de l'accord. Une octave est le seuil musical standard. */
+export const BASS_GAP = 12;
 
 /** Noms canoniques préférés, par ordre de priorité (les alias d'un même
  * accord sont fusionnés ; le premier nom préféré rencontré gagne). */
@@ -81,6 +95,40 @@ function sameSet(a: number[], b: number[]): boolean {
 export function recognizeChord(pitches: number[]): RecognizedChord | null {
   const valid = pitches.filter(p => Number.isInteger(p) && p >= 0 && p <= 127);
   if (valid.length === 0) return null;
+
+  // ── Basse imposée (convention d'harmonie) ──
+  // La note la plus grave, à ≥ 1 octave de la suivante, est un choix
+  // délibéré du pianiste (main gauche) : elle n'appartient PAS à l'accord
+  // à reconnaître. Si elle diffère de la fondamentale → « Accord/Basse ».
+  const sorted = [...valid].sort((a, b) => a - b);
+  const hasBass = sorted.length >= 2 && sorted[1] - sorted[0] >= BASS_GAP;
+  const bassPitch = hasBass ? sorted[0] : null;
+  const chordPitches = hasBass ? valid.filter(p => p !== bassPitch) : valid;
+
+  const r = recognizeOn(chordPitches);
+  if (!r) return null;
+
+  // Classes complètes (basse incluse) pour l'information.
+  const allClasses = [...new Set(valid.map(p => p % 12))].sort((a, b) => a - b);
+
+  if (bassPitch !== null && r.insertable) {
+    const bassClass = bassPitch % 12;
+    if (bassClass !== r.root) {
+      const label = parseChord(
+        `4:${NOTE_NAMES[r.root]}${r.quality}/${NOTE_NAMES[bassClass]}`
+      ).chiffrage;
+      return { ...r, label, classes: allClasses, bass: NOTE_NAMES[bassClass] };
+    }
+  }
+  return { ...r, classes: allClasses, bass: null };
+}
+
+/** Reconnaît un accord sur un ensemble de pitchs SANS basse détachée.
+ * (Logique principale : note seule, strict à 2 notes, tolérance ≥ 3,
+ * basse relative pour départager C6 vs Am7.) */
+function recognizeOn(pitches: number[]): RecognizedChord | null {
+  const valid = pitches.filter(p => Number.isInteger(p) && p >= 0 && p <= 127);
+  if (valid.length === 0) return null;
   const classes = [...new Set(valid.map(p => p % 12))].sort((a, b) => a - b);
   const lowestClass = Math.min(...valid) % 12;
 
@@ -88,7 +136,7 @@ export function recognizeChord(pitches: number[]): RecognizedChord | null {
   if (classes.length === 1) {
     return {
       root: classes[0], quality: '', label: NOTE_NAMES[classes[0]],
-      classes, exact: true, noteOnly: true, insertable: true,
+      classes, exact: true, noteOnly: true, insertable: true, bass: null,
     };
   }
 
@@ -119,7 +167,7 @@ export function recognizeChord(pitches: number[]): RecognizedChord | null {
     // Aucun accord connu : notes brutes (le clavier est bien capté).
     return {
       root: classes[0], quality: '', label: classes.map(c => NOTE_NAMES[c]).join('·'),
-      classes, exact: false, noteOnly: false, insertable: false,
+      classes, exact: false, noteOnly: false, insertable: false, bass: null,
     };
   }
 
@@ -128,6 +176,6 @@ export function recognizeChord(pitches: number[]): RecognizedChord | null {
   const label = parseChord(`4:${NOTE_NAMES[best.root]}${best.q}`).chiffrage;
   return {
     root: best.root, quality: best.q, label, classes,
-    exact: best.score >= 1000, noteOnly: false, insertable: true,
+    exact: best.score >= 1000, noteOnly: false, insertable: true, bass: null,
   };
 }
