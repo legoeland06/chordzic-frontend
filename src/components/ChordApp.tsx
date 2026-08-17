@@ -1248,6 +1248,9 @@ export default function ChordApp() {
             {/* Saisie des accords */}
             <ChordInput input={input} onChange={setInput} />
 
+            {/* 🎹 Reconnaissance d'accords (mode Live) : badge temps réel + clic = insertion */}
+            <ChordDetector onInsert={insertDetectedChord} />
+
             {/* Contrôles + TrackPanel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
           <ControlBar
@@ -1277,9 +1280,6 @@ export default function ChordApp() {
             onOpenPianoRoll={setOpenPianoRoll}
           />
         </div>
-
-        {/* 🎹 Reconnaissance d'accords (mode Live) : badge temps réel + clic = insertion */}
-        <ChordDetector onInsert={insertDetectedChord} />
 
         <ProgressBar chords={chords} highlighted={highlighted} playing={playing} currentBeat={currentBeat} tempo={tempo} />
 
