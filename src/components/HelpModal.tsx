@@ -319,8 +319,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (notes ajoutées acceptées, ex. CM9) ; <code>1 note</code> : la note seule. La basse réelle départage les
               accords relatifs (C6 vs Am7). <b className="text-white">Convention de basse</b> : une note grave à ≥ 1 octave du
               reste est une <b>basse imposée</b> (jamais une note d'accord) — si elle diffère de la fondamentale, elle est
-              notifiée après un <code>/</code> (ex. <code>C/G</code>, <code>Am7/D</code>). <b className="text-white">Clic sur l'accord (ou « + Grille ») pour l'insérer</b> dans la
-              grille à 4 temps. Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
+              notifiée après un <code>/</code> (ex. <code>C/G</code>, <code>Am7/D</code>). <b className="text-white">Insertion</b> : clic sur l'accord
+              (ou « + Grille ») immédiat, ou <b>⏱ timer indépendant</b> — un accord tenu ≥ 3 s (réglable 1/2/3/5 s
+              sur le badge) est inséré automatiquement, sans lâcher le clavier. Insertion à 4 temps.
+              Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
             </>} />
             <p className="text-xs text-gray-500">
               💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,

@@ -1144,17 +1144,16 @@ export default function ChordApp() {
   }, [chords]);
 
   /** Insère l'accord détecté par le ChordDetector à la fin de la grille
-   * (durée par défaut : 4 temps — éditable ensuite dans la grille). */
+   * (durée par défaut : 4 temps — éditable ensuite dans la grille).
+   * Fonction stable (aucune dépendance) : le parse debounce existant
+   * (300 ms sur `input`) met à jour la grille automatiquement. */
   const insertDetectedChord = useCallback((label: string) => {
     const token = `4:${label}`;
-    const newInput = input.trim() ? `${input.trim()} ${token}` : token;
-    setInput(newInput);
-    try {
-      const grille = parseGrille(newInput, tempo);
-      setChords(grille.chords);
-      setLastChiffrage(grille.chords[grille.chords.length - 1]?.chiffrage ?? '');
-    } catch { /* token invalide : on ignore */ }
-  }, [input, tempo]);
+    setInput(prev => {
+      const cur = prev.trim();
+      return cur ? `${cur} ${token}` : token;
+    });
+  }, []);
 
   // ─── Rendu JSX ─────────────────────────────────────────────────────
 

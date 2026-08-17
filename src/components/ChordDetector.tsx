@@ -5,12 +5,18 @@
  * notes tenues sur le clavier MIDI (Roland), puis reconnaît l'accord plaqué
  * avec l'harmonie intégrée (chordRecognition → QUALITY_INTERVALS).
  *
- * Un clic sur l'accord détecté l'insère dans la grille (durée 4 par défaut).
+ * Insertion dans la grille :
+ * - clic sur l'accord ou « + Grille » → immédiat ;
+ * - ⏱ timer indépendant : un accord identifié tenu ≥ 3 s (réglable) est
+ *   inséré automatiquement (les deux mains sont occupées à jouer).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { recognizeChord, RecognizedChord } from '../lib/chordRecognition';
+import { computeAutoInsert, initialAutoInsertState } from '../lib/autoInsert';
 
 const API_BASE = 'http://localhost:4000';
+const POLL_MS = 150;
+const AUTO_INSERT_DELAYS = [1, 2, 3, 5];
 
 interface Props {
   onInsert: (label: string) => void;
@@ -19,9 +25,16 @@ interface Props {
 export default function ChordDetector({ onInsert }: Props) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
+  const [delayS, setDelayS] = useState(3);
+  const [justInserted, setJustInserted] = useState(false);
+
+  // État du timer d'insertion automatique (persisté entre les ticks).
+  const timerRef = useRef(initialAutoInsertState());
 
   useEffect(() => {
     let cancelled = false;
+    let flash: ReturnType<typeof setTimeout> | undefined;
+
     const tick = async () => {
       try {
         const res = await fetch(`${API_BASE}/live-input`);
@@ -29,7 +42,21 @@ export default function ChordDetector({ onInsert }: Props) {
         const j = await res.json();
         if (cancelled) return;
         setDevice(j.device ?? null);
-        setDetected(recognizeChord(Array.isArray(j.active) ? j.active : []));
+        const r = recognizeChord(Array.isArray(j.active) ? j.active : []);
+        setDetected(r);
+
+        // ── Timer d'insertion automatique ──
+        const key = r ? `${r.label}|${r.classes.join(',')}` : null;
+        const verdict = computeAutoInsert(
+          timerRef.current, Date.now(), delayS * 1000, key, r?.insertable ?? false,
+        );
+        timerRef.current = verdict.next;
+        if (verdict.shouldInsert) {
+          onInsert(r!.label);
+          setJustInserted(true);
+          if (flash) clearTimeout(flash);
+          flash = setTimeout(() => setJustInserted(false), 1200);
+        }
       } catch {
         if (!cancelled) {
           setDevice(null);
@@ -37,16 +64,25 @@ export default function ChordDetector({ onInsert }: Props) {
         }
       }
     };
+
     tick();
-    const id = setInterval(tick, 150);
+    const id = setInterval(tick, POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
+      if (flash) clearTimeout(flash);
     };
-  }, []);
+  }, [delayS, onInsert]);
 
   const canInsert = detected !== null && detected.insertable;
   const noKeyboard = device === null;
+
+  const cycleDelay = () => {
+    setDelayS(prev => {
+      const i = AUTO_INSERT_DELAYS.indexOf(prev);
+      return AUTO_INSERT_DELAYS[(i + 1) % AUTO_INSERT_DELAYS.length];
+    });
+  };
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 mb-2 flex items-center gap-3">
@@ -54,11 +90,12 @@ export default function ChordDetector({ onInsert }: Props) {
         🎹
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-[10px] uppercase tracking-wider text-gray-500 truncate">
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 truncate flex items-center gap-2">
           Accord détecté
           {noKeyboard
             ? ' · clavier non détecté'
             : ` · ${device}`}
+          {justInserted && <span className="text-green-400 normal-case font-bold">✓ inséré</span>}
         </div>
         <button
           onClick={() => canInsert && onInsert(detected!.label)}
@@ -81,6 +118,16 @@ export default function ChordDetector({ onInsert }: Props) {
           {detected ? detected.label : '—'}
         </button>
       </div>
+
+      {/* Timer d'insertion automatique (délai réglable) */}
+      <button
+        onClick={cycleDelay}
+        className="shrink-0 text-[10px] px-1.5 py-1 rounded-md bg-gray-800 border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+        title={`Insertion automatique après ${delayS} s d'appui prolongé (clique pour changer)`}
+      >
+        ⏱ {delayS}s
+      </button>
+
       {canInsert && (
         <button
           onClick={() => onInsert(detected!.label)}
