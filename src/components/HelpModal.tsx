@@ -313,6 +313,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
             <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique). Mode Live uniquement." />
+            <Row k="🎹 Accord détecté" v={<>
+              <b>Reconnaissance d'accords en temps réel</b> : le badge écoute le clavier MIDI (ex. Roland) et affiche
+              l'accord plaqué — <code>2 notes</code> : reconnaissance stricte ; <code>3 notes et +</code> : tolérance
+              (notes ajoutées acceptées, ex. CM9) ; <code>1 note</code> : la note seule. La basse réelle départage les
+              accords relatifs (C6 vs Am7). <b className="text-white">Clic sur l'accord (ou « + Grille ») pour l'insérer</b> dans la
+              grille à 4 temps. Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
+            </>} />
             <p className="text-xs text-gray-500">
               💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,
               grille d'accords) disparaissent : le travail se fait sur <b>vos notes</b>, piste par piste.

@@ -20,6 +20,7 @@ import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
+import ChordDetector from './ChordDetector';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
@@ -1142,6 +1143,19 @@ export default function ChordApp() {
     } catch { /* token invalide : on ignore */ }
   }, [chords]);
 
+  /** Insère l'accord détecté par le ChordDetector à la fin de la grille
+   * (durée par défaut : 4 temps — éditable ensuite dans la grille). */
+  const insertDetectedChord = useCallback((label: string) => {
+    const token = `4:${label}`;
+    const newInput = input.trim() ? `${input.trim()} ${token}` : token;
+    setInput(newInput);
+    try {
+      const grille = parseGrille(newInput, tempo);
+      setChords(grille.chords);
+      setLastChiffrage(grille.chords[grille.chords.length - 1]?.chiffrage ?? '');
+    } catch { /* token invalide : on ignore */ }
+  }, [input, tempo]);
+
   // ─── Rendu JSX ─────────────────────────────────────────────────────
 
   return (
@@ -1264,6 +1278,9 @@ export default function ChordApp() {
             onOpenPianoRoll={setOpenPianoRoll}
           />
         </div>
+
+        {/* 🎹 Reconnaissance d'accords (mode Live) : badge temps réel + clic = insertion */}
+        <ChordDetector onInsert={insertDetectedChord} />
 
         <ProgressBar chords={chords} highlighted={highlighted} playing={playing} currentBeat={currentBeat} tempo={tempo} />
 
