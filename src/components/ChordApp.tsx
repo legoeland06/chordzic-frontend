@@ -13,6 +13,7 @@ import { Sparkles, Music } from 'lucide-react';
 import { parseChord, parseGrille, ChordData } from '../types/chord';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
+import type { Renderer } from '../lib/renderMode';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { DEFAULT_SAMPLE_VOLUME } from '../lib/sampleLoop';
 import ChordInput from './ChordInput';
@@ -601,7 +602,7 @@ export default function ChordApp() {
     });
   }, [tempo, volume, tracks, use432, drumPattern, sig, getEngine, walkingBass]);
 
-  const play = useCallback(async (startAtBeats = 0) => {
+  const play = useCallback(async (startAtBeats = 0, renderer?: Renderer) => {
     const engine = await getEngine();
     if (!engine) return;
 
@@ -652,7 +653,7 @@ export default function ChordApp() {
     // En mode Navig (rendu WAV), le WAV sera disponible à l'extraction
     if (browserAudio) setHasWav(true);
     engine.playGrille(grille, loopOn, customNotes.length > 0 ? customNotes : undefined, customChannels.length > 0 ? customChannels : undefined,
-      locR > locL ? { start: locL, end: locR } : undefined, startAtBeats).then(() => {
+      locR > locL ? { start: locL, end: locR } : undefined, startAtBeats, renderer).then(() => {
       setPlaying(false); setHighlighted(-1);
       setStatus('✅ Lecture terminée'); setStatusColor('text-green-400');
     }).catch((e) => {

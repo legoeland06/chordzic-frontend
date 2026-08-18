@@ -11,6 +11,7 @@ import { ChordData, GrilleData } from '../types/chord';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { computeSamplePhase, fitSampleToGrid, measureDurationSec } from './sampleLoop';
 import { estimatePositionSec, navStartAtBeats, wrapLoopPositionSec } from './navPosition';
+import { clickModeForRenderer, renderEndpoint, type Renderer } from './renderMode';
 
 export interface TrackCfg {
   channel: number;
@@ -44,6 +45,9 @@ export interface RenderOptions {
   /** Position de départ (beats) — la lecture démarre à cet endroit (ex.
    * locator gauche quand le repeat boucle un intervalle). */
   startAtBeats?: number;
+  /** Moteur de rendu WAV : Interne (FluidSynth) ou Externe (périphérique
+   * MIDI branché, enregistré via sa sortie audio — temps réel). */
+  renderer?: Renderer;
 }
 
 /** Configuration de la boucle sample (mode Navig) : un sample audio de
@@ -344,6 +348,8 @@ export class BrowserSynth {
       if (opts.startAtBeats !== undefined && opts.startAtBeats > 0) {
         body.start_at = opts.startAtBeats;
       }
+      // Moteur de rendu (Interne FluidSynth / Externe périphérique MIDI)
+      if (opts.renderer) body.renderer = opts.renderer;
     }
     // Config du clic (source de vérité : le serveur) — mode Navig
     await this._applyClickConfig(body);
@@ -383,12 +389,14 @@ export class BrowserSynth {
     this._clickDevice = null;
     try {
       const cfg = await (await fetch(`${backendUrl()}/click`)).json();
-      if (cfg.out_device && !cfg.in_render) {
-        this._clickDevice = cfg.out_device;
-        body.click_separate = true;
-      } else {
-        body.click_in_render = !!cfg.in_render;
-      }
+      const renderer = body.renderer === 'external' ? 'external' : 'internal';
+      const mode = clickModeForRenderer(renderer, {
+        out_device: cfg.out_device,
+        in_render: cfg.in_render,
+      });
+      if (mode.click_separate) this._clickDevice = cfg.out_device;
+      if (mode.click_separate !== undefined) body.click_separate = mode.click_separate;
+      if (mode.click_in_render !== undefined) body.click_in_render = mode.click_in_render;
     } catch { /* pas de clic */ }
   }
 
@@ -435,12 +443,16 @@ export class BrowserSynth {
       return;
     }
 
-    const resp = await fetch(`${backendUrl()}/render-wav`, {
+    const endpoint = renderEndpoint(body.renderer === 'external' ? 'external' : 'internal');
+    const resp = await fetch(`${backendUrl()}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!resp.ok) throw new Error(`render failed: ${resp.status}`);
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg.length > 200 ? msg.slice(0, 200) : msg || `render failed: ${resp.status}`);
+    }
 
     const wavData = await resp.arrayBuffer();
     // Garder le WAV brut : permet l'extraction (téléchargement) par l'utilisateur

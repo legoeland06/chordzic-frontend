@@ -13,6 +13,7 @@
  */
 import { ChordData, GrilleData } from '../types/chord';
 import { BrowserSynth, RenderOptions, SampleLoopCfg } from './browserSynth';
+import type { Renderer } from './renderMode';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { PianoNote } from './pianoRollTypes';
 
@@ -271,7 +272,7 @@ export class AudioEngine {
   /**
    * Joue une grille complète d'accords, avec ou sans boucle.
    */
-  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[], loopInterval?: { start: number; end: number }, startAtBeats?: number): Promise<void> {
+  async playGrille(grille: GrilleData, loop?: boolean, customNotes?: RenderOptions['customNotes'], customChannels?: number[], loopInterval?: { start: number; end: number }, startAtBeats?: number, renderer?: Renderer): Promise<void> {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
@@ -290,6 +291,7 @@ export class AudioEngine {
         customChannels,
         ...(loopInterval ? { loopStart: loopInterval.start, loopEnd: loopInterval.end } : {}),
         ...(startAtBeats && startAtBeats > 0 ? { startAtBeats } : {}),
+        ...(renderer ? { renderer } : {}),
       });
     } else {
       const sequence = grille.chords.map(c => ({

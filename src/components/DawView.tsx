@@ -21,6 +21,7 @@ import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
 import { wrapLoopPositionSec, locBeatToMes, locMesToBeat, computeStartBeats } from '../lib/navPosition';
+import { type Renderer } from '../lib/renderMode';
 import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
@@ -81,7 +82,7 @@ interface DawViewProps {
   sig: string;                          // signature rythmique (compteur de mesures)
   input: string;                        // signature du contenu (re-rendu si modifié)
   engine: AudioEngine;                  // lecture / pause / seek
-  onPlay: (startAtBeats?: number) => void; // rend le WAV + joue (départ optionnel, ex. locator gauche)
+  onPlay: (startAtBeats?: number, renderer?: Renderer) => void; // rend le WAV + joue (départ optionnel, ex. locator gauche ; moteur Interne/Externe)
   onStop: () => void;
   onExtractWav: () => void;
   onTempoChange: (t: number) => void;
@@ -488,6 +489,16 @@ export default function DawView({
   type PlayState = 'idle' | 'playing' | 'paused';
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [posBeats, setPosBeats] = useState(0);
+  // Moteur de rendu WAV : Interne (FluidSynth) ou Externe (périphérique MIDI)
+  const [renderer, setRenderer] = useState<Renderer>(() => {
+    try {
+      return localStorage.getItem('chordzic_renderer') === 'external' ? 'external' : 'internal';
+    } catch { return 'internal'; }
+  });
+  const updateRenderer = useCallback((r: Renderer) => {
+    setRenderer(r);
+    try { localStorage.setItem('chordzic_renderer', r); } catch { /* stockage indisponible */ }
+  }, []);
   /** Canal dont la lane est AGRANDIE (PianoRoll intégré). Une seule à la
    * fois : la barre d'outils (dans la zone transport) pilote cette piste. */
   const [expandedCh, setExpandedCh] = useState<number | null>(null);
@@ -801,7 +812,7 @@ export default function DawView({
       renderSigRef.current = contentSig;
       renderClickSigRef.current = clickSig;
       setPosBeats(startBeats);
-      onPlay(startBeats);
+      onPlay(startBeats, renderer);
     } else {
       // Buffer déjà rendu → jouer depuis la position de la tête
       engine.playNavigFrom((startBeats * 60) / tempo, loopOn);
@@ -996,6 +1007,24 @@ export default function DawView({
         >
           {midiPlaying ? <Square className="w-3.5 h-3.5" /> : <Cable className="w-3.5 h-3.5" />} {midiPlaying ? 'STOP' : 'MIDI'}
         </button>
+
+        {/* Moteur de rendu WAV : Interne (FluidSynth, rapide) ou Externe
+            (périphérique MIDI branché — enregistré via sa sortie audio,
+            temps réel : le synthé joue pendant le rendu) */}
+        <div
+          className="flex items-center gap-1 shrink-0"
+          title="Moteur de rendu WAV : Interne (FluidSynth — rapide, silencieux) ou Externe (périphérique MIDI branché, ex. Roland — enregistré pendant que le synthé joue, temps réel)"
+        >
+          <span className="text-[9px] text-gray-500">Rendu</span>
+          <select
+            value={renderer}
+            onChange={(e) => updateRenderer(e.target.value as Renderer)}
+            className="h-7 px-1 rounded-md border border-[#1f2733] bg-[#0d1117] text-[10px] text-gray-300 focus:outline-none focus:border-[#3f5f8f]"
+          >
+            <option value="internal">Interne</option>
+            <option value="external">Externe</option>
+          </select>
+        </div>
 
         <div className={tSep} />
 

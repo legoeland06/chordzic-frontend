@@ -309,6 +309,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               cohérent avec la signature), flèches ▲▼ = ±1 temps. Par défaut L=0 et R=fin du morceau (boucle complète). Le clic sur une piste
               (déplacement de la tête) reste libre : au wrap, la lecture revient à L.
             </>} />
+            <Row k="Rendu" v={<><b>Moteur de rendu WAV</b> (mode 📱 Navig.) : <b className="text-white">Interne</b> = FluidSynth (rapide, silencieux, toujours disponible — défaut) ; <b className="text-white">Externe</b> = le périphérique MIDI branché (ex. Roland) est utilisé comme synthétiseur : le morceau est joué par le matériel et <b className="text-white">enregistré</b> via sa sortie audio (USB) → le WAV a le vrai son du synthé. <b className="text-white">Temps réel</b> : le rendu dure la durée du morceau et le synthé joue à voix haute. Le choix est mémorisé. Le rendu externe est indisponible si aucun périphérique avec sortie audio n'est détecté (le rendu reste alors interne).</>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
