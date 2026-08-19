@@ -17,6 +17,7 @@ import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repe
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
+import PianoLivePanel from './PianoLivePanel';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
@@ -25,6 +26,8 @@ import { type Renderer } from '../lib/renderMode';
 import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
+import type { RecognizedChord } from '../lib/chordRecognition';
+import { activePitchesAt, chordToPianoNotes } from '../lib/chordToNotes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
 
@@ -504,8 +507,10 @@ export default function DawView({
   const [expandedCh, setExpandedCh] = useState<number | null>(null);
   /** Index de la piste agrandie (pour aligner le slot clavier sur sa lane). */
   const expandedIndex = tracks.findIndex(t => t.channel === expandedCh);
-  /** Table de mixage rétractable (comme modProd) — état local, ouvert par défaut. */
-  const [mixerOpen, setMixerOpen] = useState(true);
+  /** Panneau supérieur : rétractable, deux onglets — 🎹 Piano (défaut, à la
+   * place de la table de mixage) ou 🎚 Mixer. */
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelTab, setPanelTab] = useState<'piano' | 'mixer'>('piano');
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -896,11 +901,44 @@ export default function DawView({
     setExpandedCh(prev => (prev === ch ? null : ch));
   };
 
-  // Quand une piste est agrandie (PianoRoll intégré), la table de mixage se
-  // masque pour libérer la place verticale ; elle revient quand la piste est réduite.
-  useEffect(() => {
-    setMixerOpen(expandedCh === null);
-  }, [expandedCh]);
+  // ── Panneau piano (mode Navig) ─────────────────────────────────────
+  /** Piste cible du panneau : celle dont la lane est AGRANDIE (PianoRoll
+   * intégré) — « sélectionnée en amont » par l'utilisateur. */
+  const targetTrackLabel = expandedCh !== null
+    ? tracks.find(t => t.channel === expandedCh)?.label ?? null
+    : null;
+
+  /** Illumination du piano par la piste jouée (activable/désactivable,
+   * préférence persistée). */
+  const [illumOn, setIllumOn] = useState(() => {
+    try { return localStorage.getItem('chordzic_piano_illum') !== 'off'; } catch { return true; }
+  });
+  const toggleIllum = useCallback(() => {
+    setIllumOn(v => {
+      const nv = !v;
+      try { localStorage.setItem('chordzic_piano_illum', nv ? 'on' : 'off'); } catch { /* stockage indisponible */ }
+      return nv;
+    });
+  }, []);
+
+  /** Pitchs ACTIFS de la piste sélectionnée à la position de lecture —
+   * même tête pour la lecture WAV et MIDI → illumination fidèle au contenu
+   * joué. Figée à la pause (position courante), vide à l'arrêt. */
+  const trackPitches = useMemo(() => {
+    if (expandedCh === null || (playState === 'idle' && !midiPlaying)) return [];
+    return activePitchesAt(pianoNotes[expandedCh] ?? [], posBeats);
+  }, [expandedCh, pianoNotes, posBeats, playState, midiPlaying]);
+
+  /** Insère l'accord reconnu en NOTES dans la piste sélectionnée : fin de
+   * la piste (beat entier), durée = une mesure de la signature courante. */
+  const handlePianoInsert = useCallback((chord: RecognizedChord) => {
+    if (expandedCh === null) return;
+    const existing = pianoNotes[expandedCh] ?? [];
+    const lastEnd = existing.reduce((m, n) => Math.max(m, n.startTime + n.duration), 0);
+    const start = Math.ceil(lastEnd);
+    const beatsPerBar = sig === '3/4' ? 3 : sig === '6/8' ? 6 : 4;
+    onNotesChange(expandedCh, [...existing, ...chordToPianoNotes(chord, start, beatsPerBar)]);
+  }, [expandedCh, pianoNotes, onNotesChange, sig]);
 
   // ── Ports MIDI / Audio (réglages) ───────────────────────────────────
   const [showPorts, setShowPorts] = useState(false);
@@ -1143,19 +1181,45 @@ export default function DawView({
         className={expandedCh !== null ? 'border-b border-gray-800 bg-[#0e1016]' : 'hidden'}
       />
 
-      {/* ── Table de mixage (rétractable, comme modProd) ── */}
+      {/* ── Panneau supérieur rétractable : 🎹 Piano (défaut, à la place de
+          la table de mixage) ou 🎚 Mixer — deux onglets ── */}
       <div className="mb-3 pb-3 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-2">
           <button
-            onClick={() => setMixerOpen(v => !v)}
+            onClick={() => setPanelOpen(v => !v)}
             className="p-1 rounded hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors"
-            title={mixerOpen ? 'Rétracter la table de mixage' : 'Déployer la table de mixage'}
+            title={panelOpen ? 'Rétracter le panneau' : 'Déployer le panneau'}
           >
-            {mixerOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {panelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-          <div className="text-[10px] text-gray-600 uppercase tracking-wider">🎚 Table de mixage</div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPanelTab('piano')}
+              className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors ${panelTab === 'piano' ? 'bg-sky-900/50 text-sky-300 border border-sky-700/50' : 'text-gray-500 hover:text-gray-300 border border-transparent'}`}
+              title="Piano Live : reconnaissance d'accords + insertion dans la piste sélectionnée"
+            >
+              🎹 Piano
+            </button>
+            <button
+              onClick={() => setPanelTab('mixer')}
+              className={`text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider transition-colors ${panelTab === 'mixer' ? 'bg-gray-700 text-gray-100 border border-gray-600' : 'text-gray-500 hover:text-gray-300 border border-transparent'}`}
+              title="Table de mixage : faders, instruments, mute"
+            >
+              🎚 Mixer
+            </button>
+          </div>
         </div>
-        {mixerOpen && (
+        {panelOpen && panelTab === 'piano' && (
+          <PianoLivePanel
+            mode="navig"
+            onInsert={handlePianoInsert}
+            targetTrackLabel={targetTrackLabel}
+            trackPitches={trackPitches}
+            illuminationEnabled={illumOn}
+            onToggleIllumination={toggleIllum}
+          />
+        )}
+        {panelOpen && panelTab === 'mixer' && (
         <div className="flex gap-2 overflow-x-auto pb-1 items-stretch">
           {tracks.map(t => (
             <div

@@ -21,7 +21,7 @@ import ControlBar from './ControlBar';
 import TrackPanel from './TrackPanel';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
-import ChordDetector from './ChordDetector';
+import PianoLivePanel from './PianoLivePanel';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
@@ -1250,8 +1250,11 @@ export default function ChordApp() {
             {/* Saisie des accords */}
             <ChordInput input={input} onChange={setInput} />
 
-            {/* 🎹 Reconnaissance d'accords (mode Live) : badge temps réel + clic = insertion */}
-            <ChordDetector onInsert={insertDetectedChord} />
+            {/* 🎹 Reconnaissance d'accords (mode Live) : piano + badge temps réel + clic = insertion grille */}
+            <PianoLivePanel
+              mode="live"
+              onInsert={(chord) => insertDetectedChord(chord.label)}
+            />
 
             {/* Contrôles + TrackPanel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">

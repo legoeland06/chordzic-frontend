@@ -331,6 +331,17 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               Les notes de l'accord plaqué sont aussi affichées en clair sous le nom de l'accord (ex.
               <code>C · E · G</code>). L'accord et les notes sont affichés en grand pour rester lisibles
               pendant le jeu.
+              <br/><br/>
+              <b className="text-white">📱 En mode Navig</b>, le même panneau se trouve en haut, <b>à la place de la
+              table de mixage</b> (rétractable au chevron ; onglets <b>🎹 Piano / 🎚 Mixer</b> pour basculer) :
+              <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                <li><b className="text-white">Insertion dans la piste</b> : agrandis une piste (clic sur son nom → Piano Roll
+                  intégré) — c'est la piste cible. L'accord reconnu s'insère en <b>notes</b> à la fin de cette piste
+                  (durée : une mesure), via le clic sur l'accord, « ➕ Piste » ou le ⏱ timer.</li>
+                <li><b className="text-white">✨ Illumination piste</b> : pendant la lecture (WAV <b>ou</b> MIDI), les touches
+                  s'illument au contenu de la piste jouée (fidèle, même tête de lecture). Bascule ON/OFF dans le
+                  panneau (préférence mémorisée).</li>
+              </ul>
             </>} />
             <p className="text-xs text-gray-500">
               💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,
