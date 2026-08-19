@@ -581,6 +581,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="⛶ Zoom sur la sélection" v="Recentre et zoome la vue (temps + registre) sur les notes sélectionnées." />
             <Row k="🎹 Clavier en marge" v="Le clavier de piano vertical (à droite) se rétracte/réaffiche via le bouton 🎹 posé sur la marge elle-même (préférence mémorisée)." />
             <Row k="▶ Lecture" v="Écoute la piste seule (rendu WAV du canal) avec curseur rouge ; Espace = lecture/pause." />
+            <Row k="🔴 Rec MIDI" v="Enregistre ce que vous jouez sur le clavier (Roland) : un <b>décompte de 4 temps</b> (métronome) puis l'enregistrement démarre — les notes jouées s'affichent <b>en direct en cyan</b> dans le piano roll et sont <b>insérées dans la piste</b> (à la position de la tête de lecture) quand vous arrêtez (re-clic sur REC)." />
             <p className="text-xs text-gray-500">
               📱 Tactile : pincer pour zoomer, double-tap sur une note = supprimer, barre de défilement en bas.
             </p>

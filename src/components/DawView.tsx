@@ -28,6 +28,7 @@ import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pian
 import type { PianoNote } from '../lib/pianoRollTypes';
 import type { RecognizedChord } from '../lib/chordRecognition';
 import { activePitchesAt, pitchesToPianoNotes } from '../lib/pitchesToNotes';
+import { RecMidiEvent, countdownClicks, recEventsToNotes } from '../lib/recMidi';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
 
@@ -964,6 +965,112 @@ export default function DawView({
     onNotesChange(expandedCh, [...existing, ...pitchesToPianoNotes(pitches, start, beatsPerBar)]);
   }, [expandedCh, pianoNotes, onNotesChange, sig]);
 
+  // ── Enregistrement MIDI (Rec) — mode Navig ───────────────────────────
+  /** État : off / décompte de 4 temps / enregistrement en cours. */
+  const [recState, setRecState] = useState<'off' | 'countdown' | 'on'>('off');
+  /** Canal cible (la piste du piano roll où le bouton REC a été cliqué). */
+  const [recTarget, setRecTarget] = useState<number | null>(null);
+  /** Position de la tête de lecture au début de l'enregistrement. */
+  const [recStartPos, setRecStartPos] = useState(0);
+  /** Notes en cours (affichage direct, cyan). */
+  const [recNotes, setRecNotes] = useState<PianoNote[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recAudioRef = useRef<AudioContext | null>(null);
+
+  /** Arrête la session : récupère les notes, les insère dans la piste cible
+   * (à la position de la tête au démarrage + offsets), remet l'état à zéro. */
+  const stopRecSession = useCallback(async () => {
+    if (recTimerRef.current) { clearTimeout(recTimerRef.current); recTimerRef.current = null; }
+    try { recAudioRef.current?.close(); } catch { /* ignore */ }
+    recAudioRef.current = null;
+    try {
+      const resp = await fetch(`${API_BASE}/rec-midi`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: false }),
+      });
+      const j = await resp.json();
+      const events = Array.isArray(j.notes) ? (j.notes as RecMidiEvent[]) : [];
+      if (recTarget !== null && events.length > 0) {
+        const notes = recEventsToNotes(events, recStartPos, tempo);
+        const existing = pianoNotes[recTarget] ?? [];
+        onNotesChange(recTarget, [...existing, ...notes]);
+      }
+    } catch { /* backend injoignable */ }
+    setRecNotes([]);
+    setRecState('off');
+    setRecTarget(null);
+  }, [recTarget, recStartPos, tempo, pianoNotes, onNotesChange]);
+
+  /** Démarre la session serveur (l'enregistrement commence réellement). */
+  const startRecSession = useCallback(() => {
+    fetch(`${API_BASE}/rec-midi`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    }).catch(() => { /* backend injoignable */ });
+    setRecStartPos(posBeats);
+    setRecState('on');
+  }, [posBeats]);
+
+  /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
+  const playCountdown = useCallback((bpm: number) => {
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      recAudioRef.current = ctx;
+      countdownClicks(bpm, 4).forEach((ms, i) => {
+        const t = ctx.currentTime + ms / 1000;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = i === 0 ? 1200 : 800;
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.1);
+      });
+      void ctx.resume();
+    } catch { /* audio indisponible */ }
+  }, []);
+
+  /** Bascule Rec : off → décompte (4 temps) puis enregistrement ; sinon arrêt. */
+  const toggleRec = useCallback((channel: number) => {
+    if (recState === 'off') {
+      setRecTarget(channel);
+      setRecState('countdown');
+      playCountdown(tempo);
+      const clicks = countdownClicks(tempo, 4);
+      const afterLast = clicks[clicks.length - 1] + 60000 / tempo;
+      recTimerRef.current = setTimeout(() => startRecSession(), afterLast);
+    } else {
+      void stopRecSession();
+    }
+  }, [recState, tempo, playCountdown, startRecSession, stopRecSession]);
+
+  /** Polling : notes jouées en direct → affichage temps réel (cyan). */
+  useEffect(() => {
+    if (recState !== 'on') return;
+    const id = setInterval(async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/rec-midi-state`);
+        const j = await resp.json();
+        const events = Array.isArray(j.notes) ? (j.notes as RecMidiEvent[]) : [];
+        setRecNotes(recEventsToNotes(events, recStartPos, tempo));
+      } catch { /* ignore */ }
+    }, 40);
+    return () => clearInterval(id);
+  }, [recState, recStartPos, tempo]);
+
+  /** Sécurité : ferme la session serveur au démontage si elle tourne. */
+  useEffect(() => () => {
+    if (recState !== 'off') {
+      fetch(`${API_BASE}/rec-midi`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: false }),
+      }).catch(() => { /* ignore */ });
+    }
+  }, [recState]);
+
   /** Piste sélectionnée (objet complet — pour le son à renvoyer au Roland). */
   const selTrack = expandedCh !== null
     ? tracks.find(t => t.channel === expandedCh)
@@ -1493,6 +1600,9 @@ export default function DawView({
                           keysVisible={keysVisible}
                           onToggleKeys={toggleKeys}
                           externalPosBeats={posBeats}
+                          recState={recState}
+                          onToggleRec={toggleRec}
+                          recordingNotes={recNotes}
                         />
                       ) : (
                         <TrackLane
@@ -1636,6 +1746,9 @@ export default function DawView({
                   keysVisible={keysVisible}
                   onToggleKeys={toggleKeys}
                   externalPosBeats={posBeats}
+                  recState={recState}
+                  onToggleRec={toggleRec}
+                  recordingNotes={recNotes}
                 />
               </div>
             </div>

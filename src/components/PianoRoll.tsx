@@ -123,6 +123,10 @@ interface PianoRollProps {
   /** Position de lecture GLOBALE (beats, mode Navig) : la piste agrandie est
    * traversée par la tête de lecture comme les autres lanes. */
   externalPosBeats?: number;
+  /** Enregistrement MIDI (Rec) : état + bascule + notes en cours d'affichage. */
+  recState?: 'off' | 'countdown' | 'on';
+  onToggleRec?: (channel: number) => void;
+  recordingNotes?: PianoNote[];
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -146,6 +150,9 @@ export default function PianoRoll({
   keysVisible = true,
   onToggleKeys,
   externalPosBeats,
+  recState = 'off',
+  onToggleRec,
+  recordingNotes = [],
   tempo,
   engine,
   onSnapChange,
@@ -462,6 +469,20 @@ export default function PianoRoll({
       drawNote(creating, true);
     }
 
+    // ── Notes ENREGISTRÉES (Rec MIDI) : affichage EN DIRECT en cyan, par-
+    //    dessus le contenu existant (positionnées à la tête de lecture). ──
+    for (const note of recordingNotes) {
+      const x = xFromBeat(note.startTime, ppb, scrollLeft);
+      const y = (userMaxPitch - note.pitch) * WHITE_KEY_HEIGHT;
+      const noteW = Math.max(3, note.duration * ppb);
+      const noteH = WHITE_KEY_HEIGHT - 1;
+      ctx.fillStyle = 'rgba(34,211,238,0.55)';
+      ctx.fillRect(x, y, noteW, noteH);
+      ctx.strokeStyle = '#22d3ee';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, noteW, noteH);
+    }
+
     // ── Rectangle de sélection (marquee) ──
     if (marquee) {
       const mx = Math.min(marquee.x0, marquee.x1);
@@ -514,7 +535,7 @@ export default function PianoRoll({
       }
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled, externalPosBeats]);
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled, externalPosBeats, recordingNotes]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -1696,6 +1717,26 @@ export default function PianoRoll({
             <button className={btn(false, !canUndo)} onClick={undo} title="Annuler (Ctrl+Z)"><Undo2 className="w-3 h-3" /></button>
             <button className={btn(false, !canRedo)} onClick={redo} title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)"><Redo2 className="w-3 h-3" /></button>
           </div>
+          {onToggleRec && (
+            <>
+              <div className="pr-sep" />
+              {/* Enregistrement MIDI (Rec) : décompte 4 temps, insertion à la tête */}
+              <div className="pr-group">
+                <button
+                  className={btn(recState !== 'off')}
+                  onClick={() => onToggleRec(channel)}
+                  style={recState === 'on' ? { color: '#f87171' } : undefined}
+                  title={recState === 'countdown'
+                    ? 'Décompte de 4 temps en cours…'
+                    : recState === 'on'
+                      ? 'Arrêter l’enregistrement — les notes jouées sont insérées dans la piste'
+                      : 'Enregistrer ce que vous jouez sur le clavier (décompte de 4 temps, insertion à la tête de lecture)'}
+                >
+                  {recState === 'countdown' ? '⏳' : '●'}<span className="pr-lbl" style={{ fontSize: 9 }}> REC</span>
+                </button>
+              </div>
+            </>
+          )}
           <div className="pr-sep" />
           {/* Fit-zoom sur la sélection */}
           <div className="pr-group">
