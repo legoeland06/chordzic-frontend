@@ -14,8 +14,10 @@
  * Contenu en dur (JSX) : aucune dépendance externe, cohérent avec le
  * thème sombre de l'application.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import LivePiano from './LivePiano';
+
+const API_BASE = 'http://localhost:4000';
 
 interface HelpModalProps {
   show: boolean;
@@ -23,13 +25,27 @@ interface HelpModalProps {
 }
 
 /** Petite section avec titre + contenu. */
-function Section({ id, icon, title, children }: {
+function Section({ id, icon, title, children, onSpeak, speaking }: {
   id: string; icon: string; title: string; children: React.ReactNode;
+  onSpeak?: (id: string) => void; speaking?: boolean;
 }) {
   return (
     <section id={id} className="mb-8 scroll-mt-20">
       <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
         <span>{icon}</span> {title}
+        {onSpeak && (
+          <button
+            onClick={() => onSpeak(id)}
+            className={`ml-auto text-[10px] px-2 py-1 rounded-md border transition-colors shrink-0 ${
+              speaking
+                ? 'bg-sky-900/40 border-sky-700/50 text-sky-300'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+            }`}
+            title={speaking ? 'Arrêter la lecture' : 'Lire la rubrique à voix haute (Piper)'}
+          >
+            {speaking ? '⏹ Stop' : '🔊 Lire'}
+          </button>
+        )}
       </h3>
       <div className="text-gray-300 text-sm leading-relaxed space-y-2">{children}</div>
     </section>
@@ -58,6 +74,61 @@ function Key({ children }: { children: React.ReactNode }) {
 export default function HelpModal({ show, onClose }: HelpModalProps) {
   const [query, setQuery] = useState('');
 
+  // ── Lecture vocale des rubriques (Piper via le backend :4000) ──
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const audioRef = useRef<{ ctx: AudioContext; source: AudioBufferSourceNode } | null>(null);
+
+  /** Nettoie le texte avant synthèse : emojis/symboles retirés, espaces
+   * normalisés (Piper lit le texte, pas les pictogrammes). */
+  const cleanSpeakText = (raw: string): string => {
+    return raw
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2705}\u{2795}\u{2796}\u{2714}\u{2716}]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const stopSpeaking = () => {
+    if (audioRef.current) {
+      try { audioRef.current.source.stop(); } catch { /* déjà arrêté */ }
+      try { audioRef.current.ctx.close(); } catch { /* déjà fermé */ }
+      audioRef.current = null;
+    }
+    setSpeakingId(null);
+  };
+
+  /** Lit la rubrique à voix haute (Piper) ; re-clic = arrêt. */
+  const speakSection = async (id: string) => {
+    if (speakingId === id) { stopSpeaking(); return; }
+    stopSpeaking();
+    const el = document.getElementById(id);
+    if (!el) return;
+    const text = cleanSpeakText(el.textContent ?? '');
+    if (text.length < 2) return;
+    try {
+      const resp = await fetch(`${API_BASE}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
+      const wav = await resp.arrayBuffer();
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      const buffer = await ctx.decodeAudioData(wav);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.onended = () => { setSpeakingId(null); audioRef.current = null; };
+      await ctx.resume();
+      audioRef.current = { ctx, source };
+      setSpeakingId(id);
+      source.start();
+    } catch (e) {
+      console.warn('⚠️ Lecture vocale indisponible (Piper ?) :', e);
+      setSpeakingId(null);
+    }
+  };
+
   if (!show) return null;
 
   // Sommaire : sections + mots-clés de recherche
@@ -83,7 +154,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4"
-      onClick={onClose}
+      onClick={() => { stopSpeaking(); onClose(); }}
     >
       <div
         className="bg-gray-900 rounded-xl border border-gray-700 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col"
@@ -96,7 +167,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <h2 className="text-base sm:text-lg font-bold text-white truncate">Aide — chordZic V2</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => { stopSpeaking(); onClose(); }}
             className="px-3 py-1.5 text-sm bg-gray-800 text-gray-400 rounded-lg border border-gray-700 hover:text-white hover:border-gray-500 transition-colors shrink-0"
           >
             ✕ Fermer
@@ -133,7 +204,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </nav>
 
           {/* ── Démarrage rapide ── */}
-          <Section id="demarrage" icon="🚀" title="Démarrage rapide">
+          <Section id="demarrage" icon="🚀" title="Démarrage rapide" onSpeak={speakSection} speaking={speakingId === 'demarrage'}>
             <p>
               chordZic est un <b className="text-white">moteur harmonique</b> : vous écrivez une grille
               d'accords, il la joue avec un arrangement automatique complet (lead, basse, nappes,
@@ -152,7 +223,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Saisie des accords ── */}
-          <Section id="accords" icon="🎼" title="Saisie des accords">
+          <Section id="accords" icon="🎼" title="Saisie des accords" onSpeak={speakSection} speaking={speakingId === 'accords'}>
             <p>Format : <code className="text-yellow-300 bg-gray-800 px-1.5 py-0.5 rounded text-xs">{'durée:Accord'}</code> séparés par des espaces.</p>
             <div className="bg-gray-800/60 rounded-lg px-3 py-2 font-mono text-xs text-green-300">
               4:Cm7 2:FM7 4:G7 4:C
@@ -177,7 +248,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── LivePiano ── */}
-          <Section id="livepiano" icon="🎹" title="LivePiano">
+          <Section id="livepiano" icon="🎹" title="LivePiano" onSpeak={speakSection} speaking={speakingId === 'livepiano'}>
             <p>
               Le <b className="text-white">LivePiano</b> est le panneau commun aux deux modes : piano 88 touches +
               reconnaissance d'accords en temps réel + insertion. En mode <b className="text-white">Live</b> il se trouve
@@ -212,7 +283,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Barre de contrôle ── */}
-          <Section id="controles" icon="🎛️" title="Barre de contrôle">
+          <Section id="controles" icon="🎛️" title="Barre de contrôle" onSpeak={speakSection} speaking={speakingId === 'controles'}>
             <Row k="Analyser" v="Parse immédiatement la grille (l'analyse est sinon automatique ~0,6 s après la frappe)." />
             <Row k="▶ Jouer" v="Lance la lecture de la grille entière (désactivé si la grille est vide)." />
             <Row k="■ Stop" v="Arrête la lecture." />
@@ -224,7 +295,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Clic & sortie dédiée ── */}
-          <Section id="clic" icon="🥁" title="Clic (mode Navig)">
+          <Section id="clic" icon="🥁" title="Clic (mode Navig)" onSpeak={speakSection} speaking={speakingId === 'clic'}>
             <p>
               Le <b className="text-amber-400">Clic</b> (vue 📱 Navig, barre de transport) est un{' '}
               <b className="text-white">métronome intégré au rendu WAV</b> : un tick par temps, accentué
@@ -292,7 +363,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Pistes & réglages ── */}
-          <Section id="pistes" icon="🎚️" title="Pistes & réglages">
+          <Section id="pistes" icon="🎚️" title="Pistes & réglages" onSpeak={speakSection} speaking={speakingId === 'pistes'}>
             <p>
               <b className="text-white">Pistes dynamiques</b> : 5 pistes par défaut, mais vous pouvez{' '}
               <b className="text-white">ajouter</b> ou <b className="text-white">supprimer</b> (bouton 🗑) des pistes.
@@ -481,7 +552,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Piano Roll ── */}
-          <Section id="pianoroll" icon="🎹" title="Piano Roll">
+          <Section id="pianoroll" icon="🎹" title="Piano Roll" onSpeak={speakSection} speaking={speakingId === 'pianoroll'}>
             <p>
               Ouvert par le bouton <b className="text-white">🎹 Roll</b> du mixeur, le <b className="text-white">clic sur le nom</b>
               d'une piste ou son <b className="text-white">chevron ▶</b> (mode 📱 Navig.).
@@ -516,7 +587,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Copier / coller entre pistes ── */}
-          <Section id="copiercoller" icon="📋" title="Copier / coller entre pistes">
+          <Section id="copiercoller" icon="📋" title="Copier / coller entre pistes" onSpeak={speakSection} speaking={speakingId === 'copiercoller'}>
             <p>
               Le presse-papiers est <b className="text-white">partagé entre tous les piano rolls</b> du projet :
               vous pouvez recopier les notes d'une piste (positions, durées, hauteurs, vélocités) dans une
@@ -535,7 +606,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Raccourcis clavier ── */}
-          <Section id="raccourcis" icon="⌨️" title="Raccourcis clavier">
+          <Section id="raccourcis" icon="⌨️" title="Raccourcis clavier" onSpeak={speakSection} speaking={speakingId === 'raccourcis'}>
             <p className="text-xs text-gray-500">(Piano Roll ouvert — les raccourcis ⌘ fonctionnent aussi sur Mac)</p>
             <Row k={<><Key>Ctrl</Key>+<Key>Z</Key></>} v="Annuler" />
             <Row k={<><Key>Ctrl</Key>+<Key>Shift</Key>+<Key>Z</Key> / <Key>Ctrl</Key>+<Key>Y</Key></>} v="Rétablir" />
@@ -551,7 +622,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Sauvegarde & fichiers ── */}
-          <Section id="sauvegarde" icon="💾" title="Sauvegarde & fichiers">
+          <Section id="sauvegarde" icon="💾" title="Sauvegarde & fichiers" onSpeak={speakSection} speaking={speakingId === 'sauvegarde'}>
             <p>
               <b className="text-white">Save / Load</b> utilisent le serveur : les grilles sont stockées en
               fichiers JSON dans <code className="text-gray-400">~/ChordZIC/grilles/</code> (nom, tempo, mesure,
@@ -595,7 +666,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Boucle sample (mode Navig) ── */}
-          <Section id="boucles" icon="🎵" title="Boucle sample (mode Navig)">
+          <Section id="boucles" icon="🎵" title="Boucle sample (mode Navig)" onSpeak={speakSection} speaking={speakingId === 'boucles'}>
             <p>
               Depuis la v2.6.1, les boucles de samples se font <b className="text-white">uniquement en mode{' '}
               <b className="text-purple-400">📱 Navig.</b></b> : le contrôle <b className="text-emerald-400">🎵 Loop</b>{' '}
@@ -635,7 +706,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           </Section>
 
           {/* ── Dépannage ── */}
-          <Section id="depannage" icon="🛠️" title="Dépannage">
+          <Section id="depannage" icon="🛠️" title="Dépannage" onSpeak={speakSection} speaking={speakingId === 'depannage'}>
             <Row k="Pas de son ?" v="Vérifiez que le synthétiseur FluidSynth tourne et que la sortie MIDI est sur FluidSynth (ou Roland). Le backend se reconnecte automatiquement si FluidSynth redémarre." />
             <Row k="Mode 📱 Navig. muet" v="Relancez la lecture : le WAV est re-synthétisé à chaque lecture. Puis « Extract Wav » pour récupérer le fichier." />
             <Row k="« ❌ Erreur: … »" v="Le serveur a refusé la demande (séquence vide, etc.) — relisez le message affiché dans la ligne de statut." />
