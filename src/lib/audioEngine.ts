@@ -15,6 +15,7 @@ import { ChordData, GrilleData } from '../types/chord';
 import { BrowserSynth, RenderOptions, SampleLoopCfg } from './browserSynth';
 import type { Renderer } from './renderMode';
 import { backendUrl, chordToNoteNames } from './chordUtils';
+import { hasPlayableContent } from './playGuard';
 import { PianoNote } from './pianoRollTypes';
 
 /** États possibles du moteur audio. */
@@ -276,7 +277,9 @@ export class AudioEngine {
     await this.stop();
     const gen = this.playGen;
     this.playing = true;
-    if (grille.chords.length === 0) { this.playing = false; return; }
+    // Rien à jouer UNIQUEMENT si la grille ET les notes sont vides — un
+    // projet Navig (notes seules, grille Live vide) doit pouvoir se lire.
+    if (!hasPlayableContent(grille.chords.length, customNotes?.length ?? 0)) { this.playing = false; return; }
 
     if (this._browserAudio) {
       await this.browserSynth.playGrille(grille, this.tempo, loop, {

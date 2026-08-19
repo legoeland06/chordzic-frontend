@@ -1,16 +1,16 @@
 /**
- * ControlBar — barre de contrôle principale : analyse, play, stop, effacer,
- * sauvegarder, charger, exporter, importer et réglage du tempo.
+ * ControlBar — barre de contrôle principale : analyser, jouer, stop, effacer,
+ * sauvegarder, charger, exporter, importer, nouveau projet et extraction WAV.
  *
- * Agit comme un hub de commandes pour ChordApp : chaque bouton déclenche
- * une callback vers le composant parent.
+ * Design affiné (finesse des lignes, fonds sombres discrets, accents colorés
+ * limités aux actions principales) — cohérent avec le mode Navig. Le tempo et
+ * la bascule 📱 Navig. vivent dans la LiveSettingsBar (rangée de réglages).
  */
-import { Play, Square, Trash2, Gauge, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
+import { Play, Square, Trash2, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
 
 interface ControlBarProps {
   chords: { time: number }[];
   playing: boolean;
-  tempo: number;
   onAnalyse: () => void;
   onPlay: () => void;
   onStop: () => void;
@@ -25,17 +25,16 @@ interface ControlBarProps {
   onExtractWav: () => void;
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
   hasWav: boolean;
-  onTempoChange: (t: number) => void;
-  /** Bascule vers le mode Navig (vue DAW). */
-  onGoNavig: () => void;
 }
 
+/** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
+const btn = 'h-7 px-2.5 flex items-center gap-1.5 rounded-md text-[10px] font-semibold border transition-colors shrink-0 disabled:opacity-40 disabled:hover:bg-[#141a24]';
+
 export default function ControlBar({
-  chords, playing, tempo,
+  chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
   onExtractWav, hasWav,
-  onTempoChange, onGoNavig,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -43,7 +42,8 @@ export default function ControlBar({
         {/* ── Boutons de lecture ── */}
         <button
           onClick={onAnalyse}
-          className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors shrink-0"
+          className={`${btn} bg-[#1a2230] border-[#2f4a6e] text-[#a8c8e8] hover:bg-[#22304a]`}
+          title="Analyser la grille saisie"
         >
           Analyser
         </button>
@@ -51,14 +51,14 @@ export default function ControlBar({
         <button
           onClick={onPlay}
           disabled={playing || chords.length === 0}
-          className="px-3 sm:px-4 py-2 bg-green-700 hover:bg-green-600 disabled:bg-gray-800 disabled:text-gray-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#2f6ba8] border-[#3a7ab8] text-white hover:bg-[#3a7ab8] disabled:hover:bg-[#2f6ba8]`}
         >
           <Play className="w-3 h-3" /> Jouer
         </button>
 
         <button
           onClick={onStop}
-          className="px-3 sm:px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#e8a0b0] hover:bg-[#2a1a24]`}
         >
           <Square className="w-3 h-3" /> Stop
         </button>
@@ -67,7 +67,7 @@ export default function ControlBar({
         <button
           onClick={onExtractWav}
           disabled={!hasWav}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-gray-800 text-amber-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#c9a45c] hover:bg-[#1a2230]`}
           title="Extrait le dernier rendu WAV (mode Navig) en fichier .wav"
         >
           <Download className="w-3 h-3" /> Extract Wav
@@ -75,32 +75,34 @@ export default function ControlBar({
 
         <button
           onClick={onClear}
-          className="px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
+          title="Effacer la grille"
         >
           <Trash2 className="w-3 h-3" /> Effacer
         </button>
 
         {/* Séparateur */}
-        <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
+        <div className="w-px h-5 bg-[#242c3a] shrink-0" />
 
-        {/* ── Sauvegarde / Chargement ── */}
+        {/* ── Sauvegarde / Chargement / Nouveau ── */}
         <button
           onClick={onSave}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
+          title="Sauvegarder le projet"
         >
           <Save className="w-3 h-3" /> Save
         </button>
         <button
           onClick={onLoad}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
+          title="Charger un projet"
         >
           <FolderOpen className="w-3 h-3" /> Load
         </button>
 
-        {/* Nouveau projet : repart de zéro (confirmation si le projet contient des données) */}
         <button
           onClick={onNewProject}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-fuchsia-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
           title="Nouveau projet — efface la grille, les pistes et les réglages pour repartir de zéro"
         >
           <FilePlus2 className="w-3 h-3" /> Nouveau
@@ -109,53 +111,17 @@ export default function ControlBar({
         {/* Export / Import JSON */}
         <button
           onClick={onExport}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
           title="Exporter"
         >
           📤
         </button>
         <button
           onClick={onImport}
-          className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-orange-400 text-xs font-bold rounded-lg transition-colors shrink-0"
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#9aa3b2] hover:text-white hover:bg-[#1a2230]`}
           title="Importer"
         >
           📥
-        </button>
-
-        {/* Séparateur */}
-        <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
-
-        {/* ── Contrôle du tempo ── */}
-        <Gauge className="w-3 h-3 text-gray-500 shrink-0" />
-        <span className="text-xs text-gray-500 shrink-0">Tempo:</span>
-
-        {/* Slider tempo (40-220 BPM) */}
-        <input
-          type="range"
-          min={40} max={220}
-          value={tempo}
-          onChange={(e) => onTempoChange(parseInt(e.target.value))}
-          className="w-16 sm:w-20 accent-blue-500 shrink-0"
-        />
-
-        {/* Affichage numérique + édition directe */}
-        <input
-          type="number"
-          value={tempo}
-          onChange={(e) => onTempoChange(parseInt(e.target.value))}
-          className="text-xs font-bold text-blue-400 w-10 shrink-0"
-        />
-
-        {/* Séparateur */}
-        <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
-
-        {/* ── Bascule vers le mode Navig (vue DAW) ── */}
-        <button
-          onClick={onGoNavig}
-          className="px-3 sm:px-4 py-2 bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 border border-violet-700/40"
-          title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
-        >
-          📱 Navig.
         </button>
       </div>
     </div>

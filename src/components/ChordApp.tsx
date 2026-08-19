@@ -11,6 +11,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Sparkles, Music } from 'lucide-react';
 
 import { parseChord, parseGrille, ChordData } from '../types/chord';
+import { hasPlayableContent } from '../lib/playGuard';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import type { Renderer } from '../lib/renderMode';
@@ -586,7 +587,7 @@ export default function ChordApp() {
       }))
     );
     // Rien à jouer : alerte UNIQUEMENT si la grille ET les notes sont vides.
-    if (chordsToPlay.length === 0 && customNotes.length === 0) {
+    if (!hasPlayableContent(chordsToPlay.length, customNotes.length)) {
       setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)');
       setStatusColor('text-red-400');
       return;
@@ -846,7 +847,7 @@ export default function ChordApp() {
    * `startAtBeats` : position de départ (0 = début). */
   const playMidiAll = useCallback(async (startAtBeats = 0) => {
     const hasNotes = Object.values(pianoNotes).some(notes => notes.length > 0);
-    if (chords.length === 0 && !hasNotes) {
+    if (!hasPlayableContent(chords.length, hasNotes ? 1 : 0)) {
       setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)'); setStatusColor('text-red-400');
       return;
     }
@@ -1231,15 +1232,13 @@ export default function ChordApp() {
             {/* Contrôles + TrackPanel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
           <ControlBar
-            chords={chords} playing={playing} tempo={tempo}
+            chords={chords} playing={playing}
             onAnalyse={parseInput} onPlay={play} onStop={stop} onClear={clear}
             onSave={() => setShowSaveModal(true)}
             onLoad={() => setShowLoadModal(true)}
             onExport={handleExport} onImport={() => fileInputRef.current?.click()}
             onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
-            onTempoChange={setTempo}
-            onGoNavig={() => setNavigMode(true)}
           />
         </div>
 
@@ -1253,6 +1252,8 @@ export default function ChordApp() {
             drumPattern={drumPattern} onSetDrumPattern={setDrumPattern}
             sig={sig} onSetSig={setSig}
             playing={playing}
+            tempo={tempo} onTempoChange={setTempo}
+            onGoNavig={() => setNavigMode(true)}
           />
         </div>
 

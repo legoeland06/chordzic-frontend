@@ -779,6 +779,13 @@ export class BrowserSynth {
   private _playBuffer(buffer: AudioBuffer, loop: boolean) {
     this.stop();
     const ctx = this.audioCtx!;
+    // Débloquer le contexte audio (autoplay policy) : au premier Play depuis
+    // le DÉBUT (001.1), le rendu est async → ce buffer est joué HORS du
+    // handler du clic → sans resume(), Chrome reste suspendu → SILENCE et
+    // tête de lecture figée à 001.1 (bug « rien ne joue au début »).
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const gainNode = ctx.createGain();
     gainNode.gain.value = 1.0;
     gainNode.connect(ctx.destination);

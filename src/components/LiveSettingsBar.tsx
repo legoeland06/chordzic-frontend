@@ -8,7 +8,7 @@
  * LoopControl + les locators).
  */
 import React from 'react';
-import { Volume2 } from 'lucide-react';
+import { Gauge, Volume2 } from 'lucide-react';
 
 interface LiveSettingsBarProps {
   volume: number;
@@ -26,6 +26,11 @@ interface LiveSettingsBarProps {
   playing: boolean;
   /** Affiche le toggle Loop (false en Navig — LoopControl s'en charge). */
   showLoop?: boolean;
+  /** Tempo (spinner + slider) — à droite de la Mesure. */
+  tempo?: number;
+  onTempoChange?: (t: number) => void;
+  /** Bascule vers le mode Navig (mode Live uniquement). */
+  onGoNavig?: () => void;
 }
 
 const PATTERNS = [
@@ -52,6 +57,7 @@ export default function LiveSettingsBar({
   volume, onSetVolume, use432, onSet432, loopOn, onSetLoop,
   walkingBass, onSetWalkingBass, drumPattern, onSetDrumPattern,
   sig, onSetSig, playing, showLoop = true,
+  tempo, onTempoChange, onGoNavig,
 }: LiveSettingsBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[10px] text-gray-500">
@@ -129,6 +135,44 @@ export default function LiveSettingsBar({
           <option value="6/8">6/8</option>
         </select>
       </div>
+
+      {/* Tempo (spinner + slider) — à droite de la Mesure */}
+      {tempo !== undefined && onTempoChange && (
+        <>
+          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
+          <div className="flex items-center gap-1 shrink-0">
+            <Gauge className="w-3 h-3 text-gray-500" />
+            <span className="shrink-0">Tempo:</span>
+            <input
+              type="range" min={40} max={220} value={tempo}
+              onChange={(e) => onTempoChange(parseInt(e.target.value))}
+              className="w-16 sm:w-20 accent-blue-500 shrink-0"
+              title="Tempo (40-220 BPM)"
+            />
+            <input
+              type="number"
+              value={tempo}
+              onChange={(e) => onTempoChange(parseInt(e.target.value))}
+              className="w-10 bg-transparent text-[10px] font-bold text-blue-400 outline-none shrink-0"
+              title="Tempo en BPM (40-220)"
+            />
+          </div>
+        </>
+      )}
+
+      {/* Bascule vers le mode Navig (mode Live uniquement) */}
+      {onGoNavig && (
+        <>
+          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
+          <button
+            onClick={onGoNavig}
+            className="px-2 py-1 text-[10px] font-bold rounded-md border transition-colors shrink-0 bg-violet-900/40 border-violet-700/50 text-violet-300 hover:bg-violet-800/40"
+            title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
+          >
+            📱 Navig.
+          </button>
+        </>
+      )}
     </div>
   );
 }
