@@ -52,6 +52,7 @@ import {
   deleteNote,
   hitTest,
   autoFitRange,
+  fitRangeToContent,
   MouseCoord,
 } from '../lib/pianoRollEngine';
 import type { AudioEngine } from '../lib/audioEngine';
@@ -252,13 +253,25 @@ export default function PianoRoll({
   // TOUTES les notes de la piste (insérées par l'utilisateur ou pré-remplies
   // automatiquement). Il ne se resserre jamais tout seul — l'utilisateur
   // garde la main avec les sliders Reg:.
-  // ⚠️ Dès que l'utilisateur TOUCHE les sliders Reg, l'auto-fit s'efface :
-  // sinon il ré-étendait la plage dès qu'une note dépassait le nouveau bord
-  // (réglage annulé) et CHANGEAIT userMaxPitch entre le clic et le dessin
-  // (note insérée au mauvais endroit — observé sur Lead, pas Drums).
+  // ⚠️ Dès que l'utilisateur TOUCHE les sliders Reg (ou scrolle à la molette),
+  // l'auto-fit s'efface : sinon il ré-étendait la plage dès qu'une note
+  // dépassait le nouveau bord (réglage annulé) et CHANGEAIT userMaxPitch
+  // entre le clic et le dessin (note insérée au mauvais endroit).
   const rangeTouchedRef = useRef(false);
+  // FIT-TO-CONTENT vertical au PREMIER rendu (intégré ou modal) : la plage
+  // par défaut (ex. 60 demi-tons) débordait de la lane → notes hors champ.
+  const initialVerticalFitDoneRef = useRef(false);
   useEffect(() => {
     if (rangeTouchedRef.current) return;
+    if (!initialVerticalFitDoneRef.current) {
+      initialVerticalFitDoneRef.current = true;
+      const fit = fitRangeToContent(notes, userMinPitch, userMaxPitch);
+      if (!fit) return;
+      if (fit.minPitch !== userMinPitch) setUserMinPitch(fit.minPitch);
+      if (fit.maxPitch !== userMaxPitch) setUserMaxPitch(fit.maxPitch);
+      return;
+    }
+    // Ensuite : extension seule (ne resserre pas la plage pendant l'édition)
     const fit = autoFitRange(notes, userMinPitch, userMaxPitch);
     if (!fit) return;
     if (fit.minPitch !== userMinPitch) setUserMinPitch(fit.minPitch);
@@ -1334,7 +1347,28 @@ export default function PianoRoll({
       // Zoom exponentiel nuancé, centré sur le point pointé par la souris
       e.preventDefault();
       applyZoom(zoomRef.current * Math.exp(-e.deltaY * 0.0015), e.clientX);
+    } else {
+      // Molette simple = SCROLL VERTICAL du registre : l'utilisateur atteint
+      // les notes hors champ (le clavier en marge, dessiné avec le même
+      // registre, suit simultanément).
+      e.preventDefault();
+      scrollRangeVertically(e.deltaY);
     }
+  };
+
+  /** Défile le REGISTRE vertical (molette simple) : déplace la fenêtre
+   * pitch affichée de `deltaY` pixels (1:1). Le scroll manuel désactive
+   * l'auto-fit (comme les sliders Reg). Borné à [0, 127], largeur conservée. */
+  const scrollRangeVertically = (deltaY: number) => {
+    rangeTouchedRef.current = true;
+    const range = userMaxPitch - userMinPitch;
+    const viewH = Math.max(120, Math.min(canvasHeight, height));
+    const shift = Math.round(-deltaY * (range / viewH));
+    if (shift === 0) return;
+    const newMin = Math.max(0, Math.min(userMinPitch + shift, 127 - range));
+    const newMax = newMin + range;
+    if (newMin !== userMinPitch) setUserMinPitch(newMin);
+    if (newMax !== userMaxPitch) setUserMaxPitch(newMax);
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -1652,7 +1686,7 @@ export default function PianoRoll({
               )}
               <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
               <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
-              <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom</span>
+              <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom · molette → scroll vertical</span>
             </div>
           )}
         </div>

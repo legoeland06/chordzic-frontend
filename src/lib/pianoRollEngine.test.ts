@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoFitRange } from './pianoRollEngine';
+import { autoFitRange, fitRangeToContent } from './pianoRollEngine';
 
 describe('autoFitRange — registre auto-couvrant du PianoRoll', () => {
   const notes = (pitches: number[]) => pitches.map((pitch, i) => ({
@@ -33,5 +33,51 @@ describe('autoFitRange — registre auto-couvrant du PianoRoll', () => {
     const r2 = autoFitRange(notes([127]), 100, 112);
     expect(r2!.maxPitch).toBe(127);
     expect(r2!.maxPitch - r2!.minPitch).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe('fitRangeToContent — fit vertical au contenu réel (ouverture piano roll)', () => {
+  const notes = (pitches: number[]) => pitches.map((pitch, i) => ({
+    id: `n${i}`, channel: 0, startTime: i, pitch, duration: 0.25, velocity: 100,
+  }));
+
+  it('réduit une plage par défaut trop large au contenu (+/−4 demi-tons)', () => {
+    // Plage par défaut 36-96 (60 demi-tons) ; notes au centre → resserrée
+    const r = fitRangeToContent(notes([60, 64, 67]), 36, 96);
+    expect(r).toEqual({ minPitch: 56, maxPitch: 71 });
+  });
+
+  it('largeur minimale de 10 demi-tons (contexte lisible)', () => {
+    const r = fitRangeToContent(notes([60]), 36, 96);
+    expect(r).not.toBeNull();
+    if (r) {
+      expect(r.maxPitch - r.minPitch).toBe(10);
+      expect(r.minPitch).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('bornes MIDI 0-127 respectées', () => {
+    const r = fitRangeToContent(notes([2]), 36, 96);
+    if (r) {
+      expect(r.minPitch).toBe(0); // 2-4 = -2 → clampé à 0
+    }
+    const r2 = fitRangeToContent(notes([126]), 36, 96);
+    if (r2) {
+      expect(r2.maxPitch).toBe(127);
+    }
+  });
+
+  it('aucune note → aucun changement', () => {
+    expect(fitRangeToContent([], 36, 96)).toBeNull();
+  });
+
+  it('plage déjà exacte → null (rien à faire)', () => {
+    const r = fitRangeToContent(notes([60, 64, 67]), 56, 71);
+    expect(r).toBeNull();
+  });
+
+  it('conserve l écart réel pour un contenu étendu (ex. basse + aigus)', () => {
+    const r = fitRangeToContent(notes([30, 100]), 36, 96);
+    expect(r).toEqual({ minPitch: 26, maxPitch: 104 });
   });
 });

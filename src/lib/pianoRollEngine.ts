@@ -266,3 +266,30 @@ export function autoFitRange(
   if (mn === minPitch && mx === maxPitch) return null;
   return { minPitch: mn, maxPitch: mx };
 }
+
+/**
+ * FIT-TO-CONTENT vertical : adapte le registre affiché au contenu RÉEL de
+ * la piste (min/max des notes ± 4 demi-tons, largeur minimale de 10
+ * demi-tons, bornes MIDI 0-127). Utilisé à l'ouverture d'un piano roll
+ * (intégré ou modal) : sans lui, la plage par défaut (ex. 60 demi-tons)
+ * débordait de la lane et les notes étaient hors champ.
+ */
+export function fitRangeToContent(
+  notes: PianoNote[],
+  minPitch: number,
+  maxPitch: number,
+): { minPitch: number; maxPitch: number } | null {
+  if (notes.length === 0) return null;
+  let mn = Math.min(...notes.map(n => n.pitch));
+  let mx = Math.max(...notes.map(n => n.pitch));
+  mn = Math.max(0, mn - 4);
+  mx = Math.min(127, mx + 4);
+  // Largeur minimale : 10 demi-tons (contexte lisible, clavier non écrasé)
+  if (mx - mn < 10) {
+    const mid = (mn + mx) / 2;
+    mn = Math.max(0, Math.round(mid - 5));
+    mx = Math.min(127, Math.round(mid + 5));
+  }
+  if (mn === minPitch && mx === maxPitch) return null;
+  return { minPitch: mn, maxPitch: mx };
+}

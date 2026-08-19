@@ -404,6 +404,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (1/24, 1/18). <b className="text-white">↑↓</b> : gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> :
               annuler. <b className="text-white">Delete</b> : effacer. <b className="text-white"> Espace</b> : lecture.
               Molette : zoom temporel centré curseur.
+              <b className="text-white">Dans le Piano Roll</b> (intégré ou modal) : la molette simple fait un
+              <b>scroll vertical du registre</b> (aller chercher les notes hors champ — le clavier de piano en
+              marge suit), <b>Ctrl+molette</b> ou <b>G/H</b> zoome, <b>Shift+molette</b> défile horizontalement.
+              À l'ouverture, le registre s'adapte automatiquement au contenu de la piste (fit vertical).
             </p>
             <p className="font-bold text-white mt-2">Table de mixage (au-dessus des pistes)</p>
             <p>
