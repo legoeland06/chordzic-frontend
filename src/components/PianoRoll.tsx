@@ -1361,13 +1361,14 @@ export default function PianoRoll({
   };
 
   /** Défile le REGISTRE vertical (molette simple) : déplace la fenêtre
-   * pitch affichée de `deltaY` pixels (1:1). Le scroll manuel désactive
-   * l'auto-fit (comme les sliders Reg). Borné à [0, 127], largeur conservée. */
+   * pitch affichée d'une QUINTE (7 demi-tons) par cran de molette — un pas
+   * musical lisible, ni trop fin ni « d'octave en octave » (feedback Eric).
+   * Le scroll manuel désactive l'auto-fit (comme les sliders Reg).
+   * Borné à [0, 127], largeur conservée. */
   const scrollRangeVertically = (deltaY: number) => {
     rangeTouchedRef.current = true;
     const range = userMaxPitch - userMinPitch;
-    const viewH = Math.max(120, Math.min(canvasHeight, height));
-    const shift = Math.round(-deltaY * (range / viewH));
+    const shift = Math.round(-deltaY * 0.07); // ~7 demi-tons par cran (100)
     if (shift === 0) return;
     const newMin = Math.max(0, Math.min(userMinPitch + shift, 127 - range));
     const newMax = newMin + range;
@@ -1769,7 +1770,7 @@ export default function PianoRoll({
                 compactes, et le repère reste visible sans scroller. */}
             <div
               ref={containerRef}
-              className="flex-1 min-w-0 overflow-x-auto"
+              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden"
               data-pr-scroll="true"
               onWheel={handleWheel}
               onScroll={handleScroll}
