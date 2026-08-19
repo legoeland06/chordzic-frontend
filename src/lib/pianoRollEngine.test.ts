@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoFitRange, fitRangeToContent } from './pianoRollEngine';
+import { autoFitRange, fitRangeToContent, selectionZoomParams } from './pianoRollEngine';
 
 describe('autoFitRange — registre auto-couvrant du PianoRoll', () => {
   const notes = (pitches: number[]) => pitches.map((pitch, i) => ({
@@ -79,5 +79,55 @@ describe('fitRangeToContent — fit vertical au contenu réel (ouverture piano r
   it('conserve l écart réel pour un contenu étendu (ex. basse + aigus)', () => {
     const r = fitRangeToContent(notes([30, 100]), 36, 96);
     expect(r).toEqual({ minPitch: 26, maxPitch: 104 });
+  });
+});
+
+describe('selectionZoomParams — fit-zoom-to-selection', () => {
+  const sel = (notes: [number, number][]) => notes.map(([startTime, duration], i) => ({ id: `n${i}`, startTime, duration }));
+
+  it('sélection vide → zoom minimum, pas de scroll', () => {
+    expect(selectionZoomParams([], 800, 96, 100, 0.5, 4, 0)).toEqual({ zoom: 0.5, scrollLeft: 0 });
+  });
+
+  it('zoome pour faire tenir la sélection dans le viewport (marge 60px)', () => {
+    // Sélection de 4 beats, viewport 800, ppb 96 : target = (800-60)/(4×96) ≈ 1.93
+    const p = selectionZoomParams(sel([[0, 4]]), 800, 96, 100, 0.5, 4, 0);
+    expect(p.zoom).toBeCloseTo(740 / 384, 2);
+  });
+
+  it('centre le milieu de la sélection dans le viewport', () => {
+    // Sélection 8→12 (milieu 10), zoom 1 : scroll = 10×96 − 400 = 560
+    const p = selectionZoomParams(sel([[8, 4]]), 800, 96, 100, 0.5, 4, 0);
+    expect(p.zoom).toBeCloseTo(740 / 384, 2); // zoom calculé
+    expect(p.scrollLeft).toBeGreaterThanOrEqual(0);
+    // Vérifie le centrage : beat au centre ≈ (scroll + viewport/2) / ppb
+    const ppb = 96 * p.zoom;
+    const centeredBeat = (p.scrollLeft + 400) / ppb;
+    expect(centeredBeat).toBeCloseTo(10, 0);
+  });
+
+  it('borne le zoom entre minZoom et maxZoom', () => {
+    // Sélection énorme → zoom < min → clampé
+    const big = selectionZoomParams(sel([[0, 400]]), 800, 96, 500, 0.5, 4, 0);
+    expect(big.zoom).toBe(0.5);
+    // Sélection minuscule → zoom > max → clampé
+    const tiny = selectionZoomParams(sel([[0, 0.25]]), 800, 96, 100, 0.5, 4, 0);
+    expect(tiny.zoom).toBe(4);
+  });
+
+  it('borne le scroll à [0, maxScroll]', () => {
+    // Sélection à la fin → scroll plafonné
+    const p = selectionZoomParams(sel([[90, 4]]), 800, 96, 100, 0.5, 4, 0);
+    const maxScroll = Math.max(0, 100 * 96 * p.zoom - 800);
+    expect(p.scrollLeft).toBeLessThanOrEqual(maxScroll + 0.001);
+    // Sélection au début → scroll 0
+    const start = selectionZoomParams(sel([[0, 4]]), 800, 96, 100, 0.5, 4, 0);
+    expect(start.scrollLeft).toBe(0);
+  });
+
+  it('une note très courte garde un span minimal (0.25 beat), borné par maxZoom', () => {
+    // target = 740/(0.25×96) ≈ 30.8 → clampé à 4 (le span min évite un zoom infini)
+    const p = selectionZoomParams(sel([[5, 0.01]]), 800, 96, 100, 0.5, 4, 0);
+    expect(p.zoom).toBe(4);
   });
 });

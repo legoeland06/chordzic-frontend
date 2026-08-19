@@ -267,6 +267,40 @@ export function autoFitRange(
   return { minPitch: mn, maxPitch: mx };
 }
 
+export interface FitSelectionParams {
+  zoom: number;
+  scrollLeft: number;
+}
+
+/**
+ * Calcule le ZOOM + SCROLL HORIZONTAL pour CADRER une sélection de notes
+ * dans le viewport : la plage temporelle de la sélection (+ marge de 60 px)
+ * tient dans la largeur, et le milieu de la sélection est centré à l'écran.
+ * Bornes : zoom ∈ [minZoom, maxZoom], scroll ∈ [0, maxScroll].
+ * Fonction pure (testable sans DOM).
+ */
+export function selectionZoomParams(
+  selection: { startTime: number; duration: number }[],
+  viewportW: number,
+  pixelsPerBeat: number,
+  totalBeats: number,
+  minZoom: number,
+  maxZoom: number,
+  extraWidth: number, // embedded ? 0 : 200 (marge de fin en modal)
+): FitSelectionParams {
+  if (selection.length === 0) return { zoom: minZoom, scrollLeft: 0 };
+  const t0 = Math.min(...selection.map(n => n.startTime));
+  const t1 = Math.max(...selection.map(n => n.startTime + n.duration));
+  const span = Math.max(0.25, t1 - t0); // une note très courte garde un minimum
+  const target = (viewportW - 60) / (span * pixelsPerBeat);
+  const zoom = Math.min(maxZoom, Math.max(minZoom, target));
+  const midBeat = (t0 + t1) / 2;
+  const ppb = pixelsPerBeat * zoom;
+  const maxScroll = Math.max(0, totalBeats * ppb + extraWidth - viewportW);
+  const scrollLeft = Math.min(maxScroll, Math.max(0, midBeat * ppb - viewportW / 2));
+  return { zoom, scrollLeft };
+}
+
 /**
  * FIT-TO-CONTENT vertical : adapte le registre affiché au contenu RÉEL de
  * la piste (min/max des notes ± 4 demi-tons, largeur minimale de 10

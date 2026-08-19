@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from
 import { createPortal } from 'react-dom';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
-  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2, Piano,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2, Piano, Scan,
 } from 'lucide-react';
 import {
   xFromBeat,
@@ -53,6 +53,7 @@ import {
   hitTest,
   autoFitRange,
   fitRangeToContent,
+  selectionZoomParams,
   MouseCoord,
 } from '../lib/pianoRollEngine';
 import type { AudioEngine } from '../lib/audioEngine';
@@ -1526,6 +1527,30 @@ export default function PianoRoll({
    * Applique un zoom en gardant fixe le point d'ancrage : la souris si
    * `anchorX` est fourni (molette), sinon le centre du viewport (boutons, G/H).
    */
+  /** FIT-ZOOM-TO-SELECTION : recentre et zoome la vue sur les notes
+   * sélectionnées — zoom temporel (plage + marge dans le viewport, borné
+   * fit→4×), centrage horizontal du milieu de la sélection, et registre
+   * vertical ajusté aux pitchs sélectionnés. Désactive l'auto-fit (réglage
+   * manuel, comme le scroll). */
+  const fitZoomToSelection = () => {
+    const sel = localNotesRef.current.filter(n => selectedIds.has(n.id));
+    if (sel.length === 0) return;
+    const p = selectionZoomParams(
+      sel, viewportW, pixelsPerBeat, effTotalBeats,
+      fitZoomRef.current, 4, embedded ? 0 : 200,
+    );
+    zoomRef.current = p.zoom;
+    setZoom(p.zoom);
+    scrollLeftRef.current = p.scrollLeft;
+    setScrollLeft(p.scrollLeft);
+    const fit = fitRangeToContent(sel, userMinPitch, userMaxPitch);
+    if (fit) {
+      setUserMinPitch(fit.minPitch);
+      setUserMaxPitch(fit.maxPitch);
+    }
+    rangeTouchedRef.current = true;
+  };
+
   const applyZoom = (target: number, anchorX?: number) => {
     const el = containerRef.current;
     const rect = el?.getBoundingClientRect();
@@ -1659,6 +1684,13 @@ export default function PianoRoll({
               onChange={(e) => { rangeTouchedRef.current = true; setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12)); }}
               className="accent-blue-500" title="Bord haut du registre visible" />
             <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
+          </div>
+          <div className="pr-sep" />
+          {/* Fit-zoom sur la sélection */}
+          <div className="pr-group">
+            <button className={btn(false, selectedIds.size === 0)} onClick={fitZoomToSelection} title="Zoom sur la sélection — recentre et zoome la vue sur les notes sélectionnées (registre vertical inclus)">
+              <Scan className="w-3 h-3" />
+            </button>
           </div>
           {onExpand && (
             <>
