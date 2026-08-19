@@ -44,6 +44,8 @@ interface PianoLivePanelProps {
   onToggleIllumination?: () => void;
   /** Live : bascule vers le mode Navig (bouton charnière, en haut du cadre). */
   onGoNavig?: () => void;
+  /** Navig : retour vers le mode Live (même emplacement, symétrique). */
+  onGoLive?: () => void;
 }
 
 /** Vrai si deux listes de pitchs sont identiques (évite les re-renders). */
@@ -59,6 +61,7 @@ export default function PianoLivePanel({
   illuminationEnabled = true,
   onToggleIllumination,
   onGoNavig,
+  onGoLive,
 }: PianoLivePanelProps) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
@@ -223,6 +226,17 @@ export default function PianoLivePanel({
             title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
           >
             📱 Navig.
+          </button>
+        )}
+
+        {/* Mode Navig : retour vers Live (même emplacement, symétrique) */}
+        {mode === 'navig' && onGoLive && (
+          <button
+            onClick={onGoLive}
+            className="shrink-0 px-2 py-1 text-[10px] font-bold rounded-md border transition-colors bg-[#223a5a] text-[#8fb8e8] border-[#2f4a6e] hover:bg-[#2a4a70]"
+            title="Revenir au mode Live (MIDI temps réel)"
+          >
+            🖥 Live
           </button>
         )}
 

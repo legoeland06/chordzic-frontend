@@ -1275,6 +1275,7 @@ export default function DawView({
             trackPitches={trackPitches}
             illuminationEnabled={illumOn}
             onToggleIllumination={toggleIllum}
+            onGoLive={onSetLive}
           />
         )}
         {panelOpen && panelTab === 'mixer' && (
