@@ -192,8 +192,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
                   Exemple : accord de <b className="text-cyan-300">Do majeur</b> illuminé (C4·E4·G4) — les deux
                   fondamentales <b className="text-cyan-300">C2·C3</b> à l'octave dans la basse
                 </div>
-                <div className="w-[480px] max-w-full mx-auto">
-                  <LivePiano activePitches={[36, 48, 60, 64, 67]} />
+                <div className="w-[440px] max-w-full mx-auto">
+                  <LivePiano activePitches={[36, 48, 60, 64, 67]} pitchMin={36} pitchMax={71} />
                 </div>
               </div>
             </>} />
