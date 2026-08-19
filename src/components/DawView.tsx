@@ -1492,6 +1492,7 @@ export default function DawView({
                           onExpand={() => setModalPianoRoll(t.channel)}
                           keysVisible={keysVisible}
                           onToggleKeys={toggleKeys}
+                          externalPosBeats={posBeats}
                         />
                       ) : (
                         <TrackLane
@@ -1634,6 +1635,7 @@ export default function DawView({
                   onPlayMidi={(notes) => playMidiViaPort(notes, modalPianoRoll)}
                   keysVisible={keysVisible}
                   onToggleKeys={toggleKeys}
+                  externalPosBeats={posBeats}
                 />
               </div>
             </div>

@@ -120,6 +120,9 @@ interface PianoRollProps {
   /** Clavier de piano vertical (marge) visible ? + bascule (rétractable). */
   keysVisible?: boolean;
   onToggleKeys?: () => void;
+  /** Position de lecture GLOBALE (beats, mode Navig) : la piste agrandie est
+   * traversée par la tête de lecture comme les autres lanes. */
+  externalPosBeats?: number;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -142,6 +145,7 @@ export default function PianoRoll({
   onExpand,
   keysVisible = true,
   onToggleKeys,
+  externalPosBeats,
   tempo,
   engine,
   onSnapChange,
@@ -489,7 +493,28 @@ export default function PianoRoll({
       ctx.fill();
     }
 
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled]);
+    // ── Tête de lecture GLOBALE (mode Navig) : la piste agrandie est
+    //    traversée comme les autres lanes (même style rouge). ──
+    if (externalPosBeats !== undefined && externalPosBeats > 0) {
+      const gx = xFromBeat(externalPosBeats, ppb, scrollLeft);
+      if (gx >= -2 && gx <= viewportW + 2) {
+        ctx.strokeStyle = '#f87171';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+        ctx.stroke();
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath();
+        ctx.moveTo(gx - 5, 0);
+        ctx.lineTo(gx + 5, 0);
+        ctx.lineTo(gx, 8);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled, externalPosBeats]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
