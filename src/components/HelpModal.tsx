@@ -324,6 +324,12 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (ou « + Grille ») immédiat, ou <b>⏱ timer indépendant</b> — un accord tenu ≥ 3 s (réglable 1/2/3/5 s
               sur le badge) est inséré automatiquement, sans lâcher le clavier. Insertion en <b className="text-white">1 temps (ronde)</b> — éditable ensuite.
               Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
+              <br/><br/>
+              <b className="text-white">🎹 Piano 7 octaves</b> : sous le badge, un piano de <b>C2 à B8</b> dont les
+              touches s'illument en bleu en direct quand vous jouez (les notes tenues sur le clavier MIDI).
+              Les notes de l'accord plaqué sont aussi affichées en clair sous le nom de l'accord (ex.
+              <code>C · E · G</code>). L'accord et les notes sont affichés en grand pour rester lisibles
+              pendant le jeu.
             </>} />
             <p className="text-xs text-gray-500">
               💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,
