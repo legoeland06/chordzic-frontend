@@ -7,8 +7,10 @@ import {
   LIVE_PIANO_MAX_PITCH,
   LIVE_PIANO_MIN_PITCH,
   LIVE_PIANO_OCTAVES,
+  PIANO_OCTAVE_EM,
   activePitchSet,
   buildPianoKeys,
+  computePianoFontSize,
   pitchToGraphIndex,
 } from './livePiano';
 
@@ -56,6 +58,34 @@ describe('buildPianoKeys', () => {
     const keys = buildPianoKeys(1, 0);
     expect(keys.filter(k => k.isBlack)).toHaveLength(5);
     expect(keys.filter(k => !k.isBlack)).toHaveLength(7);
+  });
+});
+
+describe('computePianoFontSize (fit scale)', () => {
+  it('une octave fait 28em (7 blanches × 4em, noires sans surlargeur)', () => {
+    expect(PIANO_OCTAVE_EM).toBe(28);
+  });
+
+  it('le piano tient dans la largeur du conteneur (échelle = w / 196em)', () => {
+    // 7 octaves = 196em : à 8px de font-size, le piano fait 1568px + 2px
+    // de bordures → conteneur 1570 → échelle ≈ 8px.
+    const s = computePianoFontSize(1570);
+    expect(s).toBeCloseTo(8, 1);
+    // Un conteneur plus étroit réduit l'échelle proportionnellement.
+    const narrow = computePianoFontSize(1000);
+    expect(narrow).toBeCloseTo(998 / 196, 1);
+    expect(narrow).toBeLessThan(8);
+  });
+
+  it('borne l échelle minimale (lisibilité) et maximale (confort)', () => {
+    expect(computePianoFontSize(200)).toBe(3); // 200px → ~1px brut → borné
+    expect(computePianoFontSize(5000)).toBe(14); // très large → borné
+  });
+
+  it('s adapte au nombre d octaves', () => {
+    // 2 octaves = 56em : même conteneur → échelle plus grande.
+    const s2 = computePianoFontSize(500, 2);
+    expect(s2).toBeCloseTo(498 / 56, 1);
   });
 });
 

@@ -48,6 +48,19 @@ export const LIVE_PIANO_OCTAVES = 7;
 /** Octave de départ (0 = C2, cohérent avec le rendu original). */
 export const LIVE_PIANO_START_OCTAVE = 0;
 
+/**
+ * Largeur d'une octave en em : 7 touches blanches × 4em = 28em. Les touches
+ * noires (2em, marge gauche -1em) n'ajoutent rien à la largeur : la règle
+ * `.a,.g,.f,.d,.c { margin-left: -1em }` du CSS original compense le décalage
+ * de flux qu'elles introduisent (chaque noire tire la blanche suivante de 1em
+ * vers la gauche). Vérifié : positions C[0,4] C#[3,5] D[4,8] … B[24,28].
+ */
+export const PIANO_OCTAVE_EM = 28;
+
+/** Bornes de l'échelle (font-size en px) : lisibilité min, confort max. */
+export const PIANO_SCALE_MIN = 3;
+export const PIANO_SCALE_MAX = 14;
+
 /** Première note MIDI du piano (C2). */
 export const LIVE_PIANO_MIN_PITCH =
   35 + GRAPH_KEYS[0].index;
@@ -107,4 +120,19 @@ export function activePitchSet(activePitches: number[]): Set<number> {
       p => Number.isInteger(p) && p >= LIVE_PIANO_MIN_PITCH && p <= LIVE_PIANO_MAX_PITCH,
     ),
   );
+}
+
+/**
+ * Échelle (font-size en px) pour que le piano tienne dans `containerWidth`
+ * pixels : le piano fait `PIANO_OCTAVE_EM × octaves` em (+ 2px de bordures).
+ * Bornée par PIANO_SCALE_MIN/MAX (au-delà, le piano déborde légèrement —
+ * l'overflow-x-auto du conteneur prend le relais).
+ */
+export function computePianoFontSize(
+  containerWidth: number,
+  octaves = LIVE_PIANO_OCTAVES,
+): number {
+  const totalEm = PIANO_OCTAVE_EM * octaves;
+  const raw = (containerWidth - 2) / totalEm;
+  return Math.min(Math.max(raw, PIANO_SCALE_MIN), PIANO_SCALE_MAX);
 }

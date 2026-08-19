@@ -3,21 +3,31 @@
  * cf. src/outils.rs). Seule la partie clavier est reprise (pas le cadre
  * bois) : un simple liseré sombre + les touches.
  *
- * L'échelle est pilotée par font-size (tout est en em) : réduire la police
- * réduit tout le clavier proportionnellement.
+ * L'échelle est pilotée par font-size (tout est en em) : le composant
+ * recalcule la font-size pour que le piano tienne dans la largeur du
+ * conteneur (fit scale). `width: max-content` sur le ul empêche les
+ * touches (float) de passer à la ligne quand le conteneur est étroit.
  */
 
+.live-piano,
+.live-piano *,
+.live-piano *::before,
+.live-piano *::after {
+  box-sizing: border-box; /* les em restent des largeurs exactes (cf. Preflight Tailwind) */
+}
+
 .live-piano {
-  font-size: 8px; /* 1em = 8px → touche blanche 32px, noire 16px */
+  width: 100%;
   line-height: 0;
-  display: inline-block;
+  font-size: 8px; /* valeur par défaut (SSR / avant mesure) */
 }
 
 .live-piano ul.set {
-  margin: 0;
-  padding: 0;
+  margin: 0 auto;
+  padding: 0 0 0.25em 0;
   list-style: none;
   position: relative;
+  width: max-content; /* le ul prend la largeur de ses touches (pas de wrap) */
   border: 1px solid #3b3b3b;
   border-radius: 0 0 1em 1em;
   background: linear-gradient(to bottom right, #1a1a1a, #2e2e2e);
@@ -25,8 +35,6 @@
     0 0 50px rgba(0, 0, 0, 0.274) inset,
     0 1px rgba(143, 108, 91, 0.434) inset,
     0 5px 15px rgba(0, 0, 0, 0.554);
-  padding-bottom: 0.25em;
-  display: inline-block;
 }
 
 .live-piano li {
@@ -85,6 +93,19 @@
     0 2px -2px 3px rgba(0, 0, 0, 0.6) inset,
     0 1px 2px rgba(0, 0, 0, 0.5);
   background: linear-gradient(to bottom, #b9b8b8 0%, #00b5fd 100%);
+}
+
+/* IMPORTANT (repris du style.css d'origine) : chaque touche noire insérée
+   dans le flux décale la touche suivante de sa largeur ; cette règle
+   compense en tirant les touches blanches D, E, G, A, B de 1em vers la
+   gauche → les octaves font exactement 28em et les noires restent centrées
+   sur les frontières des blanches. */
+.live-piano .a,
+.live-piano .g,
+.live-piano .f,
+.live-piano .d,
+.live-piano .c {
+  margin: 0 0 0 -1em;
 }
 
 /* ─── Coins extérieurs ─── */

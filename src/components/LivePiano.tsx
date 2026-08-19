@@ -6,14 +6,18 @@
  * graphique, même style CSS. Les touches tenues sur le clavier MIDI
  * (Roland) s'illuminent en bleu (classe `.active`).
  *
- * Seule la partie clavier est reprise (pas le cadre bois d'origine) :
- * la logique de disposition est dans `src/lib/livePiano.ts` (testable).
+ * Seule la partie clavier est reprise (pas le cadre bois d'origine).
+ * Le piano s'adapte à la largeur du conteneur (fit scale) : la font-size
+ * est recalculée à chaque redimensionnement (ResizeObserver) pour que les
+ * 7 octaves tiennent toujours sur une seule ligne. La logique de
+ * disposition est dans `src/lib/livePiano.ts` (testable sans DOM).
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LIVE_PIANO_OCTAVES,
   activePitchSet,
   buildPianoKeys,
+  computePianoFontSize,
 } from '../lib/livePiano';
 import './LivePiano.css';
 
@@ -28,8 +32,27 @@ export default function LivePiano({ activePitches, octaves = LIVE_PIANO_OCTAVES 
   const keys = useMemo(() => buildPianoKeys(octaves), [octaves]);
   const active = useMemo(() => activePitchSet(activePitches), [activePitches]);
 
+  // Échelle du piano : la font-size est recalculée pour que le piano tienne
+  // dans la largeur du conteneur (null = échelle CSS par défaut, ex. SSR).
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const compute = () => setFontSize(computePianoFontSize(el.clientWidth, octaves));
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [octaves]);
+
   return (
-    <div className="live-piano">
+    <div
+      ref={wrapRef}
+      className="live-piano"
+      style={fontSize !== null ? { fontSize: `${fontSize}px` } : undefined}
+    >
       <ul className="set">
         {keys.map(k => (
           <li
