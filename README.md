@@ -63,6 +63,10 @@ s'adapte toujours à la largeur de l'écran.
 - **Barre d'outils « studio » unique** (intégré et modal ⛶, parfaitement synchronisés) :
   édition/sélection, copier/couper/coller (presse-papiers global + badge), grouper ⛓,
   vélocité/durée, snap 🧲 + quantiser, transport local ▶, undo/redo
+- **● Rec MIDI** : enregistrement du clavier (Roland) dans la piste agrandie — décompte de
+  4 temps au métronome, les notes jouées s'affichent en direct (cyan), insertion à la tête
+  de lecture à l'arrêt (événements horodatés côté serveur, ordre d'appui conservé,
+  repiquage ignoré)
 - **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
 - **Molette** : scroll vertical du registre (~quinte/cran, le clavier en marge suit) ·
   Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection
@@ -76,6 +80,17 @@ s'adapte toujours à la largeur de l'écran.
 - **Recadrage automatique sur la grille** (v2.6.7) : période forcée à un multiple exact de la
   mesure — sample trop long **coupé**, trop court **complété par du silence**, fade-out anti-clic
 - Extraction WAV : le sample actif est **mixé** au morceau exporté
+
+## Performances (lecture temps réel)
+
+- **Lignes de lecture en overlay** : les têtes de lecture (pistes + piano roll) sont des
+  divs animées par `transform`/rAF via un store partagé hors React — plus aucun redraw de
+  canvas ni re-render global à chaque tick de lecture (les canvas ne redessinent que quand
+  le contenu change)
+- **Ticker découplé** : le DAW ne re-rend plus à ~25 fps ; les afficheurs
+  Mesure/Temps/Durée s'abonnent seuls (~10 fps), l'illumination de la piste suit à ~12 fps,
+  les vumètres sont throttlés à ~10 fps
+- **React.memo** sur les composants lourds (props stabilisées)
 
 ## Sauvegarde
 
@@ -113,10 +128,11 @@ React 19 · TypeScript 5 · Vite 6 · Tailwind CSS 4 · Vitest 4 · lucide-react
 src/
 ├── components/   # ChordApp, ChordGrid, PianoRoll, DawView, PianoLivePanel,
 │                 # LivePiano, LiveSettingsBar, ControlBar, ChordNowModal,
-│                 # LoopControl, ClickControl, PostProdView, HelpModal…
+│                 # LoopControl, ClickControl, PostProdView, PlayheadLine,
+│                 # TransportReadout, HelpModal…
 ├── lib/          # audioEngine, browserSynth, livePiano, pitchesToNotes,
 │                 # chordRecognition, pianoRollEngine, playGuard, navPosition,
-│                 # sampleLoop, projectClipboard, postProdEngine…
+│                 # sampleLoop, projectClipboard, postProdEngine, playhead…
 └── types/
 ```
 
@@ -130,3 +146,5 @@ Le build (`dist/`) est embarqué dans le binaire standalone du backend
 ## Développement
 
 **Eric BRUNEAU** — vibe coding Deepseek (legoeland)
+
+*231 tests unitaires (Vitest) — tsc strict à 0 erreur*
