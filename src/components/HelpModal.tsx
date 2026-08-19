@@ -63,6 +63,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
   const sections = [
     { id: 'demarrage', icon: '🚀', title: 'Démarrage rapide', keys: 'démarrer jouer premier accord grille' },
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
+    { id: 'livepiano', icon: '🎹', title: 'LivePiano', keys: 'piano live accord détecté illumination insertion grille piste roland midi timer program sustain son' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
     { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
@@ -172,6 +173,30 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (notes, intervalles, clavier visuel) ; cliquez sur le chiffrage pour le modifier.
               Glissez les lignes de la grille (↕) pour <b>réordonner</b> les accords (désactivé pendant la lecture).
             </p>
+          </Section>
+
+          {/* ── LivePiano ── */}
+          <Section id="livepiano" icon="🎹" title="LivePiano">
+            <p>
+              Le <b className="text-white">LivePiano</b> est le panneau commun aux deux modes : piano 88 touches +
+              reconnaissance d'accords en temps réel + insertion. En mode <b className="text-white">Live</b> il se trouve
+              sous la saisie d'accords ; en mode <b className="text-white">📱 Navig.</b>, il occupe le panneau supérieur
+              (onglet <b>🎹 Piano</b>).
+            </p>
+            <p className="font-bold text-white mt-3">🎹 Le piano</p>
+            <Row k="88 touches" v="Couvre l'étendue réelle du clavier MIDI (A0 → C8) : chaque touche jouée s'illume en bleu en direct (Roland). Le piano s'adapte à la largeur de l'écran (tient toujours sur une ligne)." />
+            <Row k="Accord détecté" v="Le badge affiche l'accord plaqué en TRÈS GROS + ses notes en clair (ex. C · E · G). Règles : 2 notes = stricte ; 3+ = tolérance ; 1 note = la note seule. La basse réelle départage (C6 vs Am7) ; une basse imposée (≥ 1 octave sous le reste) est notée après un / (ex. C/G, Am7/D)." />
+            <p className="font-bold text-white mt-3">📥 Insertion (mode Live — grille)</p>
+            <Row k="+ Grille" v="Insère l'accord détecté dans la grille (1 ronde) : clic sur l'accord ou bouton « + Grille »." />
+            <Row k="⏱ Timer" v="Un accord tenu ≥ 3 s (réglable 1/2/3/5 s sur le badge) est inséré automatiquement, sans lâcher le clavier." />
+            <p className="font-bold text-white mt-3">📥 Insertion (mode Navig — piste)</p>
+            <Row k="➕ Piste" v="Insère l'accord en NOTES dans la piste cible — celle dont le Piano Roll intégré est ouvert (mention « → nom de la piste » dans le bandeau). Fin de la piste, durée = 1 mesure. Les notes insérées sont celles réellement jouées (hauteurs exactes, inversions comprises), dans l'ORDRE d'appui." />
+            <p className="font-bold text-white mt-3">✨ Illumination (mode Navig)</p>
+            <Row k="✨ Piste ON/OFF" v="Pendant la lecture (WAV ou MIDI), les touches s'illument aussi au contenu de la piste jouée (fidèle, même tête de lecture). Le piano s'illume TOUJOURS quand tu joues sur le clavier. Préférence mémorisée." />
+            <p className="font-bold text-white mt-3">🎛️ Son de la piste (mode Navig)</p>
+            <Row k="Program change" v="Avec une piste sélectionnée et ✨ ON, le Roland reçoit le program change de la piste : tes notes sont renvoyées au clavier sur son canal → tu entends l'instrument de la piste en jouant. La pédale de sustain est relayée (les notes renvoyées durent avec la pédale)." />
+            <p className="font-bold text-white mt-3">🔀 Boutons charnières</p>
+            <Row k="📱 Navig. / 🖥 Live" v="En haut du cadre (alignés à la mention « Accord détecté ») : bascule entre les deux modes." />
           </Section>
 
           {/* ── Barre de contrôle ── */}
@@ -316,42 +341,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
             <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique) — réglage dans le panneau ⚙ des ports MIDI & Audio." />
             <Row k="🎹 Roll" v={<><b>Bouton du mixeur</b> (mode 📱 Navig.) : sur chaque carte de piste, « 🎹 Roll » ouvre/ferme le <b>Piano Roll intégré</b> de cette piste (équivalent au clic sur son nom dans les pistes). Dans la barre d'outils du Piano Roll intégré, le bouton <b>⛶</b> ouvre le même Piano Roll en <b>modal plein écran</b> pour travailler à de meilleures échelles — les deux restent <b>parfaitement synchronisés</b> (mêmes notes, modification instantanée des deux côtés).</>} />
-            <Row k="🎹 Accord détecté" v={<>
-              <b>Reconnaissance d'accords en temps réel</b> : le badge écoute le clavier MIDI (ex. Roland) et affiche
-              l'accord plaqué — <code>2 notes</code> : reconnaissance stricte ; <code>3 notes et +</code> : tolérance
-              (notes ajoutées acceptées, ex. CM9) ; <code>1 note</code> : la note seule. La basse réelle départage les
-              accords relatifs (C6 vs Am7). <b className="text-white">Convention de basse</b> : une note grave à ≥ 1 octave du
-              reste est une <b>basse imposée</b> (jamais une note d'accord) — si elle diffère de la fondamentale, elle est
-              notifiée après un <code>/</code> (ex. <code>C/G</code>, <code>Am7/D</code>). <b className="text-white">Insertion</b> : clic sur l'accord
-              (ou « + Grille ») immédiat, ou <b>⏱ timer indépendant</b> — un accord tenu ≥ 3 s (réglable 1/2/3/5 s
-              sur le badge) est inséré automatiquement, sans lâcher le clavier. Insertion en <b className="text-white">1 temps (ronde)</b> — éditable ensuite.
-              Tous les canaux MIDI sont écoutés sauf les percussions (canal 9).
-              <br/><br/>
-              <b className="text-white">🎹 Piano aligné sur le clavier</b> : sous le badge, un piano couvrant
-              l'étendue du clavier MIDI (88 touches, <b>A0 à C8</b>) dont les touches s'illument en bleu en
-              direct quand vous jouez (les notes tenues sur le clavier MIDI).
-              Les notes de l'accord plaqué sont aussi affichées en clair sous le nom de l'accord (ex.
-              <code>C · E · G</code>). L'accord et les notes sont affichés en grand pour rester lisibles
-              pendant le jeu.
-              <br/><br/>
-              <b className="text-white">📱 En mode Navig</b>, le même panneau se trouve en haut, <b>à la place de la
-              table de mixage</b> (rétractable au chevron ; onglets <b>🎹 Piano / 🎚 Mixer</b> pour basculer) :
-              <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                <li><b className="text-white">Insertion dans la piste</b> : agrandis une piste (clic sur son nom → Piano Roll
-                  intégré) — c'est la piste cible. L'accord reconnu s'insère en <b>notes</b> à la fin de cette piste
-                  (durée : une mesure), via le clic sur l'accord, « ➕ Piste » ou le ⏱ timer. Les notes insérées
-                  sont <b>celles que tu joues réellement</b> (hauteurs exactes, inversions comprises), dans
-                  <b>l'ordre où tu les plaques</b> — pas un réordonnancement par le dictionnaire d'harmonie.</li>
-                <li><b className="text-white">✨ Illumination</b> : le piano s'illume quand tu joues sur le clavier MIDI
-                  (comme en Live), et — pendant la lecture (WAV <b>ou</b> MIDI) — au contenu de la piste jouée
-                  (fidèle, même tête de lecture). La bascule ✨ contrôle la partie « piste jouée »
-                  (préférence mémorisée).</li>
-                <li><b className="text-white">🎛️ Son de la piste</b> : avec une piste sélectionnée et ✨ ON, le Roland reçoit le
-                  <b>program change</b> de la piste — quand tu joues sur le clavier, tu entends
-                  <b>l'instrument de la piste</b> (tes notes sont renvoyées au Roland sur son canal).
-                  La <b>pédale de sustain</b> est relayée : les notes renvoyées durent aussi quand tu
-                  tiens la pédale.</li>
-              </ul>
+            <Row k="🎹 LivePiano" v={<>
+              Le <b>panneau piano</b> (commun Live/Navig) : 88 touches illuminées en direct, accord détecté en
+              gros + notes en clair, insertion grille (Live) ou notes dans la piste (Navig), ✨ illumination
+              piste, 🎛️ son de la piste (program change + sustain) — voir la section <b>« LivePiano »</b>.
             </>} />
             <p className="text-xs text-gray-500">
               💡 En mode 📱 Navig., la grille d'accords (saisie Live) disparaît : le travail se fait sur
