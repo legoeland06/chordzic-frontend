@@ -1428,9 +1428,13 @@ export default function DawView({
                       </span>
                       <MiniVU level={levels[t.channel] ?? 0} />
                     </div>
-                    <span className="text-[9px] text-gray-600">
-                      {(pianoNotes[t.channel] ?? []).length} note{(pianoNotes[t.channel] ?? []).length > 1 ? 's' : ''} · {t.mute ? 'MUTE' : 'On'}
-                    </span>
+                    {/* Mention notes/état : seulement quand le PianoRoll intégré
+                        de CETTE piste est ouvert (sinon : noms épurés) */}
+                    {isExpanded && (
+                      <span className="text-[9px] text-gray-600">
+                        {(pianoNotes[t.channel] ?? []).length} note{(pianoNotes[t.channel] ?? []).length > 1 ? 's' : ''} · {t.mute ? 'MUTE' : 'On'}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
