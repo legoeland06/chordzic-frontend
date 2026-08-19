@@ -18,6 +18,7 @@ import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
 import PianoLivePanel from './PianoLivePanel';
+import { sendPianoNote } from '../lib/pianoNote';
 import LiveSettingsBar from './LiveSettingsBar';
 import PlayheadLine from './PlayheadLine';
 import TransportReadout from './TransportReadout';
@@ -910,6 +911,13 @@ export default function DawView({
     ? tracks.find(t => t.channel === expandedCh)?.label ?? null
     : null;
 
+  /** LivePiano cliquable (mode Navig) : la note part sur le CANAL de la
+   * piste cible → elle sonne avec l'instrument de la piste (le serveur
+   * applique aussi le mapping drums natif). */
+  const navigPlayNote = useCallback((pitch: number, on: boolean) => {
+    void sendPianoNote(pitch, on, expandedCh ?? undefined);
+  }, [expandedCh]);
+
   /** Illumination du piano par la piste jouée (activable/désactivable,
    * préférence persistée). */
   const [illumOn, setIllumOn] = useState(() => {
@@ -1371,6 +1379,7 @@ export default function DawView({
             illuminationEnabled={illumOn}
             onToggleIllumination={toggleIllum}
             onGoLive={onSetLive}
+            onPlayNote={navigPlayNote}
           />
         )}
         {panelOpen && panelTab === 'mixer' && (

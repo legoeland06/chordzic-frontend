@@ -1,0 +1,121 @@
+/**
+ * Tests du LivePiano CLIQUABLE (pointer events, environnement jsdom).
+ *
+ * jsdom n'implémente pas la pointer capture : on la stubbe sur les touches.
+ */
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { createRoot, Root } from 'react-dom/client';
+import LivePiano from './LivePiano';
+
+// jsdom n'a ni pointer capture (stubbée par touche) ni ResizeObserver :
+// no-op globaux pour le fit scale.
+class MockResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as { ResizeObserver?: unknown }).ResizeObserver = MockResizeObserver;
+
+/** jsdom ne connaît pas la pointer capture — no-op, "capturé". */
+function stubPointerCapture(el: HTMLElement) {
+  el.setPointerCapture = () => {};
+  el.releasePointerCapture = () => {};
+  el.hasPointerCapture = () => true;
+}
+
+function pointer(el: HTMLElement, type: string) {
+  el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1 }));
+}
+
+function renderPiano(onPlayNote: (pitch: number, on: boolean) => void): Root {
+  const root = createRoot(document.body);
+  act(() => {
+    root.render(<LivePiano activePitches={[]} onPlayNote={onPlayNote} />);
+  });
+  return root;
+}
+
+describe('<LivePiano /> cliquable', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('appui = note-on, relâchement = note-off (C4 → pitch 60)', () => {
+    const onPlayNote = vi.fn();
+    const root = renderPiano(onPlayNote);
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    stubPointerCapture(c4);
+
+    act(() => pointer(c4, 'pointerdown'));
+    expect(onPlayNote).toHaveBeenLastCalledWith(60, true);
+
+    act(() => pointer(c4, 'pointerup'));
+    expect(onPlayNote).toHaveBeenLastCalledWith(60, false);
+    expect(onPlayNote).toHaveBeenCalledTimes(2);
+
+    act(() => root.unmount());
+  });
+
+  it('illumine la touche tenue localement (classe active sans /live-input)', () => {
+    const onPlayNote = vi.fn();
+    const root = renderPiano(onPlayNote);
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    stubPointerCapture(c4);
+
+    expect(c4.className).not.toContain('active');
+    act(() => pointer(c4, 'pointerdown'));
+    expect(c4.className).toContain('active');
+    act(() => pointer(c4, 'pointerup'));
+    expect(c4.className).not.toContain('active');
+
+    act(() => root.unmount());
+  });
+
+  it('multi-touches : deux notes tenues en même temps (accord)', () => {
+    const onPlayNote = vi.fn();
+    const root = renderPiano(onPlayNote);
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    const e4 = document.querySelector('li[title="E4"]') as HTMLElement;
+    stubPointerCapture(c4);
+    stubPointerCapture(e4);
+
+    act(() => pointer(c4, 'pointerdown'));
+    act(() => pointer(e4, 'pointerdown'));
+    expect(onPlayNote).toHaveBeenCalledWith(60, true);
+    expect(onPlayNote).toHaveBeenCalledWith(64, true);
+
+    act(() => pointer(c4, 'pointerup'));
+    act(() => pointer(e4, 'pointerup'));
+    expect(onPlayNote).toHaveBeenCalledWith(60, false);
+    expect(onPlayNote).toHaveBeenCalledWith(64, false);
+
+    act(() => root.unmount());
+  });
+
+  it('pointercancel coupe aussi la note (sécurité)', () => {
+    const onPlayNote = vi.fn();
+    const root = renderPiano(onPlayNote);
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    stubPointerCapture(c4);
+
+    act(() => pointer(c4, 'pointerdown'));
+    act(() => pointer(c4, 'pointercancel'));
+    expect(onPlayNote).toHaveBeenLastCalledWith(60, false);
+
+    act(() => root.unmount());
+  });
+
+  it('sans onPlayNote : aucun handler, pas de note', () => {
+    const root = createRoot(document.body);
+    act(() => {
+      root.render(<LivePiano activePitches={[]} />);
+    });
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    stubPointerCapture(c4);
+    act(() => pointer(c4, 'pointerdown'));
+    act(() => root.unmount());
+    expect(true).toBe(true); // pas de throw → aucun handler attaché
+  });
+});

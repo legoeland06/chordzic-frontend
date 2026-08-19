@@ -51,6 +51,9 @@ interface PianoLivePanelProps {
   onGoNavig?: () => void;
   /** Navig : retour vers le mode Live (même emplacement, symétrique). */
   onGoLive?: () => void;
+  /** Touche cliquée : `(pitch, true)` appui / `(pitch, false)` relâchement
+   * — le parent envoie la note au Roland (POST /piano-note). */
+  onPlayNote?: (pitch: number, on: boolean) => void;
 }
 
 /** Vrai si deux listes de pitchs sont identiques (évite les re-renders). */
@@ -82,6 +85,7 @@ function PianoLivePanel({
   onToggleIllumination,
   onGoNavig,
   onGoLive,
+  onPlayNote,
 }: PianoLivePanelProps) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
@@ -289,7 +293,7 @@ function PianoLivePanel({
 
       {/* ── Piano : touches tenues (Live) ou piste jouée (Navig) ── */}
       <div className="overflow-x-auto mt-2 pt-2 border-t border-gray-800">
-        <LivePiano activePitches={pianoPitches} />
+        <LivePiano activePitches={pianoPitches} onPlayNote={onPlayNote} />
       </div>
     </div>
   );

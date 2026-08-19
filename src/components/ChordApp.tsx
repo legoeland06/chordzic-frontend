@@ -23,6 +23,7 @@ import LiveSettingsBar from './LiveSettingsBar';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import PianoLivePanel from './PianoLivePanel';
+import { sendPianoNote } from '../lib/pianoNote';
 import ChordNowModal from './ChordNowModal';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
@@ -205,6 +206,12 @@ export default function ChordApp() {
   // pas d'intervalle (boucle complète du morceau).
   const [locL, setLocL] = useState(0);
   const [locR, setLocR] = useState(0);
+  /** LivePiano cliquable (mode Live) : note au Roland, canal auto
+   * (écho configuré, sinon 1). */
+  const livePlayNote = useCallback((pitch: number, on: boolean) => {
+    void sendPianoNote(pitch, on);
+  }, []);
+
   const handleLocatorsChange = useCallback((l: number, r: number) => {
     setLocL(l);
     setLocR(r);
@@ -1236,6 +1243,7 @@ export default function ChordApp() {
               mode="live"
               onInsert={(chord) => insertDetectedChord(chord.label)}
               onGoNavig={() => setNavigMode(true)}
+              onPlayNote={livePlayNote}
             />
 
             {/* Contrôles + TrackPanel */}

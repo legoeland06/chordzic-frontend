@@ -17,7 +17,9 @@ et export audio.
 
 Le cœur de l'interface : un **piano 88 touches (A0 → C8)** aligné sur l'étendue
 réelle du clavier MIDI (Roland), dont les touches s'illument en bleu **en direct**
-quand vous jouez. Commun aux deux modes : en **Live** il reconnaît l'accord plaqué
+quand vous jouez. **Cliquable** : un appui sur une touche (souris ou doigt, multi-touches)
+envoie sa note au Roland (note-on / note-off comme un vrai clavier). Commun aux deux
+modes : en **Live** il reconnaît l'accord plaqué
 (affiché en très gros) et l'insère dans la grille ; en **Navig** il l'insère en
 notes dans la piste cible, illumine au contenu de la piste jouée et fait sonner
 le Roland avec l'instrument de la piste (program change + sustain). Le piano

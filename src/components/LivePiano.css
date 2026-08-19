@@ -43,6 +43,10 @@
   list-style: none;
   position: relative;
   float: left;
+  cursor: pointer; /* LivePiano cliquable (notes envoyées au Roland) */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none; /* multi-touch : le doigt ne fait pas défiler */
 }
 
 /* ─── Touches blanches ─── */
