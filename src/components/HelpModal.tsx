@@ -408,6 +408,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <b>scroll vertical du registre</b> (aller chercher les notes hors champ — le clavier de piano en
               marge suit), <b>Ctrl+molette</b> ou <b>G/H</b> zoome, <b>Shift+molette</b> défile horizontalement.
               À l'ouverture, le registre s'adapte automatiquement au contenu de la piste (fit vertical).
+              Le <b>clavier de piano en marge</b> est rétractable via le bouton <b>🎹</b> de la barre d'outils
+              (préférence mémorisée).
             </p>
             <p className="font-bold text-white mt-2">Table de mixage (au-dessus des pistes)</p>
             <p>

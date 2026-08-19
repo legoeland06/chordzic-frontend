@@ -510,6 +510,18 @@ export default function DawView({
    * le bouton ⛶ de la toolbar du PianoRoll intégré. Les deux partagent les
    * MÊMES notes (pianoNotes) : cohérence totale et instantanée. */
   const [modalPianoRoll, setModalPianoRoll] = useState<number | null>(null);
+  /** Clavier de piano vertical en marge (portal keys-slot) — rétractable par
+   * l'utilisateur (bouton 🎹 de la toolbar), préférence persistée. */
+  const [keysVisible, setKeysVisible] = useState(() => {
+    try { return localStorage.getItem('chordzic_pr_keys') !== 'off'; } catch { return true; }
+  });
+  const toggleKeys = useCallback(() => {
+    setKeysVisible(v => {
+      const nv = !v;
+      try { localStorage.setItem('chordzic_pr_keys', nv ? 'on' : 'off'); } catch { /* stockage indisponible */ }
+      return nv;
+    });
+  }, []);
   /** Index de la piste agrandie (pour aligner le slot clavier sur sa lane). */
   const expandedIndex = tracks.findIndex(t => t.channel === expandedCh);
   /** Panneau supérieur : rétractable, deux onglets — 🎹 Piano (défaut, à la
@@ -638,6 +650,11 @@ export default function DawView({
     const el = lanesScrollRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
+      // La molette sur le Piano Roll INTÉGRÉ est gérée par le composant
+      // (scroll vertical du registre / zoom Ctrl / scroll horizontal Shift) —
+      // ne PAS zoomer les lanes par-dessus (bug « le scroll zoome aussi »).
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest && t.closest('[data-pr-scroll]')) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const xView = e.clientX - rect.left;              // souris dans le viewport
@@ -1464,6 +1481,8 @@ export default function DawView({
                           onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
                           onSnapChange={handleLocSnap}
                           onExpand={() => setModalPianoRoll(t.channel)}
+                          keysVisible={keysVisible}
+                          onToggleKeys={toggleKeys}
                         />
                       ) : (
                         <TrackLane
@@ -1482,8 +1501,9 @@ export default function DawView({
             </div>
             {/* Slot du CLAVIER de piano (rempli par portal depuis le PianoRoll
                 agrandi) : calque fixe à droite de l'ÉCRAN — toujours visible,
-                immobile au scroll horizontal, aligné sur la piste agrandie. */}
-            {expandedCh !== null && (
+                immobile au scroll horizontal, aligné sur la piste agrandie.
+                Rétractable par l'utilisateur (bouton 🎹 de la toolbar). */}
+            {expandedCh !== null && keysVisible && (
               <div
                 id="pianoroll-keys-slot"
                 className="absolute right-0 z-20 border-l border-gray-800/60"
@@ -1593,6 +1613,8 @@ export default function DawView({
                   onClose={() => setModalPianoRoll(null)}
                   onPreviewNote={(pitch) => engine.playPreviewNote(modalPianoRoll, pitch)}
                   onPlayMidi={(notes) => playMidiViaPort(notes, modalPianoRoll)}
+                  keysVisible={keysVisible}
+                  onToggleKeys={toggleKeys}
                 />
               </div>
             </div>

@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from
 import { createPortal } from 'react-dom';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
-  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2, Piano,
 } from 'lucide-react';
 import {
   xFromBeat,
@@ -116,6 +116,9 @@ interface PianoRollProps {
    * meilleures échelles. Les deux partagent les mêmes notes (cohérence
    * instantanée). */
   onExpand?: () => void;
+  /** Clavier de piano vertical (marge) visible ? + bascule (rétractable). */
+  keysVisible?: boolean;
+  onToggleKeys?: () => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -136,6 +139,8 @@ export default function PianoRoll({
   onPlayMidi,
   onPreviewNote,
   onExpand,
+  keysVisible = true,
+  onToggleKeys,
   tempo,
   engine,
   onSnapChange,
@@ -493,8 +498,7 @@ export default function PianoRoll({
   // ── Dessin de la colonne clavier (fixe à droite) ──
   useEffect(() => {
     const c = keysCanvasRef.current;
-    if (!c) return;
-    const ctx = c.getContext('2d');
+    if (!c) return;    const ctx = c.getContext('2d');
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = c.getBoundingClientRect();
@@ -520,7 +524,7 @@ export default function PianoRoll({
         ctx.fillText(label, 4, y + WHITE_KEY_HEIGHT - 3);
       }
     }
-  }, [userMinPitch, userMaxPitch, canvasHeight, height]);
+  }, [userMinPitch, userMaxPitch, canvasHeight, height, keysVisible]);
 
   // ── Redimensionnement du canvas ──
   useEffect(() => {
@@ -1655,6 +1659,17 @@ export default function PianoRoll({
               className="accent-blue-500" title="Bord haut du registre visible" />
             <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
           </div>
+          {onToggleKeys && (
+            <>
+              <div className="pr-sep" />
+              {/* Clavier de piano vertical (marge) : rétractable */}
+              <div className="pr-group">
+                <button className={btn(keysVisible)} onClick={onToggleKeys} title={keysVisible ? 'Masquer le clavier de piano (marge)' : 'Afficher le clavier de piano (marge)'}>
+                  <Piano className="w-3 h-3" />
+                </button>
+              </div>
+            </>
+          )}
           {onExpand && (
             <>
               <div className="pr-sep" />
@@ -1766,6 +1781,7 @@ export default function PianoRoll({
             <div
               ref={containerRef}
               className="flex-1 min-w-0 overflow-x-auto"
+              data-pr-scroll="true"
               onWheel={handleWheel}
               onScroll={handleScroll}
             >
@@ -1799,8 +1815,9 @@ export default function PianoRoll({
             </div>
             {/* Clavier de piano : en mode INTÉGRÉ, porté dans le slot fixe de
                 DawView (à droite de l'écran, calque au-dessus, immobile au
-                scroll) ; sinon colonne inline à droite du piano roll. */}
-            {!embedded && (
+                scroll) ; sinon colonne inline à droite du piano roll.
+                Rétractable par l'utilisateur (bouton 🎹 de la toolbar). */}
+            {!embedded && keysVisible && (
               <div
                 className="shrink-0 relative z-10 border-l border-gray-800/60"
                 style={{ width: PIANO_KEYBOARD_WIDTH, height: canvasHeight }}
@@ -1808,7 +1825,7 @@ export default function PianoRoll({
                 <canvas ref={keysCanvasRef} className="block w-full h-full" />
               </div>
             )}
-            {embedded && createPortal(
+            {embedded && keysVisible && createPortal(
               <canvas ref={keysCanvasRef} className="block w-full h-full" />,
               document.getElementById('pianoroll-keys-slot') ?? document.body,
             )}
