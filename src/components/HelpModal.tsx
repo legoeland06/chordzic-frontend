@@ -346,7 +346,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
                   (préférence mémorisée).</li>
                 <li><b className="text-white">🎛️ Son de la piste</b> : avec une piste sélectionnée et ✨ ON, le Roland reçoit le
                   <b>program change</b> de la piste — quand tu joues sur le clavier, tu entends
-                  <b>l'instrument de la piste</b> (tes notes sont renvoyées au Roland sur son canal).</li>
+                  <b>l'instrument de la piste</b> (tes notes sont renvoyées au Roland sur son canal).
+                  La <b>pédale de sustain</b> est relayée : les notes renvoyées durent aussi quand tu
+                  tiens la pédale.</li>
               </ul>
             </>} />
             <p className="text-xs text-gray-500">
