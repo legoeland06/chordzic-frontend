@@ -141,7 +141,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <li>Saisissez vos accords dans la zone de texte (une grille d'exemple est déjà chargée).</li>
               <li>Cliquez <b className="text-green-400">▶ Jouer</b> pour écouter. <b className="text-red-400">■ Stop</b> arrête.</li>
               <li>Réglez le <b>Tempo</b>, le <b>Pattern</b> (style de batterie) et la <b>Mesure</b>.</li>
-              <li>Activez <b className="text-purple-400">📱 Navig.</b> : vue <b>DAW</b> (table de mixage + pistes horizontales) et rendu WAV du PC. <b className="text-amber-400">Extract Wav</b> télécharge le fichier.</li>
+              <li>Activez <b className="text-purple-400">📱 Navig.</b> : vue <b>DAW</b> (panneau piano/mixeur + pistes horizontales) et rendu WAV du PC. <b className="text-amber-400">Extract Wav</b> télécharge le fichier.</li>
               <li>Sauvegardez vos grilles avec <b className="text-emerald-400">Save</b>, retrouvez-les avec <b className="text-cyan-400">Load</b>.</li>
             </ol>
             <p className="text-xs text-gray-500">
@@ -183,7 +183,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="🗑 Effacer" v="Arrête et vide la grille." />
             <Row k="💾 Save / 📂 Load" v="Sauvegarde / charge une grille sur le serveur (fichier JSON)." />
             <Row k="📤 / 📥" v="Exporte la grille en fichier JSON / importe un fichier JSON." />
-            <Row k="Tempo" v="Slider 40–220 BPM + champ numérique." />
+            <Row k="Tempo" v="Slider 40–220 BPM + champ numérique (rangée de réglages sous la barre de contrôle, à droite de la Mesure)." />
           </Section>
 
           {/* ── Clic & sortie dédiée ── */}
@@ -292,7 +292,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               💡 Une piste ajoutée n'a pas de rôle automatique : remplissez-la dans son
               <b> Piano Roll</b> (les notes personnalisées jouent en mode 📱 Navig.).
             </p>
-            <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
+            <p>Les pistes se règlent dans le <b className="text-white">mixeur</b> (mode 📱 Navig., onglet 🎚 Mixer) : nom, <b>MUTE</b>, instrument, volume, effets (reverb/chorus/delay/drive).</p>
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Désactivé par défaut." />
             <Row k="🎯 Accord en lecture" v={<><b>Modal circulaire translucide</b> (mode Live) : pendant la lecture, l'accord joué par la séquence s'affiche en <b>très gros</b> au centre de l'écran, avec l'accord suivant en petit en dessous (un tiret <code>—</code> pour un silence). Ne bloque pas les clics (transparent aux événements).</>} />
@@ -311,8 +311,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (déplacement de la tête) reste libre : au wrap, la lecture revient à L.
             </>} />
             <Row k="▶ Play (audio)" v={<><b>Rendu WAV interne</b> (FluidSynth, rapide et silencieux) : le Play joue TOUJOURS l'audio rendu par le PC — il ne déclenche jamais le synthé externe. Pour entendre le morceau avec le son du Roland (ou du synthé choisi), utilise le bouton <b>▶ MIDI</b> du transport : seul le MIDI joue alors.</>} />
-            <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Mode Live uniquement." />
-            <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
+            <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Réglable dans les deux modes (rangée de réglages du mode Live, transport en Navig)." />
+            <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Réglable dans les deux modes." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
             <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique) — réglage dans le panneau ⚙ des ports MIDI & Audio." />
             <Row k="🎹 Roll" v={<><b>Bouton du mixeur</b> (mode 📱 Navig.) : sur chaque carte de piste, « 🎹 Roll » ouvre/ferme le <b>Piano Roll intégré</b> de cette piste (équivalent au clic sur son nom dans les pistes). Dans la barre d'outils du Piano Roll intégré, le bouton <b>⛶</b> ouvre le même Piano Roll en <b>modal plein écran</b> pour travailler à de meilleures échelles — les deux restent <b>parfaitement synchronisés</b> (mêmes notes, modification instantanée des deux côtés).</>} />
@@ -354,12 +354,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               </ul>
             </>} />
             <p className="text-xs text-gray-500">
-              💡 En mode 📱 Navig., les contrôles d'arrangement automatique (pattern, walking bass, 432Hz,
-              grille d'accords) disparaissent : le travail se fait sur <b>vos notes</b>, piste par piste.
+              💡 En mode 📱 Navig., la grille d'accords (saisie Live) disparaît : le travail se fait sur
+              <b> vos notes</b>, piste par piste. Les réglages (pattern, walking bass, 432Hz, mesure, volume)
+              restent disponibles dans la rangée de réglages du transport.
             </p>
             <p className="font-bold text-white mt-3">Vue DAW (mode 📱 Navig.)</p>
             <p>
-              La <b className="text-white">table de mixage</b> (en haut, à la place du champ texte) : une colonne
+              L'<b className="text-white">onglet 🎚 Mixer</b> du panneau supérieur (en haut, à la place du champ texte) : une colonne
               par piste avec <b>nom modifiable</b>, <b>instrument</b>, <b>MUTE</b> —
               plus la carte <b>➕ Piste</b> pour ajouter un instrument.
             </p>
