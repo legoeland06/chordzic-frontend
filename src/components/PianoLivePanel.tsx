@@ -31,8 +31,9 @@ const AUTO_INSERT_DELAYS = [1, 2, 3, 5];
 interface PianoLivePanelProps {
   /** live : insertion grille · navig : insertion notes dans la piste. */
   mode: 'live' | 'navig';
-  /** Insère l'accord reconnu (chaque mode convertit à sa façon). */
-  onInsert: (chord: RecognizedChord) => void;
+  /** Insère l'accord reconnu + les pitchs joués (ordre d'appui, cf.
+   * /live-input) — chaque mode convertit à sa façon. */
+  onInsert: (chord: RecognizedChord, pitches: number[]) => void;
   /** Navig : nom de la piste cible (null = aucune sélectionnée). */
   targetTrackLabel?: string | null;
   /** Navig : pitchs actifs de la piste jouée à la position courante. */
@@ -91,7 +92,7 @@ export default function PianoLivePanel({
         );
         timerRef.current = verdict.next;
         if (verdict.shouldInsert && r) {
-          onInsert(r);
+          onInsert(r, pitches);
           setJustInserted(true);
           if (flashRef.current) clearTimeout(flashRef.current);
           flashRef.current = setTimeout(() => setJustInserted(false), 1200);
@@ -118,8 +119,11 @@ export default function PianoLivePanel({
   const noTrack = mode === 'navig' && !targetTrackLabel;
   const insertDisabled = !canInsert || noTrack;
 
-  // Illumination : Live = Roland tenu · Navig = piste jouée (toggle ✨).
-  const pianoPitches = mode === 'live' ? active : (illuminationEnabled ? trackPitches : []);
+  // Illumination : Live = Roland tenu · Navig = Roland tenu (comme Live)
+  // + piste jouée (toggle ✨, préférence de l'utilisateur).
+  const pianoPitches = mode === 'live'
+    ? active
+    : [...new Set([...active, ...(illuminationEnabled ? trackPitches : [])])];
 
   const cycleDelay = () => {
     setDelayS(prev => {
@@ -134,7 +138,7 @@ export default function PianoLivePanel({
 
   const handleInsert = () => {
     if (insertDisabled || !detected) return;
-    onInsert(detected);
+    onInsert(detected, active);
     setJustInserted(true);
     if (flashRef.current) clearTimeout(flashRef.current);
     flashRef.current = setTimeout(() => setJustInserted(false), 1200);

@@ -27,7 +27,7 @@ import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import type { RecognizedChord } from '../lib/chordRecognition';
-import { activePitchesAt, chordToPianoNotes } from '../lib/chordToNotes';
+import { activePitchesAt, pitchesToPianoNotes } from '../lib/pitchesToNotes';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
 
@@ -930,14 +930,16 @@ export default function DawView({
   }, [expandedCh, pianoNotes, posBeats, playState, midiPlaying]);
 
   /** Insère l'accord reconnu en NOTES dans la piste sélectionnée : fin de
-   * la piste (beat entier), durée = une mesure de la signature courante. */
-  const handlePianoInsert = useCallback((chord: RecognizedChord) => {
-    if (expandedCh === null) return;
+   * la piste (beat entier), durée = une mesure de la signature courante.
+   * Les notes insérées sont les pitchs RÉELLEMENT joués, dans l'ordre
+   * d'appui (pas de réordonnancement par le dictionnaire d'harmonie). */
+  const handlePianoInsert = useCallback((_chord: RecognizedChord, pitches: number[]) => {
+    if (expandedCh === null || pitches.length === 0) return;
     const existing = pianoNotes[expandedCh] ?? [];
     const lastEnd = existing.reduce((m, n) => Math.max(m, n.startTime + n.duration), 0);
     const start = Math.ceil(lastEnd);
     const beatsPerBar = sig === '3/4' ? 3 : sig === '6/8' ? 6 : 4;
-    onNotesChange(expandedCh, [...existing, ...chordToPianoNotes(chord, start, beatsPerBar)]);
+    onNotesChange(expandedCh, [...existing, ...pitchesToPianoNotes(pitches, start, beatsPerBar)]);
   }, [expandedCh, pianoNotes, onNotesChange, sig]);
 
   // ── Ports MIDI / Audio (réglages) ───────────────────────────────────

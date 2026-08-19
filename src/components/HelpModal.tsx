@@ -337,10 +337,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               <ul className="list-disc ml-4 mt-1 space-y-0.5">
                 <li><b className="text-white">Insertion dans la piste</b> : agrandis une piste (clic sur son nom → Piano Roll
                   intégré) — c'est la piste cible. L'accord reconnu s'insère en <b>notes</b> à la fin de cette piste
-                  (durée : une mesure), via le clic sur l'accord, « ➕ Piste » ou le ⏱ timer.</li>
-                <li><b className="text-white">✨ Illumination piste</b> : pendant la lecture (WAV <b>ou</b> MIDI), les touches
-                  s'illument au contenu de la piste jouée (fidèle, même tête de lecture). Bascule ON/OFF dans le
-                  panneau (préférence mémorisée).</li>
+                  (durée : une mesure), via le clic sur l'accord, « ➕ Piste » ou le ⏱ timer. Les notes insérées
+                  sont <b>celles que tu joues réellement</b> (hauteurs exactes, inversions comprises), dans
+                  <b>l'ordre où tu les plaques</b> — pas un réordonnancement par le dictionnaire d'harmonie.</li>
+                <li><b className="text-white">✨ Illumination</b> : le piano s'illume quand tu joues sur le clavier MIDI
+                  (comme en Live), et — pendant la lecture (WAV <b>ou</b> MIDI) — au contenu de la piste jouée
+                  (fidèle, même tête de lecture). La bascule ✨ contrôle la partie « piste jouée »
+                  (préférence mémorisée).</li>
               </ul>
             </>} />
             <p className="text-xs text-gray-500">
