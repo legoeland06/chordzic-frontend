@@ -131,3 +131,22 @@ describe('selectionZoomParams — fit-zoom-to-selection', () => {
     expect(p.zoom).toBe(4);
   });
 });
+
+describe('selectionZoomParams — écran pleine largeur', () => {
+  const sel = (notes: [number, number][]) => notes.map(([startTime, duration], i) => ({ id: `n${i}`, startTime, duration }));
+
+  it('viewport très large (1920px) : la sélection est cadrée et centrée', () => {
+    const p = selectionZoomParams(sel([[10, 8]]), 1920, 96, 200, 0.5, 4, 200);
+    // target = (1920-60)/(8×96) ≈ 2.42 → non borné
+    expect(p.zoom).toBeCloseTo(1860 / 768, 2);
+    const ppb = 96 * p.zoom;
+    const centeredBeat = (p.scrollLeft + 960) / ppb;
+    expect(centeredBeat).toBeCloseTo(14, 0); // milieu de la sélection centré
+    expect(p.scrollLeft).toBeGreaterThanOrEqual(0);
+  });
+
+  it('zoom max atteint sur très grand viewport avec une petite sélection', () => {
+    const p = selectionZoomParams(sel([[0, 1]]), 1920, 96, 200, 0.5, 4, 200);
+    expect(p.zoom).toBe(4);
+  });
+});

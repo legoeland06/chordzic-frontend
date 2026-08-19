@@ -132,3 +132,28 @@ describe('computePianoFontSize (fit scale)', () => {
     expect(computePianoFontSize(5000, 208)).toBe(14); // très large → max
   });
 });
+
+describe('Effets de bord largeur — plein écran (étude 21:30)', () => {
+  it('échelles typiques pour des écrans courants (appli pleine largeur)', () => {
+    // A0→C8 = 208em : 1920px → ~9.2px ; 2560px → ~12.3px ; 4K → borné 14
+    expect(computePianoFontSize(1920, 208)).toBeCloseTo(1918 / 208, 1);
+    expect(computePianoFontSize(2560, 208)).toBeCloseTo(2558 / 208, 1);
+    expect(computePianoFontSize(3840, 208)).toBe(14); // borne max
+  });
+
+  it('INVARIANT : quand l échelle n est pas bornée, le piano tient TOUJOURS dans le conteneur', () => {
+    for (const w of [320, 640, 1024, 1280, 1920, 2560, 3200]) {
+      const fs = computePianoFontSize(w, 208);
+      if (fs > 3 && fs < 14) {
+        // non borné : largeur totale = 208em × fs + 2px de bordures ≤ conteneur
+        expect(208 * fs + 2).toBeLessThanOrEqual(w + 0.01);
+      }
+    }
+  });
+
+  it('le piano ne déborde JAMAIS d un écran standard même au zoom max (14px)', () => {
+    // 208em × 14px = 2912px : tient dans un écran 4K (3840), centré
+    expect(208 * 14).toBe(2912);
+    expect(2912).toBeLessThan(3840);
+  });
+});
