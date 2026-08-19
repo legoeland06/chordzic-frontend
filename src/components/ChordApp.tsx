@@ -23,6 +23,7 @@ import LiveSettingsBar from './LiveSettingsBar';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import PianoLivePanel from './PianoLivePanel';
+import ChordNowModal from './ChordNowModal';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import PianoRoll from './PianoRoll';
@@ -1276,6 +1277,9 @@ export default function ChordApp() {
                 <p className="text-gray-500 text-sm">Entre des accords pour commencer</p>
               </div>
             )}
+
+            {/* Accord en cours de lecture — modal circulaire translucide */}
+            <ChordNowModal chords={chords} highlighted={highlighted} playing={playing} />
           </>
         )}
 

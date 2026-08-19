@@ -295,6 +295,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>Sur chaque piste : bouton <b>On / MUTE</b>, sélecteur des <b>128 instruments GM</b> (sauf drums), slider de volume.</p>
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Désactivé par défaut." />
+            <Row k="🎯 Accord en lecture" v={<><b>Modal circulaire translucide</b> (mode Live) : pendant la lecture, l'accord joué par la séquence s'affiche en <b>très gros</b> au centre de l'écran, avec l'accord suivant en petit en dessous (un tiret <code>—</code> pour un silence). Ne bloque pas les clics (transparent aux événements).</>} />
             <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — <b>tête de lecture synchronisée</b>, arrêt par re-clic (⏹) ou Stop, clic sur une piste pour relancer depuis là. Réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
             <Row k="🔁 Loop" v={<>
               Répète la grille en boucle (désactivé pendant la lecture). Avec les{' '}
