@@ -18,6 +18,7 @@ import type { SampleLoopCfg } from '../lib/browserSynth';
 import { DEFAULT_SAMPLE_VOLUME } from '../lib/sampleLoop';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
+import LiveSettingsBar from './LiveSettingsBar';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import PianoLivePanel from './PianoLivePanel';
@@ -1204,6 +1205,15 @@ export default function ChordApp() {
             engine={engineRef.current}
             input={input}
             sig={sig}
+            volume={volume}
+            onSetVolume={setVolume}
+            use432={use432}
+            onSet432={setUse432}
+            walkingBass={walkingBass}
+            onSetWalkingBass={setWalkingBass}
+            drumPattern={drumPattern}
+            onSetDrumPattern={setDrumPattern}
+            onSetSig={setSig}
             onPostProd={bounceToPostProd}
             bouncing={bouncing}
           />
@@ -1230,6 +1240,19 @@ export default function ChordApp() {
             onExtractWav={handleExtractWav} hasWav={hasWav}
             onTempoChange={setTempo}
             onGoNavig={() => setNavigMode(true)}
+          />
+        </div>
+
+        {/* Réglages musicaux (compact, style Navig) */}
+        <div className="bg-gray-900/60 rounded-lg border border-gray-800/80 px-3 py-2 mb-2">
+          <LiveSettingsBar
+            volume={volume} onSetVolume={setVolume}
+            use432={use432} onSet432={setUse432}
+            loopOn={loopOn} onSetLoop={setLoopOn}
+            walkingBass={walkingBass} onSetWalkingBass={setWalkingBass}
+            drumPattern={drumPattern} onSetDrumPattern={setDrumPattern}
+            sig={sig} onSetSig={setSig}
+            playing={playing}
           />
         </div>
 

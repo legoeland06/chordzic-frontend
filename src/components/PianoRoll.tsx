@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from
 import { createPortal } from 'react-dom';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
-  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2,
 } from 'lucide-react';
 import {
   xFromBeat,
@@ -111,6 +111,10 @@ interface PianoRollProps {
   engine?: AudioEngine | null;
   /** Lecture MIDI via le port choisi (mode intégré) : envoie les notes au backend. */
   onPlayMidi?: (notes: PianoNote[]) => void;
+  /** Mode embarqué : ouvre le Piano Roll MODAL (grand) pour travailler à de
+   * meilleures échelles. Les deux partagent les mêmes notes (cohérence
+   * instantanée). */
+  onExpand?: () => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -130,6 +134,7 @@ export default function PianoRoll({
   onClose,
   onPlayMidi,
   onPreviewNote,
+  onExpand,
   tempo,
   engine,
   onSnapChange,
@@ -1590,6 +1595,17 @@ export default function PianoRoll({
               className="accent-blue-500" title="Bord haut du registre visible" />
             <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
           </div>
+          {onExpand && (
+            <>
+              <div className="pr-sep" />
+              {/* Agrandir : Piano Roll modal (grande échelle) */}
+              <div className="pr-group">
+                <button className={btn(false)} onClick={onExpand} title="Ouvrir le Piano Roll en grand (modal) pour travailler à de meilleures échelles">
+                  <Maximize2 className="w-3 h-3" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
       );
     }

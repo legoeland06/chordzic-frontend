@@ -314,7 +314,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Mode Live uniquement." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />
             <Row k="🎛️ MIDI:" v="Choisit la sortie MIDI : FluidSynth (logiciel) ou Roland (piano numérique) — réglage dans le panneau ⚙ des ports MIDI & Audio." />
-            <Row k="🎹 Roll" v={<><b>Bouton du mixeur</b> (mode 📱 Navig.) : sur chaque carte de piste, « 🎹 Roll » ouvre/ferme le <b>Piano Roll intégré</b> de cette piste (équivalent au clic sur son nom dans les pistes).</>} />
+            <Row k="🎹 Roll" v={<><b>Bouton du mixeur</b> (mode 📱 Navig.) : sur chaque carte de piste, « 🎹 Roll » ouvre/ferme le <b>Piano Roll intégré</b> de cette piste (équivalent au clic sur son nom dans les pistes). Dans la barre d'outils du Piano Roll intégré, le bouton <b>⛶</b> ouvre le même Piano Roll en <b>modal plein écran</b> pour travailler à de meilleures échelles — les deux restent <b>parfaitement synchronisés</b> (mêmes notes, modification instantanée des deux côtés).</>} />
             <Row k="🎹 Accord détecté" v={<>
               <b>Reconnaissance d'accords en temps réel</b> : le badge écoute le clavier MIDI (ex. Roland) et affiche
               l'accord plaqué — <code>2 notes</code> : reconnaissance stricte ; <code>3 notes et +</code> : tolérance

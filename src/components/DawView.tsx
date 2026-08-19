@@ -18,6 +18,7 @@ import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
 import PianoLivePanel from './PianoLivePanel';
+import LiveSettingsBar from './LiveSettingsBar';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
@@ -84,6 +85,15 @@ interface DawViewProps {
   onLocatorsChange: (l: number, r: number) => void;
   sig: string;                          // signature rythmique (compteur de mesures)
   input: string;                        // signature du contenu (re-rendu si modifié)
+  volume: number;
+  onSetVolume: (v: number) => void;
+  use432: boolean;
+  onSet432: (v: boolean) => void;
+  walkingBass: boolean;
+  onSetWalkingBass: (v: boolean) => void;
+  drumPattern: string;
+  onSetDrumPattern: (v: string) => void;
+  onSetSig: (v: string) => void;
   engine: AudioEngine;                  // lecture / pause / seek
   onPlay: (startAtBeats?: number, renderer?: Renderer) => void; // rend le WAV + joue (départ optionnel, ex. locator gauche ; moteur Interne/Externe)
   onStop: () => void;
@@ -482,6 +492,8 @@ function LocatorHandle({ side, beat, contentW, totalBeats, color, onMove }: {
 
 export default function DawView({
   tracks, pianoNotes, playing, hasWav, tempo, loopOn, locL, locR, onLocatorsChange, sig, input, engine,
+  volume, onSetVolume, use432, onSet432, walkingBass, onSetWalkingBass, drumPattern, onSetDrumPattern,
+  onSetSig,
   onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
@@ -505,6 +517,10 @@ export default function DawView({
   /** Canal dont la lane est AGRANDIE (PianoRoll intégré). Une seule à la
    * fois : la barre d'outils (dans la zone transport) pilote cette piste. */
   const [expandedCh, setExpandedCh] = useState<number | null>(null);
+  /** Canal ouvert dans le Piano Roll MODAL (grande échelle) — ouvert depuis
+   * le bouton ⛶ de la toolbar du PianoRoll intégré. Les deux partagent les
+   * MÊMES notes (pianoNotes) : cohérence totale et instantanée. */
+  const [modalPianoRoll, setModalPianoRoll] = useState<number | null>(null);
   /** Index de la piste agrandie (pour aligner le slot clavier sur sa lane). */
   const expandedIndex = tracks.findIndex(t => t.channel === expandedCh);
   /** Panneau supérieur : rétractable, deux onglets — 🎹 Piano (défaut, à la
@@ -1171,6 +1187,20 @@ export default function DawView({
         <div className={tSep} />
 
         </div>
+        {/* Rangée 2b — réglages musicaux (volume master, 432Hz, WB, pattern,
+            mesure) — partagés avec le mode Live, style affiné */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 mt-1 border-t border-[#1c2430]/80">
+          <LiveSettingsBar
+            volume={volume} onSetVolume={onSetVolume}
+            use432={use432} onSet432={onSet432}
+            loopOn={loopOn} onSetLoop={onSetLoop}
+            walkingBass={walkingBass} onSetWalkingBass={onSetWalkingBass}
+            drumPattern={drumPattern} onSetDrumPattern={onSetDrumPattern}
+            sig={sig} onSetSig={onSetSig}
+            playing={playState === 'playing'}
+            showLoop={false}
+          />
+        </div>
         {/* Rangée 3 — fichiers & vues */}
         <div className="flex flex-wrap items-center gap-1.5">
         {/* Fichiers */}
@@ -1468,6 +1498,7 @@ export default function DawView({
                           onPreviewNote={(pitch) => engine.playPreviewNote(t.channel, pitch)}
                           onPlayMidi={(notes) => playMidiViaPort(notes, t.channel)}
                           onSnapChange={handleLocSnap}
+                          onExpand={() => setModalPianoRoll(t.channel)}
                         />
                       ) : (
                         <TrackLane
@@ -1552,6 +1583,57 @@ export default function DawView({
           </div>
         </div>
       )}
+
+      {/* ── Piano Roll MODAL (grande échelle) — ouvert depuis ⛶ de la
+          toolbar du PianoRoll intégré. Partage les MÊMES notes (pianoNotes)
+          → cohérence totale et instantanée entre intégré et modal. ── */}
+      {modalPianoRoll !== null && (() => {
+        const track = tracks.find(t => t.channel === modalPianoRoll);
+        const channelNotes = pianoNotes[modalPianoRoll] ?? [];
+        const label = track?.label ?? `Canal ${modalPianoRoll}`;
+        return (
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-3 sm:p-6"
+            onClick={() => setModalPianoRoll(null)}
+          >
+            <div
+              className="bg-[#0d1117] rounded-xl border border-gray-800 shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* En-tête */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 shrink-0">
+                <div className="text-xs font-bold flex items-center gap-2" style={{ color: trackColor(modalPianoRoll) }}>
+                  🎹 {label} — Piano Roll
+                  <span className="text-[9px] text-gray-500 font-normal">(synchronisé avec le Piano Roll intégré)</span>
+                </div>
+                <button
+                  onClick={() => setModalPianoRoll(null)}
+                  className="px-2 py-1 text-[10px] font-bold rounded-md bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors"
+                  title="Fermer (Échap)"
+                >
+                  ✕ Fermer
+                </button>
+              </div>
+              {/* Piano Roll plein format */}
+              <div className="flex-1 min-h-0">
+                <PianoRoll
+                  notes={channelNotes}
+                  onNotesChange={(notes) => onNotesChange(modalPianoRoll, notes)}
+                  trackLabel={label}
+                  channel={modalPianoRoll}
+                  isDrum={track?.channel === 9 || !!track?.drums}
+                  totalBeats={totalBeats}
+                  tempo={tempo}
+                  engine={engine}
+                  onClose={() => setModalPianoRoll(null)}
+                  onPreviewNote={(pitch) => engine.playPreviewNote(modalPianoRoll, pitch)}
+                  onPlayMidi={(notes) => playMidiViaPort(notes, modalPianoRoll)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
