@@ -296,7 +296,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Vol:" v="Volume master (10–127)." />
             <Row k="432Hz" v="Accordage A=432 Hz (au lieu de 440 Hz). Désactivé par défaut." />
             <Row k="🎯 Accord en lecture" v={<><b>Modal circulaire translucide</b> (mode Live) : pendant la lecture, l'accord joué par la séquence s'affiche en <b>très gros</b> au centre de l'écran, avec l'accord suivant en petit en dessous (un tiret <code>—</code> pour un silence). Ne bloque pas les clics (transparent aux événements).</>} />
-            <Row k="📱 Navig." v={<><b>Vue DAW</b> : bascule vers la table de mixage + les pistes horizontales (voir plus bas). Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — <b>tête de lecture synchronisée</b>, arrêt par re-clic (⏹) ou Stop, clic sur une piste pour relancer depuis là. Réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
+            <Row k="📱 Navig." v={<><b>Vue DAW</b> : le bouton <b>📱 Navig.</b> (en haut du panneau piano, mode Live) bascule vers le mixeur/piano + les pistes horizontales (voir plus bas) ; en mode Navig, le panneau piano porte le bouton <b>🖥 Live</b> pour revenir. Rendu WAV du PC, permet « Extract Wav » et le travail sur les notes de chaque piste. Le bouton <b className="text-amber-400">🔌 MIDI</b> de la barre de transport joue <b>toutes les pistes</b> sur le port MIDI choisi (ex. Roland), comme le mode Live — <b>tête de lecture synchronisée</b>, arrêt par re-clic (⏹) ou Stop, clic sur une piste pour relancer depuis là. Réglage des ports via <b className="text-amber-400">⚙</b>.</>} />
             <Row k="🔁 Loop" v={<>
               Répète la grille en boucle (désactivé pendant la lecture). Avec les{' '}
               <b className="text-white">locators L/R</b> (barre au-dessus des pistes, mode 📱 Navig.), la boucle couvre{' '}
@@ -447,8 +447,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               dans la barre du haut</b> (juste au-dessus de la table de mixage, polices réduites). Le bouton <b className="text-white">🔌 MIDI</b>
               envoie les notes (même les dernières insérées) sur le <b className="text-white">port MIDI choisi</b> (instrument externe,
               ex. Roland) — le routage se règle via le bouton <b className="text-white">⚙ (en-tête)</b> : ports MIDI et sortie audio.
-              La <b className="text-white">table de mixage se masque automatiquement</b> pendant l'édition pour laisser la place, et revient quand la piste
-              est réduite — <b className="text-white">▼</b> les réduit.
+              Le panneau supérieur (<b className="text-white">🎹 Piano / 🎚 Mixer</b>, onglets) reste ouvert pendant
+              l'édition — <b className="text-white">▼</b> le replie.
               Un <b className="text-white">clic sur le nom</b> d'une piste fait la même chose (agrandir/réduire le Piano Roll intégré).
               À <b className="text-white">droite du nom</b> de chaque piste, un <b className="text-white">mini-vumètre</b>
               (4 petits tirets vert/jaune/rouge) indique l'activité de la piste pendant la lecture.
@@ -458,8 +458,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (zoom) et le défilement horizontal ne concernent que <b className="text-white">le contenu</b> des pistes.
               Pour <b className="text-white">réordonner les pistes</b>, glissez-déposez le nom d'une piste
               (le nouvel ordre s'applique partout : table de mixage, pistes et mode Live).
-              Les pistes sont <b>pré-remplies automatiquement</b> avec l'arrangement classique ; vos
-              modifications ne sont jamais écrasées.
+              À l'ouverture du Piano Roll, le <b className="text-white">registre s'adapte automatiquement au contenu</b>
+              de la piste (fit vertical) ; vos modifications ne sont jamais écrasées.
             </p>
             <p className="font-bold text-white mt-3">Lecture (barre de transport)</p>
             <Row k="▶ Play" v="Lance le rendu WAV et la lecture depuis la tête de lecture (re-rendu automatique si le contenu a changé)." />
@@ -477,8 +477,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           {/* ── Piano Roll ── */}
           <Section id="pianoroll" icon="🎹" title="Piano Roll">
             <p>
-              Ouvert par le bouton <b>🎹</b> d'une piste. Les notes que jouerait le mode classique y sont
-              <b> pré-remplies automatiquement</b> ; vos modifications ne sont jamais écrasées.
+              Ouvert par le bouton <b className="text-white">🎹 Roll</b> du mixeur, le <b className="text-white">clic sur le nom</b>
+              d'une piste ou son <b className="text-white">chevron ▶</b> (mode 📱 Navig.).
             </p>
             <p className="font-bold text-white mt-3">Mode ✏️ Édition (défaut)</p>
             <Row k="Clic sur le vide" v="Crée une note (audition immédiate). Glisser ajuste la durée." />
@@ -499,8 +499,10 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers du PROJET : Copier prend la sélection — ou TOUTE la piste si rien n'est sélectionné. Coller dans la même piste se fait à l'endroit du dernier clic ; coller dans une AUTRE piste place les notes aux mêmes emplacements et valeurs (voir la section « Copier / coller entre pistes »)." />
             <Row k="⛓ Grouper / Dégrouper" v="Les notes groupées se sélectionnent et se déplacent ensemble (le bord droit reste individuel)." />
             <Row k="↩ Annuler / ↪ Rétablir" v="Historique de 100 gestes." />
-            <Row k="− / + (zoom)" v="Zoom horizontal : du fit-to-width (dézoomer suffisamment affiche TOUTE la piste d'un coup) jusqu'à 400 % (ou Ctrl+molette ; Shift+molette = défilement)." />
-            <Row k="Reg:" v="Registre visible (plage de notes affichée) ; s'étend automatiquement pour couvrir les notes." />
+            <Row k="🔍 Zoom / défilement" v="Ctrl+molette ou G/H = zoom horizontal (bornes : fit-to-width → 400 %) ; molette simple = scroll vertical du registre (~1 quinte par cran) ; Shift+molette = défilement horizontal. Le modal s'ouvre calé sur tout le morceau (fit-to-width)." />
+            <Row k="📐 Registre vertical" v="S'adapte automatiquement au contenu de la piste à l'ouverture (fit vertical) ; la molette le déplace (les notes hors champ deviennent accessibles — le clavier en marge suit)." />
+            <Row k="⛶ Zoom sur la sélection" v="Recentre et zoome la vue (temps + registre) sur les notes sélectionnées." />
+            <Row k="🎹 Clavier en marge" v="Le clavier de piano vertical (à droite) se rétracte/réaffiche via le bouton 🎹 posé sur la marge elle-même (préférence mémorisée)." />
             <Row k="▶ Lecture" v="Écoute la piste seule (rendu WAV du canal) avec curseur rouge ; Espace = lecture/pause." />
             <p className="text-xs text-gray-500">
               📱 Tactile : pincer pour zoomer, double-tap sur une note = supprimer, barre de défilement en bas.
@@ -537,6 +539,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k={<Key>Espace</Key>} v="Lecture / pause de la piste (hors saisie)" />
             <Row k={<Key>Esc</Key>} v="Fermer le piano roll" />
             <Row k={<><Key>Ctrl</Key>+molette</>} v="Zoom horizontal" />
+            <Row k={<Key>Molette</Key>} v="Scroll vertical du registre (piano roll)" />
             <Row k={<><Key>G</Key> / <Key>H</Key></>} v="Zoom arrière / zoom avant (piano roll)" />
             <Row k={<><Key>Shift</Key>+molette</>} v="Défilement horizontal" />
           </Section>
@@ -632,7 +635,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="« ❌ Erreur: … »" v="Le serveur a refusé la demande (séquence vide, etc.) — relisez le message affiché dans la ligne de statut." />
             <Row k="Save échoue" v="« Sauvegarde impossible (serveur injoignable) » : le serveur :4000 doit être accessible." />
             <Row k="Boucles absentes" v="Ajoutez des fichiers .wav nommés par tempo (ex. snap_120.wav) dans ~/samples/drums/." />
-            <Row k="Registre piano roll" v="S'il s'étend tout seul, resserrez-le avec les sliders Reg: (écart min. 1 octave)." />
+            <Row k="Registre piano roll" v="Piloté par le contenu (fit vertical à l'ouverture) ; déplacez-le à la molette (scroll vertical) — le clavier en marge suit." />
           </Section>
 
           <p className="text-center text-[10px] text-gray-600 pt-4">
