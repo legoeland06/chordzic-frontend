@@ -18,7 +18,6 @@ import type { SampleLoopCfg } from '../lib/browserSynth';
 import { DEFAULT_SAMPLE_VOLUME } from '../lib/sampleLoop';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
-import TrackPanel from './TrackPanel';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import PianoLivePanel from './PianoLivePanel';
@@ -31,9 +30,6 @@ import PostProdView from './PostProdView';
 import { PostProdEngine } from '../lib/postProdEngine';
 import { PostProdSession, PostProdTrack, createFullClip, trackColorForChannel } from '../lib/postProdTypes';
 import { chordToNoteNames } from '../lib/chordUtils';
-
-/** Tableau vide partagé : référence STABLE (évite les re-renders/effets parasites). */
-const EMPTY_NOTES: PianoNote[] = [];
 
 // Clé localStorage des ANCIENNES grilles (migration unique vers le serveur)
 const STORAGE_KEY = 'chordjava_saved_grilles';
@@ -75,7 +71,7 @@ export default function ChordApp() {
   // ── État : paramètres audio ──────────────────────────────────────
   const [tempo, setTempo] = useState(120);
   const [volume, setVolume] = useState(127);
-  const [use432, setUse432] = useState(true);
+  const [use432, setUse432] = useState(false);
   const [browserAudio, setBrowserAudio] = useState(false);
   /** Vrai dès qu'un WAV a été rendu en mode Navig (bouton Extract actif). */
   const [hasWav, setHasWav] = useState(false);
@@ -121,8 +117,6 @@ export default function ChordApp() {
     }
     setLocalTracks(nextTracks);
     for (const t of nextTracks) engineRef.current?.setTrack(t.channel, t);
-    // Fermer le piano roll s'il visait une piste supprimée par le chargement
-    setOpenPianoRoll(prev => (prev !== null && !nextChannels.has(prev) ? null : prev));
   };
 
   /** Vrai pendant un chargement de grille : l'auto-config Reggae est suspendue
@@ -198,7 +192,6 @@ export default function ChordApp() {
       delete next[channel];
       return next;
     });
-    if (openPianoRoll === channel) setOpenPianoRoll(null);
     setPendingDeleteTrack(null);
     setStatus(`🗑 Piste « ${t?.label ?? channel} » supprimée`); setStatusColor('text-blue-400');
   };
@@ -271,49 +264,10 @@ export default function ChordApp() {
 
   // ── État : piano roll (notes personnalisées par piste) ───────────
   const [pianoNotes, setPianoNotes] = useState<Record<number, PianoNote[]>>({});
-  const [openPianoRoll, setOpenPianoRoll] = useState<number | null>(null);
 
   const handlePianoRollChange = useCallback((channel: number, notes: PianoNote[]) => {
     setPianoNotes(prev => ({ ...prev, [channel]: notes }));
   }, []);
-
-  // ── Pré-remplissage du PianoRoll avec les notes du mode classique ──
-  // À l'ouverture d'une piste jamais éditée, on demande au backend les notes
-  // que jouerait le mode classique pour la grille COURANTE. Re-déclenché
-  // quand la grille change. Les notes marquées `edited` (modifiées par
-  // l'utilisateur) ne sont JAMAIS écrasées.
-  useEffect(() => {
-    if (openPianoRoll === null) return;
-    const current = pianoNotes[openPianoRoll];
-    // Déjà édité manuellement (notes modifiées, créées, ou canal vidé) → ne pas toucher
-    if (current !== undefined && (current.length === 0 || current.some(n => n.edited || !n.id.startsWith('seed-')))) return;
-    if (chords.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const engine = await getEngine();
-        const fetched = await engine.getPianoNotes({ titre: 'Session', tempo, chords });
-        if (cancelled) return;
-        const notes = fetched ?? [];
-        const chNotes: PianoNote[] = notes
-          .filter(n => n.channel === openPianoRoll)
-          .map((n, i) => ({
-            id: `seed-${openPianoRoll}-${i}`,
-            startTime: n.start_time,
-            pitch: n.pitch,
-            duration: n.duration,
-            velocity: n.velocity,
-          }));
-        setPianoNotes(prev => ({ ...prev, [openPianoRoll]: chNotes }));
-        setStatus(`🎹 PianoRoll pré-rempli : ${chNotes.length} notes (mode classique)`);
-        setStatusColor('text-green-400');
-      } catch (e) {
-        console.warn('⚠️ Pré-remplissage PianoRoll impossible:', e);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openPianoRoll, chords]);
 
   // ── Dernier chiffrage tapé (pour l'autocomplétion de ChordInput) ──
   const [lastChiffrage, setLastChiffrage] = useState('');
@@ -617,7 +571,25 @@ export default function ChordApp() {
         setChords(grille.chords);
       } catch {}
     }
-    if (chordsToPlay.length === 0) return;
+
+    // Convertir les pianoNotes en customNotes pour le backend (calculé
+    // AVANT le garde-fou : la lecture Navig doit marcher avec des notes
+    // même si la grille Live est vide).
+    const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
+      (notes as PianoNote[]).map(n => ({
+        channel: parseInt(ch),
+        start_time: n.startTime,
+        pitch: n.pitch,
+        duration: n.duration,
+        velocity: n.velocity,
+      }))
+    );
+    // Rien à jouer : alerte UNIQUEMENT si la grille ET les notes sont vides.
+    if (chordsToPlay.length === 0 && customNotes.length === 0) {
+      setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)');
+      setStatusColor('text-red-400');
+      return;
+    }
 
     // Lookups par CANAL (les index fixes tracks[i] se décale si une piste
     // est supprimée — pistes dynamiques).
@@ -635,16 +607,6 @@ export default function ChordApp() {
     setPlaying(true);
     setStatus('▶ Lecture...'); setStatusColor('text-green-400');
 
-    // Convertir les pianoNotes en customNotes pour le backend
-    const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
-      (notes as PianoNote[]).map(n => ({
-        channel: parseInt(ch),
-        start_time: n.startTime,
-        pitch: n.pitch,
-        duration: n.duration,
-        velocity: n.velocity,
-      }))
-    );
     // Canaux en mode PianoRoll (ouverts/édités) — les autres canaux
     // continuent de jouer en mode classique
     const customChannels = Object.keys(pianoNotes).map(Number);
@@ -808,13 +770,12 @@ export default function ChordApp() {
     // Paramètres audio par défaut
     setTempo(120);
     setVolume(127);
-    setUse432(true);
-    engineRef.current?.set432Hz(true);
+    setUse432(false);
+    engineRef.current?.set432Hz(false);
     // Pistes par défaut (remplace la liste ET synchronise le moteur)
     applyLoadedTracks(DEFAULT_TRACKS);
     // Piano rolls & édition
     setPianoNotes({});
-    setOpenPianoRoll(null);
     setDragIdx(null);
     // Options musicales
     setDrumPattern('rock');
@@ -823,8 +784,8 @@ export default function ChordApp() {
     // Boucle sample
     setSampleLoopState({ enabled: false, sample: '', volume: DEFAULT_SAMPLE_VOLUME, offsetMs: 0 });
     engineRef.current?.setSampleLoop(null);
-    // Modes & sessions
-    setNavigMode(false);
+    // Modes & sessions — on RESTE dans le mode courant (Live ou Navig) :
+    // seul le contenu est remis à zéro.
     setHasWav(false);
     setPostProdSession(null);
     setShowPostProd(false);
@@ -883,8 +844,9 @@ export default function ChordApp() {
    * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
    * `startAtBeats` : position de départ (0 = début). */
   const playMidiAll = useCallback(async (startAtBeats = 0) => {
-    if (chords.length === 0) {
-      setStatus('❌ Grille vide — rien à jouer en MIDI'); setStatusColor('text-red-400');
+    const hasNotes = Object.values(pianoNotes).some(notes => notes.length > 0);
+    if (chords.length === 0 && !hasNotes) {
+      setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)'); setStatusColor('text-red-400');
       return;
     }
     const sequence = chords.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time }));
@@ -1268,22 +1230,6 @@ export default function ChordApp() {
             onExtractWav={handleExtractWav} hasWav={hasWav}
             onTempoChange={setTempo}
           />
-
-          <TrackPanel
-            chords={chords} highlighted={highlighted} playing={playing}
-            currentBeat={currentBeat} tempo={tempo}
-            volume={volume} use432={use432} browserAudio={browserAudio}
-            loopOn={loopOn} walkingBass={walkingBass} drumPattern={drumPattern} sig={sig}
-            tracks={tracks}
-            onSetVolume={setVolume} onSet432={setUse432}
-            onSetBrowserAudio={setNavigMode}
-            onSetLoop={setLoopOn} onSetWalkingBass={setWalkingBass}
-            onSetDrumPattern={setDrumPattern} onSetSig={setSig} onSetTempo={setTempo}
-            onUpdateTrack={updateTrack}
-            onAddTrack={() => setShowAddTrack(true)}
-            onRemoveTrack={requestRemoveTrack}
-            onOpenPianoRoll={setOpenPianoRoll}
-          />
         </div>
 
         <ProgressBar chords={chords} highlighted={highlighted} playing={playing} currentBeat={currentBeat} tempo={tempo} />
@@ -1432,25 +1378,6 @@ export default function ChordApp() {
           }}
           onUpdateChord={handleUpdateChord}
         />
-
-        {/* Piano Roll Modal */}
-        {openPianoRoll !== null && (() => {
-          const track = tracks.find(t => t.channel === openPianoRoll);
-          const channelNotes = pianoNotes[openPianoRoll] ?? EMPTY_NOTES;
-          return (
-            <PianoRoll
-              notes={channelNotes}
-              onNotesChange={(notes) => handlePianoRollChange(openPianoRoll, notes)}
-              trackLabel={track?.label ?? `Canal ${openPianoRoll}`}
-              channel={openPianoRoll}
-              isDrum={track?.drums ?? false}
-              onClose={() => setOpenPianoRoll(null)}
-              onPreviewNote={(pitch) => { engineRef.current?.playPreviewNote(openPianoRoll, pitch); }}
-              tempo={tempo}
-              engine={engineRef.current}
-            />
-          );
-        })()}
 
         {/* Aide utilisateur */}
         <HelpModal show={showHelp} onClose={() => setShowHelp(false)} />

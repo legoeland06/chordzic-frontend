@@ -1322,6 +1322,13 @@ export default function DawView({
               <div className="px-2 pb-2 pt-1.5 border-t border-gray-800/80 bg-black/20 flex flex-col gap-1.5">
                 <div className="flex items-center justify-center gap-1">
                   <button
+                    onClick={() => toggleExpanded(t.channel)}
+                    className={`text-[10px] px-2 py-0.5 rounded font-bold ${expandedCh === t.channel ? 'bg-yellow-900/40 text-yellow-300' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    title={expandedCh === t.channel ? 'Réduire la piste (fermer le Piano Roll intégré)' : 'Ouvrir le Piano Roll intégré de cette piste'}
+                  >
+                    🎹 Roll
+                  </button>
+                  <button
                     onClick={() => onUpdateTrack(t.channel, { mute: !t.mute })}
                     className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.mute ? 'bg-red-900/40 text-red-400' : 'bg-gray-700 text-gray-400'}`}
                   >
