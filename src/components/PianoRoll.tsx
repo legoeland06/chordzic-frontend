@@ -1689,29 +1689,8 @@ export default function PianoRoll({
               </div>
             </>
           )}
-          {/* Raccourcis contextuels (desktop uniquement — affichés en modal) */}
-          {!embedded && (
-            <div className="hidden sm:flex flex-wrap gap-x-3 gap-y-0.5 ml-auto shrink-0 pl-2">
-              {tool === 'edit' ? (
-                <>
-                  <span>{'\ud83d\uddb1'} Clic vide → créer</span>
-                  <span>↕ Drag → déplacer</span>
-                  <span>↔ Bord droit → taille</span>
-                  <span>{'\ud83d\udd04'} Double-clic → suppr.</span>
-                </>
-              ) : (
-                <>
-                  <span>{'\ud83d\uddb1'} Clic → sélectionner</span>
-                  <span>⬒ Drag vide → plage</span>
-                  <span>↕ Drag note → déplacer la sélection</span>
-                  <span>⇧ Clic → ajouter/retirer</span>
-                </>
-              )}
-              <span>⌨ Ctrl+Z/Y, Ctrl+C/X/V, Ctrl+A, Suppr</span>
-              <span>{'\u26d3\ufe0f'} Grouper : la sélection se déplace ensemble</span>
-              <span>{'\ud83d\udd0d'} Ctrl+molette / G-H → zoom · molette → scroll vertical</span>
-            </div>
-          )}
+
+
         </div>
       );
   };
