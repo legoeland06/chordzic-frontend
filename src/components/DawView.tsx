@@ -22,7 +22,7 @@ import LiveSettingsBar from './LiveSettingsBar';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
-import { wrapLoopPositionSec, locBeatToMes, locMesToBeat, computeStartBeats } from '../lib/navPosition';
+import { wrapLoopPositionSec, locBeatToMes, locMesToBeat, computeStartBeats, laneTop } from '../lib/navPosition';
 import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
@@ -1379,6 +1379,11 @@ export default function DawView({
         <div className="flex items-stretch">
           {/* Panneau GAUCHE fixe : chevron + nom + mini-vumètre (jamais déplacé par le zoom) */}
           <div className="shrink-0 w-[168px] border-r border-gray-800/80">
+            {/* Espace de tête = hauteur de la barre des locators : sans lui,
+                les NOMS de pistes seraient alignés sur la barre des locators
+                (colonne droite) au lieu de leur lane (bug « locators sur la
+                ligne de la piste Lead »). */}
+            <div className="border-b border-gray-800/60" style={{ height: LOC_BAR_H }} />
             {tracks.map((t, i) => {
               const isExpanded = expandedCh === t.channel;
               const h = isExpanded ? LANE_PIANOROLL_H : LANE_COMPACT_H;
@@ -1509,7 +1514,7 @@ export default function DawView({
                 id="pianoroll-keys-slot"
                 className="absolute right-0 z-20 border-l border-gray-800/60"
                 style={{
-                  top: LOC_BAR_H + expandedIndex * (LANE_COMPACT_H + 4),
+                  top: laneTop(expandedIndex, LANE_COMPACT_H, 4, LOC_BAR_H),
                   width: keysVisible ? PIANO_KEYBOARD_WIDTH : 20,
                   height: LANE_PIANOROLL_H + 4,
                 }}

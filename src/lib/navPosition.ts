@@ -73,3 +73,23 @@ export function locMesToBeat(text: string, beatsPerBar: number): number | null {
   if (mes < 1 || t < 1 || t > beatsPerBar) return null;
   return (mes - 1) * beatsPerBar + (t - 1);
 }
+
+// ─── Alignement vertical des pistes (mode Navig) ──────────────────────
+
+/** Hauteur d'une ligne de piste (lane compacte + sa bordure/bas). */
+export function laneRowHeight(compactLaneH: number, gap: number): number {
+  return compactLaneH + gap;
+}
+
+/** Top Y d'une lane dans la colonne de CONTENU : la barre des locators
+ * (hauteur headerH) est au-dessus — les lanes commencent dessous. */
+export function laneTop(index: number, compactLaneH: number, gap: number, headerH: number): number {
+  return headerH + index * laneRowHeight(compactLaneH, gap);
+}
+
+/** Top Y d'un NOM de piste dans le panneau gauche (sans le header). Le
+ * panneau doit être décalé de headerH en tête pour que nom et lane restent
+ * ALIGNÉS : nameTop(i) + headerH === laneTop(i). */
+export function nameTop(index: number, compactLaneH: number, gap: number): number {
+  return index * laneRowHeight(compactLaneH, gap);
+}

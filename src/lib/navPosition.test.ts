@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { laneRowHeight, laneTop, nameTop } from './navPosition';
 import {
   beatsFromSeconds,
   computeStartBeats,
@@ -91,5 +92,34 @@ describe('navPosition — position de lecture mode Navig', () => {
     // L = 0 : comportement inchangé
     expect(computeStartBeats(true, 0, 16, 20)).toBe(0);
     expect(computeStartBeats(true, 0, 16, 5)).toBe(5);
+  });
+});
+
+describe('Alignement vertical des pistes (mode Navig)', () => {
+  // Valeurs réelles de DawView : LANE_COMPACT_H = 26, gap = 4, LOC_BAR_H = 20
+  const COMPACT = 26, GAP = 4, HEADER = 20;
+
+  it('une ligne de piste = lane compacte + bordure', () => {
+    expect(laneRowHeight(COMPACT, GAP)).toBe(30);
+  });
+
+  it('la barre des locators décale les lanes (headerH en tête)', () => {
+    expect(laneTop(0, COMPACT, GAP, HEADER)).toBe(20);
+    expect(laneTop(1, COMPACT, GAP, HEADER)).toBe(50);
+    expect(laneTop(2, COMPACT, GAP, HEADER)).toBe(80);
+  });
+
+  it('les NOMS de pistes restent alignés avec leurs lanes', () => {
+    // Le panneau gauche est décalé de headerH : nameTop(i) + HEADER === laneTop(i)
+    for (let i = 0; i < 6; i++) {
+      expect(nameTop(i, COMPACT, GAP) + HEADER).toBe(laneTop(i, COMPACT, GAP, HEADER));
+    }
+  });
+
+  it('le slot du clavier (piste agrandie) utilise le même top que sa lane', () => {
+    const expandedIndex = 3;
+    const slotTop = laneTop(expandedIndex, COMPACT, GAP, HEADER);
+    // La lane agrandie est à la même position que son nom + header
+    expect(slotTop).toBe(nameTop(expandedIndex, COMPACT, GAP) + HEADER);
   });
 });
