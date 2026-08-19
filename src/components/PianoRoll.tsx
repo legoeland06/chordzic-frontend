@@ -1659,17 +1659,6 @@ export default function PianoRoll({
               className="accent-blue-500" title="Bord haut du registre visible" />
             <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
           </div>
-          {onToggleKeys && (
-            <>
-              <div className="pr-sep" />
-              {/* Clavier de piano vertical (marge) : rétractable */}
-              <div className="pr-group">
-                <button className={btn(keysVisible)} onClick={onToggleKeys} title={keysVisible ? 'Masquer le clavier de piano (marge)' : 'Afficher le clavier de piano (marge)'}>
-                  <Piano className="w-3 h-3" />
-                </button>
-              </div>
-            </>
-          )}
           {onExpand && (
             <>
               <div className="pr-sep" />
@@ -1816,13 +1805,23 @@ export default function PianoRoll({
             {/* Clavier de piano : en mode INTÉGRÉ, porté dans le slot fixe de
                 DawView (à droite de l'écran, calque au-dessus, immobile au
                 scroll) ; sinon colonne inline à droite du piano roll.
-                Rétractable par l'utilisateur (bouton 🎹 de la toolbar). */}
-            {!embedded && keysVisible && (
+                Rétractable : le bouton 🎹 est SUR la marge (toujours visible,
+                même repliée — la colonne garde une largeur minimale). */}
+            {!embedded && (
               <div
                 className="shrink-0 relative z-10 border-l border-gray-800/60"
-                style={{ width: PIANO_KEYBOARD_WIDTH, height: canvasHeight }}
+                style={{ width: keysVisible ? PIANO_KEYBOARD_WIDTH : 18, height: canvasHeight }}
               >
-                <canvas ref={keysCanvasRef} className="block w-full h-full" />
+                {keysVisible && <canvas ref={keysCanvasRef} className="block w-full h-full" />}
+                {onToggleKeys && (
+                  <button
+                    onClick={onToggleKeys}
+                    className="absolute top-1 left-1/2 -translate-x-1/2 z-30 p-0.5 rounded bg-[#0d1117]/90 border border-[#1f2733] text-[#9aa3b2] hover:text-white"
+                    title={keysVisible ? 'Masquer le clavier de piano' : 'Afficher le clavier de piano'}
+                  >
+                    <Piano className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             )}
             {embedded && keysVisible && createPortal(

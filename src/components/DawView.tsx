@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -1500,19 +1500,29 @@ export default function DawView({
               </div>
             </div>
             {/* Slot du CLAVIER de piano (rempli par portal depuis le PianoRoll
-                agrandi) : calque fixe à droite de l'ÉCRAN — toujours visible,
-                immobile au scroll horizontal, aligné sur la piste agrandie.
-                Rétractable par l'utilisateur (bouton 🎹 de la toolbar). */}
-            {expandedCh !== null && keysVisible && (
+                agrandi) : calque fixe à droite de l'ÉCRAN — immobile au scroll
+                horizontal, aligné sur la piste agrandie. TOUJOURS rendu (la
+                marge ne sort jamais du cadre) : replié, il ne garde que le
+                bouton 🎹 (rétracter/réafficher). */}
+            {expandedCh !== null && (
               <div
                 id="pianoroll-keys-slot"
                 className="absolute right-0 z-20 border-l border-gray-800/60"
                 style={{
                   top: LOC_BAR_H + expandedIndex * (LANE_COMPACT_H + 4),
-                  width: PIANO_KEYBOARD_WIDTH,
+                  width: keysVisible ? PIANO_KEYBOARD_WIDTH : 20,
                   height: LANE_PIANOROLL_H + 4,
                 }}
-              />
+              >
+                {/* Bouton toggle SUR la marge — toujours visible */}
+                <button
+                  onClick={toggleKeys}
+                  className="absolute top-1 left-1/2 -translate-x-1/2 z-30 p-0.5 rounded bg-[#0d1117]/90 border border-[#1f2733] text-[#9aa3b2] hover:text-white"
+                  title={keysVisible ? 'Masquer le clavier de piano (marge)' : 'Afficher le clavier de piano (marge)'}
+                >
+                  <Piano className="w-3 h-3" />
+                </button>
+              </div>
             )}
           </div>
         </div>
