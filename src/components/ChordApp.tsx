@@ -11,7 +11,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Sparkles, Music } from 'lucide-react';
 
 import { parseChord, parseGrille, ChordData } from '../types/chord';
-import { hasPlayableContent } from '../lib/playGuard';
+import { hasPlayableContent, hasSaveableContent } from '../lib/playGuard';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import type { Renderer } from '../lib/renderMode';
@@ -333,7 +333,10 @@ export default function ChordApp() {
       const raw = localStorage.getItem(AUTOSAVE_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (!data || data.type !== 'chordJAVA-grille' || !data.input) return;
+      if (!data || data.type !== 'chordJAVA-grille') return;
+      // ⚠️ NE PAS exiger data.input non vide : un projet mode Navig a une
+      // grille vide (contenu dans les notes) — l'autosave doit se restaurer
+      // quand même (bug « plus aucune persistance après F5 »).
       suppressAutoConfigRef.current = true;
       if (data.tempo) setTempo(data.tempo);
       if (data.sig) setSig(data.sig);
@@ -674,7 +677,10 @@ export default function ChordApp() {
   };
 
   const handleSave = async (saveName: string) => {
-    if (!saveName.trim() || !input.trim()) return;
+    const hasNotes = Object.values(pianoNotes).some(n => n.length > 0);
+    // Mode Navig : l'input (grille texte) peut être vide — le contenu est
+    // dans les notes des piano rolls (bug « sauvegarde impossible en Navig »).
+    if (!saveName.trim() || !hasSaveableContent(input, hasNotes ? 1 : 0)) return;
     const name = saveName.trim();
     try {
       const res = await fetch(`${API_BASE}/save`, {

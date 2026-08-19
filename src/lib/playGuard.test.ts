@@ -2,7 +2,7 @@
  * Tests de la garde de lecture (grille Live OU notes Navig).
  */
 import { describe, expect, it } from 'vitest';
-import { hasPlayableContent } from './playGuard';
+import { hasPlayableContent, hasSaveableContent } from './playGuard';
 
 describe('hasPlayableContent', () => {
   it('rien à jouer uniquement si la grille ET les notes sont vides', () => {
@@ -26,5 +26,20 @@ describe('hasPlayableContent', () => {
   it('ne compte que la présence (pas la taille)', () => {
     expect(hasPlayableContent(0, 0)).toBe(false);
     expect(hasPlayableContent(0, 0)).toBe(false);
+  });
+});
+
+describe('hasSaveableContent — sauvegarde possible (grille texte OU notes)', () => {
+  it('rien à sauvegarder si l input est vide ET aucune note', () => {
+    expect(hasSaveableContent('', 0)).toBe(false);
+    expect(hasSaveableContent('   ', 0)).toBe(false);
+  });
+
+  it('une grille texte suffit (mode Live)', () => {
+    expect(hasSaveableContent('C G Am', 0)).toBe(true);
+  });
+
+  it('des notes seules suffisent (mode Navig, input vide)', () => {
+    expect(hasSaveableContent('', 12)).toBe(true);
   });
 });

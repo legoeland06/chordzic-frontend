@@ -13,3 +13,11 @@
 export function hasPlayableContent(chordsLength: number, notesLength: number): boolean {
   return chordsLength > 0 || notesLength > 0;
 }
+
+/**
+ * Vrai si le projet contient quelque chose à SAUVEGARDER (mode Live : grille
+ * texte ; mode Navig : notes de piano roll — l'input peut être vide).
+ */
+export function hasSaveableContent(input: string, notesLength: number): boolean {
+  return input.trim() !== '' || notesLength > 0;
+}
