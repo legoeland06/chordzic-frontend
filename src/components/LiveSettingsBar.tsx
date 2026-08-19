@@ -29,8 +29,6 @@ interface LiveSettingsBarProps {
   /** Tempo (spinner + slider) — à droite de la Mesure. */
   tempo?: number;
   onTempoChange?: (t: number) => void;
-  /** Bascule vers le mode Navig (mode Live uniquement). */
-  onGoNavig?: () => void;
 }
 
 const PATTERNS = [
@@ -57,7 +55,7 @@ export default function LiveSettingsBar({
   volume, onSetVolume, use432, onSet432, loopOn, onSetLoop,
   walkingBass, onSetWalkingBass, drumPattern, onSetDrumPattern,
   sig, onSetSig, playing, showLoop = true,
-  tempo, onTempoChange, onGoNavig,
+  tempo, onTempoChange,
 }: LiveSettingsBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[10px] text-gray-500">
@@ -157,20 +155,6 @@ export default function LiveSettingsBar({
               title="Tempo en BPM (40-220)"
             />
           </div>
-        </>
-      )}
-
-      {/* Bascule vers le mode Navig (mode Live uniquement) */}
-      {onGoNavig && (
-        <>
-          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
-          <button
-            onClick={onGoNavig}
-            className="px-2 py-1 text-[10px] font-bold rounded-md border transition-colors shrink-0 bg-violet-900/40 border-violet-700/50 text-violet-300 hover:bg-violet-800/40"
-            title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
-          >
-            📱 Navig.
-          </button>
         </>
       )}
     </div>

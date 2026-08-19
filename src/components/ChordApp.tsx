@@ -1227,6 +1227,7 @@ export default function ChordApp() {
             <PianoLivePanel
               mode="live"
               onInsert={(chord) => insertDetectedChord(chord.label)}
+              onGoNavig={() => setNavigMode(true)}
             />
 
             {/* Contrôles + TrackPanel */}
@@ -1253,7 +1254,6 @@ export default function ChordApp() {
             sig={sig} onSetSig={setSig}
             playing={playing}
             tempo={tempo} onTempoChange={setTempo}
-            onGoNavig={() => setNavigMode(true)}
           />
         </div>
 

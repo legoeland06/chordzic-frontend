@@ -42,6 +42,8 @@ interface PianoLivePanelProps {
   illuminationEnabled?: boolean;
   /** Navig : bascule l'illumination piste. */
   onToggleIllumination?: () => void;
+  /** Live : bascule vers le mode Navig (bouton charnière, en haut du cadre). */
+  onGoNavig?: () => void;
 }
 
 /** Vrai si deux listes de pitchs sont identiques (évite les re-renders). */
@@ -56,6 +58,7 @@ export default function PianoLivePanel({
   trackPitches = [],
   illuminationEnabled = true,
   onToggleIllumination,
+  onGoNavig,
 }: PianoLivePanelProps) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
@@ -208,6 +211,18 @@ export default function PianoLivePanel({
               : 'Illumination de la piste jouée : désactivée (activer)'}
           >
             ✨ Piste {illuminationEnabled ? 'ON' : 'OFF'}
+          </button>
+        )}
+
+        {/* Mode Live : bascule vers Navig (bouton charnière, aligné à la
+            mention « Accord détecté ») */}
+        {mode === 'live' && onGoNavig && (
+          <button
+            onClick={onGoNavig}
+            className="shrink-0 px-2 py-1 text-[10px] font-bold rounded-md border transition-colors bg-violet-900/40 border-violet-700/50 text-violet-300 hover:bg-violet-800/40"
+            title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
+          >
+            📱 Navig.
           </button>
         )}
 
