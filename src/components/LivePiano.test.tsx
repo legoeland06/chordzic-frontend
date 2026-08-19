@@ -6,10 +6,17 @@ import { renderToString } from 'react-dom/server';
 import LivePiano from './LivePiano';
 
 describe('<LivePiano />', () => {
-  it('affiche 84 touches (7 octaves × 12)', () => {
+  it('affiche 88 touches par défaut (A0 → C8)', () => {
     const html = renderToString(<LivePiano activePitches={[]} />);
     const liCount = (html.match(/<li/g) ?? []).length;
-    expect(liCount).toBe(84);
+    expect(liCount).toBe(88);
+  });
+
+  it('peut couvrir une plage réduite (pitchMin/pitchMax)', () => {
+    const html = renderToString(<LivePiano activePitches={[36]} pitchMin={36} pitchMax={59} />);
+    const liCount = (html.match(/<li/g) ?? []).length;
+    expect(liCount).toBe(24);
+    expect(html).toContain('class="white e active"');
   });
 
   it('illumine les touches tenues (classe active)', () => {
@@ -18,8 +25,6 @@ describe('<LivePiano />', () => {
     expect(html).toContain('class="white e active"');
     expect(html).toContain('class="white c active"');
     expect(html).toContain('class="white a active"');
-    // Une note non tenue de la même classe ne doit PAS être active
-    expect(html).not.toContain('class="white e active" class="white e active"');
   });
 
   it('illumine aussi les touches noires', () => {
@@ -37,16 +42,10 @@ describe('<LivePiano />', () => {
     expect(activeCount).toBe(1);
   });
 
-  it('peut afficher un nombre d octaves réduit', () => {
-    const html = renderToString(<LivePiano activePitches={[36]} octaves={2} />);
-    const liCount = (html.match(/<li/g) ?? []).length;
-    expect(liCount).toBe(24);
-    expect(html).toContain('class="white e active"');
-  });
-
-  it('affiche un tooltip note+octave sur chaque touche', () => {
-    const html = renderToString(<LivePiano activePitches={[]} octaves={1} />);
-    expect(html).toContain('title="C2"');
-    expect(html).toContain('title="B2"');
+  it('affiche un tooltip note+octave sur chaque touche (A0 … C8)', () => {
+    const html = renderToString(<LivePiano activePitches={[]} />);
+    expect(html).toContain('title="A0"');
+    expect(html).toContain('title="C8"');
+    expect(html).toContain('title="C4"');
   });
 });

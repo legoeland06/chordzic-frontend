@@ -1,110 +1,78 @@
 /**
- * Tests de la logique du piano Live (portage de rusty-chord/src/outils.rs).
+ * Tests de la logique du piano Live (portage de rusty-chord/src/outils.rs,
+ * aligné sur l'étendue du clavier réel A0 → C8).
  */
 import { describe, expect, it } from 'vitest';
 import {
   GRAPH_KEYS,
   LIVE_PIANO_MAX_PITCH,
   LIVE_PIANO_MIN_PITCH,
-  LIVE_PIANO_OCTAVES,
-  PIANO_OCTAVE_EM,
   activePitchSet,
   buildPianoKeys,
   computePianoFontSize,
+  chromaticOf,
+  pianoWidthEm,
   pitchToGraphIndex,
 } from './livePiano';
 
 describe('buildPianoKeys', () => {
-  it('génère 7 octaves = 84 touches', () => {
+  it('couvre l étendue d un clavier 88 touches (A0 → C8) = 88 touches', () => {
     const keys = buildPianoKeys();
-    expect(keys).toHaveLength(84);
-    expect(LIVE_PIANO_OCTAVES).toBe(7);
+    expect(keys).toHaveLength(88);
+    expect(LIVE_PIANO_MIN_PITCH).toBe(21); // A0
+    expect(LIVE_PIANO_MAX_PITCH).toBe(108); // C8
   });
 
-  it('commence à C2 (pitch 36, white e) et finit à B8 (pitch 119, white f)', () => {
+  it('commence à A0 (pitch 21, white g) et finit à C8 (pitch 108, white e)', () => {
     const keys = buildPianoKeys();
-    expect(keys[0]).toMatchObject({ pitch: 36, cls: 'white e', name: 'C' });
-    expect(keys[keys.length - 1]).toMatchObject({ pitch: 119, cls: 'white f', name: 'B' });
-    expect(LIVE_PIANO_MIN_PITCH).toBe(36);
-    expect(LIVE_PIANO_MAX_PITCH).toBe(119);
+    expect(keys[0]).toMatchObject({ pitch: 21, cls: 'white g', name: 'A' });
+    expect(keys[0].noteName).toBe('A0');
+    expect(keys[keys.length - 1]).toMatchObject({ pitch: 108, cls: 'white e', name: 'C' });
+    expect(keys[keys.length - 1].noteName).toBe('C8');
   });
 
-  it('respecte l ordre graphique de outils.rs sur chaque octave', () => {
+  it('respecte l ordre graphique de outils.rs sur chaque octave complète', () => {
     const keys = buildPianoKeys();
     const expected = GRAPH_KEYS.map(g => g.cls);
-    for (let o = 0; o < LIVE_PIANO_OCTAVES; o++) {
-      const octaveCls = keys.slice(o * 12, o * 12 + 12).map(k => k.cls);
+    // A0, A#0, B0 puis C1…B7 (7 octaves complètes) puis C8
+    for (let o = 0; o < 7; o++) {
+      const octaveCls = keys.slice(3 + o * 12, 3 + o * 12 + 12).map(k => k.cls);
       expect(octaveCls).toEqual(expected);
     }
   });
 
-  it('calcule les pitchs comme 35 + index + 12×octave (2 octaves de test)', () => {
-    const keys = buildPianoKeys(2, 0);
-    expect(keys.map(k => k.pitch)).toEqual([
-      36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
-      48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-    ]);
-  });
-
-  it('donne les noms de notes corrects (white e = C, black cs = C#, white f = B)', () => {
-    const keys = buildPianoKeys(1, 0);
+  it('donne les noms de notes corrects (C2 = white e, C#2 = black cs, B2 = white f)', () => {
+    const keys = buildPianoKeys(36, 47); // C2 → B2
     expect(keys[0].noteName).toBe('C2');
     expect(keys[1].noteName).toBe('C#2');
-    expect(keys[2].noteName).toBe('D2');
     expect(keys[11].noteName).toBe('B2');
   });
 
   it('un octave complet contient 7 blanches et 5 noires', () => {
-    const keys = buildPianoKeys(1, 0);
+    const keys = buildPianoKeys(36, 47);
     expect(keys.filter(k => k.isBlack)).toHaveLength(5);
     expect(keys.filter(k => !k.isBlack)).toHaveLength(7);
   });
 });
 
-describe('computePianoFontSize (fit scale)', () => {
-  it('une octave fait 28em (7 blanches × 4em, noires sans surlargeur)', () => {
-    expect(PIANO_OCTAVE_EM).toBe(28);
+describe('chromaticOf / pitchToGraphIndex', () => {
+  it('mappe chaque pitch au bon index chromatique (0..11)', () => {
+    expect(chromaticOf(21)).toBe(9); // A
+    expect(chromaticOf(36)).toBe(0); // C
+    expect(chromaticOf(37)).toBe(1); // C#
+    expect(chromaticOf(47)).toBe(11); // B
+    expect(chromaticOf(60)).toBe(0); // C
+    expect(chromaticOf(64)).toBe(4); // E
+    expect(chromaticOf(108)).toBe(0); // C
+    expect(pitchToGraphIndex(60)).toBe(0);
+    expect(pitchToGraphIndex(64)).toBe(4);
+    expect(pitchToGraphIndex(21)).toBe(9);
   });
 
-  it('le piano tient dans la largeur du conteneur (échelle = w / 196em)', () => {
-    // 7 octaves = 196em : à 8px de font-size, le piano fait 1568px + 2px
-    // de bordures → conteneur 1570 → échelle ≈ 8px.
-    const s = computePianoFontSize(1570);
-    expect(s).toBeCloseTo(8, 1);
-    // Un conteneur plus étroit réduit l'échelle proportionnellement.
-    const narrow = computePianoFontSize(1000);
-    expect(narrow).toBeCloseTo(998 / 196, 1);
-    expect(narrow).toBeLessThan(8);
-  });
-
-  it('borne l échelle minimale (lisibilité) et maximale (confort)', () => {
-    expect(computePianoFontSize(200)).toBe(3); // 200px → ~1px brut → borné
-    expect(computePianoFontSize(5000)).toBe(14); // très large → borné
-  });
-
-  it('s adapte au nombre d octaves', () => {
-    // 2 octaves = 56em : même conteneur → échelle plus grande.
-    const s2 = computePianoFontSize(500, 2);
-    expect(s2).toBeCloseTo(498 / 56, 1);
-  });
-});
-
-describe('pitchToGraphIndex', () => {
-  it('mappe chaque pitch au bon index graphique (1..12)', () => {
-    expect(pitchToGraphIndex(36)).toBe(1); // C2 → white e
-    expect(pitchToGraphIndex(37)).toBe(2); // C#2 → black cs
-    expect(pitchToGraphIndex(38)).toBe(3); // D2 → white d
-    expect(pitchToGraphIndex(47)).toBe(12); // B2 → white f
-    expect(pitchToGraphIndex(48)).toBe(1); // C3 → white e (octave suivante)
-    expect(pitchToGraphIndex(60)).toBe(1); // C4
-    expect(pitchToGraphIndex(64)).toBe(5); // E4 → white c
-    expect(pitchToGraphIndex(119)).toBe(12); // B8
-  });
-
-  it('renvoie -1 hors de la plage du piano (36..119)', () => {
-    expect(pitchToGraphIndex(35)).toBe(-1);
+  it('renvoie -1 hors de la plage du piano (21..108)', () => {
+    expect(pitchToGraphIndex(20)).toBe(-1);
     expect(pitchToGraphIndex(0)).toBe(-1);
-    expect(pitchToGraphIndex(120)).toBe(-1);
+    expect(pitchToGraphIndex(109)).toBe(-1);
     expect(pitchToGraphIndex(127)).toBe(-1);
   });
 });
@@ -123,5 +91,44 @@ describe('activePitchSet', () => {
 
   it('gère un tableau vide', () => {
     expect(activePitchSet([]).size).toBe(0);
+  });
+});
+
+describe('pianoWidthEm (largeur du piano en em, pour le fit scale)', () => {
+  it('A0 → C8 = 208em (4+1+3 + 7×28 + 4)', () => {
+    expect(pianoWidthEm(21, 108)).toBe(208);
+  });
+
+  it('C1 → C8 = 200em (7 octaves complètes + C8)', () => {
+    expect(pianoWidthEm(24, 108)).toBe(200);
+  });
+
+  it('une octave complète C→B = 28em', () => {
+    expect(pianoWidthEm(36, 47)).toBe(28);
+  });
+
+  it('la 1re touche compte sa largeur pleine (pas de marge)', () => {
+    // A0→B0 : 4em (pleine) + 1em (A#0) + 3em (B0) = 8em
+    expect(pianoWidthEm(21, 23)).toBe(8);
+    // A0→B1 : 8em + C1..B1 (28em) = 36em
+    expect(pianoWidthEm(21, 35)).toBe(36);
+    // A0→B2 : 36em + 28em = 64em
+    expect(pianoWidthEm(21, 47)).toBe(64);
+  });
+});
+
+describe('computePianoFontSize (fit scale)', () => {
+  it('le piano tient dans la largeur du conteneur', () => {
+    // A0→C8 = 208em : conteneur 834px (208×4 + 2) → échelle ≈ 4px
+    expect(computePianoFontSize(834, 208)).toBeCloseTo(4, 1);
+    const narrow = computePianoFontSize(800, 208);
+    expect(narrow).toBeCloseTo(798 / 208, 1);
+    // Un conteneur trop étroit est borné par l'échelle minimale
+    expect(computePianoFontSize(600, 208)).toBe(3);
+  });
+
+  it('borne l échelle minimale (lisibilité) et maximale (confort)', () => {
+    expect(computePianoFontSize(100, 208)).toBe(3); // trop étroit → min
+    expect(computePianoFontSize(5000, 208)).toBe(14); // très large → max
   });
 });

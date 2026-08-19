@@ -6,7 +6,8 @@
  * avec l'harmonie intégrée (chordRecognition → QUALITY_INTERVALS).
  *
  * Affichage :
- * - piano 7 octaves (LivePiano) dont les touches s'illument en direct ;
+ * - piano aligné sur le clavier MIDI (LivePiano, A0 → C8) dont les touches
+ *   s'illument en direct ;
  * - l'accord détecté et ses notes en grand, bien visibles ;
  * - insertion dans la grille : clic sur l'accord ou « + Grille » → immédiat ;
  * - ⏱ timer indépendant : un accord identifié tenu ≥ 3 s (réglable) est
@@ -161,7 +162,7 @@ export default function ChordDetector({ onInsert }: Props) {
         )}
       </div>
 
-      {/* ── Piano 7 octaves : les touches tenues s'illument ── */}
+      {/* ── Piano aligné sur le clavier : les touches tenues s'illument ── */}
       <div className="overflow-x-auto mt-2 pt-2 border-t border-gray-800">
         <LivePiano activePitches={active} />
       </div>

@@ -108,6 +108,13 @@
   margin: 0 0 0 -1em;
 }
 
+/* Première touche : la marge négative ci-dessus ferait déborder A0 (white g)
+   de 1em hors du cadre — on la remet à zéro (le flux reste correct : la
+   noire suivante se cale sur la frontière). */
+.live-piano ul li:first-child {
+  margin-left: 0;
+}
+
 /* ─── Coins extérieurs ─── */
 .live-piano ul li:first-child {
   border-radius: 5px 0 5px 5px;
