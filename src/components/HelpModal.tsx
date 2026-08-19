@@ -15,6 +15,7 @@
  * thème sombre de l'application.
  */
 import React, { useState } from 'react';
+import LivePiano from './LivePiano';
 
 interface HelpModalProps {
   show: boolean;
@@ -185,6 +186,17 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p className="font-bold text-white mt-3">🎹 Le piano</p>
             <Row k="88 touches" v="Couvre l'étendue réelle du clavier MIDI (A0 → C8) : chaque touche jouée s'illume en bleu en direct (Roland). Le piano s'adapte à la largeur de l'écran (tient toujours sur une ligne)." />
+            <Row k="Illustration" v={<>
+              <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 mt-1">
+                <div className="text-[10px] text-gray-500 mb-2">
+                  Exemple : accord de <b className="text-cyan-300">Do majeur</b> illuminé (C4·E4·G4) — les deux
+                  fondamentales <b className="text-cyan-300">C2·C3</b> à l'octave dans la basse
+                </div>
+                <div className="w-[480px] max-w-full mx-auto">
+                  <LivePiano activePitches={[36, 48, 60, 64, 67]} />
+                </div>
+              </div>
+            </>} />
             <Row k="Accord détecté" v="Le badge affiche l'accord plaqué en TRÈS GROS + ses notes en clair (ex. C · E · G). Règles : 2 notes = stricte ; 3+ = tolérance ; 1 note = la note seule. La basse réelle départage (C6 vs Am7) ; une basse imposée (≥ 1 octave sous le reste) est notée après un / (ex. C/G, Am7/D)." />
             <p className="font-bold text-white mt-3">📥 Insertion (mode Live — grille)</p>
             <Row k="+ Grille" v="Insère l'accord détecté dans la grille (1 ronde) : clic sur l'accord ou bouton « + Grille »." />
