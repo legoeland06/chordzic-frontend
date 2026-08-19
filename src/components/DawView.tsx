@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, Monitor, FilePlus2, ChevronUp, ChevronDown, Settings, Cable } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -1189,13 +1189,6 @@ export default function DawView({
             title="Bouncer les pistes MIDI en audio (WAV, avec leurs effets) et ouvrir le mode PostProd"
           >
             {bouncing ? '⏳ Bounce…' : '🎚 PostProd'}
-          </button>
-          <button
-            onClick={onSetLive}
-            className="px-2.5 h-7 flex items-center gap-1.5 rounded-md bg-[#223a5a] text-[#8fb8e8] border border-[#2f4a6e] hover:bg-[#2a4a70] text-[10.5px] font-semibold transition-colors shrink-0"
-            title="Revenir au mode Live (MIDI temps réel)"
-          >
-            <Monitor className="w-3.5 h-3.5" /> Live
           </button>
           <button onClick={() => setShowPorts(true)} title="Ports MIDI & Audio — choisir vers quoi brancher l'application" className={tBtn}><Settings className="w-3.5 h-3.5" /></button>
           <button onClick={onHelp} title="Aide" className={tBtn}><HelpCircle className="w-3.5 h-3.5" /></button>
