@@ -1672,20 +1672,6 @@ export default function PianoRoll({
             <button className={btn(false, !canRedo)} onClick={redo} title="Rétablir (Ctrl+Shift+Z / Ctrl+Y)"><Redo2 className="w-3 h-3" /></button>
           </div>
           <div className="pr-sep" />
-          {/* Registre visible */}
-          <div className="pr-group pr-sliders">
-            <span className="pr-lbl">Reg</span>
-            <input type="range" min={0} max={127} value={userMinPitch}
-              onChange={(e) => { rangeTouchedRef.current = true; setUserMinPitch(Math.min(parseInt(e.target.value), userMaxPitch - 12)); }}
-              className="accent-blue-500" title="Bord bas du registre visible" />
-            <span className="pr-val">{pitchLabel(userMinPitch)}</span>
-            <span className="pr-lbl">→</span>
-            <input type="range" min={0} max={127} value={userMaxPitch}
-              onChange={(e) => { rangeTouchedRef.current = true; setUserMaxPitch(Math.max(parseInt(e.target.value), userMinPitch + 12)); }}
-              className="accent-blue-500" title="Bord haut du registre visible" />
-            <span className="pr-val">{pitchLabel(userMaxPitch)}</span>
-          </div>
-          <div className="pr-sep" />
           {/* Fit-zoom sur la sélection */}
           <div className="pr-group">
             <button className={btn(false, selectedIds.size === 0)} onClick={fitZoomToSelection} title="Zoom sur la sélection — recentre et zoome la vue sur les notes sélectionnées (registre vertical inclus)">
