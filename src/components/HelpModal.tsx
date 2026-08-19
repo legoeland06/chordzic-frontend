@@ -344,6 +344,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
                   (comme en Live), et — pendant la lecture (WAV <b>ou</b> MIDI) — au contenu de la piste jouée
                   (fidèle, même tête de lecture). La bascule ✨ contrôle la partie « piste jouée »
                   (préférence mémorisée).</li>
+                <li><b className="text-white">🎛️ Son de la piste</b> : avec une piste sélectionnée et ✨ ON, le Roland reçoit le
+                  <b>program change</b> de la piste — quand tu joues sur le clavier, tu entends
+                  <b>l'instrument de la piste</b> (tes notes sont renvoyées au Roland sur son canal).</li>
               </ul>
             </>} />
             <p className="text-xs text-gray-500">

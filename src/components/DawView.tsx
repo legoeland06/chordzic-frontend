@@ -942,6 +942,32 @@ export default function DawView({
     onNotesChange(expandedCh, [...existing, ...pitchesToPianoNotes(pitches, start, beatsPerBar)]);
   }, [expandedCh, pianoNotes, onNotesChange, sig]);
 
+  /** Piste sélectionnée (objet complet — pour le son à renvoyer au Roland). */
+  const selTrack = expandedCh !== null
+    ? tracks.find(t => t.channel === expandedCh)
+    : undefined;
+
+  /** Écho MIDI (mode Navig, ✨ ON + piste sélectionnée) : le Roland reçoit
+   * le program change de la piste et les notes du pianiste lui sont
+   * renvoyées sur son canal → il sonne avec l'instrument de la piste.
+   * Désactivé dès qu'on quitte Navig / la piste / ✨ (cleanup). */
+  useEffect(() => {
+    const active = illumOn && expandedCh !== null;
+    const body = JSON.stringify({ enabled: active, channel: active ? expandedCh : null });
+    fetch(`${API_BASE}/live-echo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    }).catch(() => { /* serveur indisponible */ });
+    return () => {
+      fetch(`${API_BASE}/live-echo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: false, channel: null }),
+      }).catch(() => { /* serveur indisponible */ });
+    };
+  }, [illumOn, expandedCh, selTrack?.program, selTrack?.bankMsb, selTrack?.bankLsb]);
+
   // ── Ports MIDI / Audio (réglages) ───────────────────────────────────
   const [showPorts, setShowPorts] = useState(false);
   const [midiPorts, setMidiPorts] = useState<string[]>([]);
