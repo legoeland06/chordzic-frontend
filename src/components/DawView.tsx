@@ -29,14 +29,14 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 import type { RecognizedChord } from '../lib/chordRecognition';
 import { activePitchesAt, pitchesToPianoNotes } from '../lib/pitchesToNotes';
 import { RecMidiEvent, countdownClicks, recEventsToNotes } from '../lib/recMidi';
+import { backendUrl } from '../lib/chordUtils';
 
 // ─── Constantes d'affichage ────────────────────────────────────────────
 
 /** Pixels par beat dans les lanes (zoom lecture compact, notes en pixels). */
-const API_BASE = 'http://localhost:4000';
+const API_BASE = backendUrl();
 const LANE_PPB = 24;
 /** Zoom horizontal des lanes : plage 0.25× – 8× (6 à 192 px/beat). */
-const LANE_ZOOM_MIN = LANE_PPB * 0.25;
 const LANE_ZOOM_MAX = LANE_PPB * 8;
 /** Pixels par demi-ton quand une lane est agrandie. */
 const PITCH_PX = 6;
@@ -96,7 +96,6 @@ interface DawViewProps {
   onSetSig: (v: string) => void;
   engine: AudioEngine;                  // lecture / pause / seek
   onPlay: (startAtBeats?: number) => void; // rend le WAV (moteur interne, silencieux) + joue — le son du synthé se fait via ▶ MIDI
-  onStop: () => void;
   onExtractWav: () => void;
   onTempoChange: (t: number) => void;
   onSetLoop: (v: boolean) => void;
@@ -494,7 +493,7 @@ export default function DawView({
   tracks, pianoNotes, playing, hasWav, tempo, loopOn, locL, locR, onLocatorsChange, sig, input, engine,
   volume, onSetVolume, use432, onSet432, walkingBass, onSetWalkingBass, drumPattern, onSetDrumPattern,
   onSetSig,
-  onPlay, onStop, onExtractWav, onTempoChange, onSetLoop, onSetLive,
+  onPlay, onExtractWav, onTempoChange, onSetLoop, onSetLive,
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,

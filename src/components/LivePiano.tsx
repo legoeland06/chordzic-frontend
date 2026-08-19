@@ -14,7 +14,7 @@
  * redimensionnement (ResizeObserver) pour tenir sur une seule ligne.
  * La logique est dans `src/lib/livePiano.ts` (testable sans DOM).
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LIVE_PIANO_MAX_PITCH,
   LIVE_PIANO_MIN_PITCH,

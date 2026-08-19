@@ -60,9 +60,6 @@ export const PITCH_ROW_HEIGHT = WHITE_KEY_HEIGHT;
 export function velocityColor(velocity: number): string {
   // De bleu foncé (faible) à jaune/rouge vif (fort)
   const t = velocity / 127;
-  const r = Math.round(30 + t * 210);
-  const g = Math.round(60 + t * 160);
-  const b = Math.round(200 - t * 170);
   return `hsl(${220 - t * 160}, ${80 + t * 20}%, ${40 + t * 25}%)`;
 }
 

@@ -26,13 +26,14 @@ import PianoLivePanel from './PianoLivePanel';
 import ChordNowModal from './ChordNowModal';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
-import PianoRoll from './PianoRoll';
 import HelpModal from './HelpModal';
 import DawView from './DawView';
 import PostProdView from './PostProdView';
 import { PostProdEngine } from '../lib/postProdEngine';
 import { PostProdSession, PostProdTrack, createFullClip, trackColorForChannel } from '../lib/postProdTypes';
-import { chordToNoteNames } from '../lib/chordUtils';
+import { backendUrl, chordToNoteNames } from '../lib/chordUtils';
+
+const API_BASE = backendUrl();
 
 // Clé localStorage des ANCIENNES grilles (migration unique vers le serveur)
 const STORAGE_KEY = 'chordjava_saved_grilles';
@@ -43,7 +44,6 @@ const AUTOSAVE_KEY = 'chordzic_autosave_v1';
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
 /** URL du backend (serveur Rust) — même origine en standalone, localhost:4000 en dev. */
-const API_BASE = 'http://localhost:4000';
 
 /** Une grille sauvegardée (serveur) ou locale (fallback). */
 interface GrilleEntry {
@@ -273,7 +273,7 @@ export default function ChordApp() {
   }, []);
 
   // ── Dernier chiffrage tapé (pour l'autocomplétion de ChordInput) ──
-  const [lastChiffrage, setLastChiffrage] = useState('');
+  const [, setLastChiffrage] = useState('');
 
   // ── État : drag & drop ───────────────────────────────────────────
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -1193,7 +1193,6 @@ export default function ChordApp() {
             locR={locR}
             onLocatorsChange={handleLocatorsChange}
             onPlay={play}
-            onStop={stop}
             onExtractWav={handleExtractWav}
             onTempoChange={setTempo}
             onSetLoop={setLoopOn}
@@ -1401,7 +1400,7 @@ export default function ChordApp() {
         })()}
 
         <ChordDetailModal
-          chords={chords} chord={selectedChord} chordIdx={selectedChordIdx}
+          chord={selectedChord} chordIdx={selectedChordIdx}
           chordsCount={chords.length} playing={() => playing}
           onClose={() => setSelectedChord(null)}
           onTogglePlay={() => { playing ? stop() : selectedChord && playChordPreview(selectedChord); }}

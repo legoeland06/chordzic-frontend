@@ -18,13 +18,14 @@
  * ou ⏱ timer indépendant — un accord identifié tenu ≥ 3 s (réglable) est
  * inséré automatiquement (les deux mains sont occupées à jouer).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { recognizeChord, RecognizedChord } from '../lib/chordRecognition';
 import { computeAutoInsert, initialAutoInsertState } from '../lib/autoInsert';
 import { NOTE_NAMES } from '../types/chord';
 import LivePiano from './LivePiano';
+import { backendUrl } from '../lib/chordUtils';
 
-const API_BASE = 'http://localhost:4000';
+const API_BASE = backendUrl();
 const POLL_MS = 150;
 const AUTO_INSERT_DELAYS = [1, 2, 3, 5];
 

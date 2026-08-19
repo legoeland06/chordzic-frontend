@@ -11,8 +11,9 @@
 import { Metronome, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { setClickSig } from '../lib/clickPrefs';
+import { backendUrl } from '../lib/chordUtils';
 
-const API_BASE = 'http://localhost:4000';
+const API_BASE = backendUrl();
 
 type ClickCfg = {
   volume: number;

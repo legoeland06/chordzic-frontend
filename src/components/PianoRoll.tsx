@@ -22,7 +22,7 @@ import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from
 import { createPortal } from 'react-dom';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
-  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Settings, Maximize2, Piano, Scan,
+  Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Maximize2, Piano, Scan,
 } from 'lucide-react';
 import {
   xFromBeat,
@@ -40,10 +40,8 @@ import {
   pitchLabel,
   isBlackKey,
   noteName,
-  pixelsToPitch,
 } from '../lib/pianoRollTypes';
 import {
-  InteractionState,
   InteractionContext,
   createEmptyContext,
   startInteraction,
@@ -414,7 +412,7 @@ export default function PianoRoll({
     }
 
     // ── Dessiner les notes ──
-    const drawNote = (note: PianoNote, isCreating: boolean) => {
+    const drawNote = (note: PianoNote) => {
       const x = xFromBeat(note.startTime, ppb, scrollLeft);
       const y = (userMaxPitch - note.pitch) * WHITE_KEY_HEIGHT;
       const noteW = Math.max(3, note.duration * ppb);
@@ -463,10 +461,10 @@ export default function PianoRoll({
     };
 
     for (const note of currentNotes) {
-      drawNote(note, false);
+      drawNote(note);
     }
     if (creating) {
-      drawNote(creating, true);
+      drawNote(creating);
     }
 
     // ── Notes ENREGISTRÉES (Rec MIDI) : affichage EN DIRECT en cyan, par-
@@ -745,7 +743,6 @@ export default function PianoRoll({
     }
 
     const { ctx, createdNote } = startInteraction(
-      ctxRef.current,
       localNotesRef.current,
       adjustedCoord,
       effectivePixelsPerBeat,
@@ -849,7 +846,6 @@ export default function PianoRoll({
         // Canvas : y décroît quand le pitch monte → delta inversé
         const dPitch = -Math.round((coord.py - startPy) / WHITE_KEY_HEIGHT);
         if (dBeat !== 0 || dPitch !== 0) {
-          const ids = new Set(orig.map(n => n.id));
           // Toujours repartir des notes ORIGINALES + delta total (jamais
           // des notes déjà déplacées → évite l'accumulation géométrique)
           const moved = new Map(orig.map(n => [n.id, {
@@ -1538,9 +1534,6 @@ export default function PianoRoll({
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commitNotes, draw, onClose, scrollLeft, effectivePixelsPerBeat, undo, redo, togglePlay, stopPlayback]);
-
-  // Nom de la première note sélectionnée (affiché dans la barre d'outils)
-  const firstSelected = notes.find(n => selectedIds.has(n.id));
 
   // Presse-papiers global (lu à chaque render — clipVersion force le refresh)
   const clip = getProjectClipboard();

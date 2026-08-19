@@ -7,7 +7,7 @@
  * - chordToNoteNames() — conversion ChordData → noms MIDI
  * - notesWithOctave() — conversion ChordData → noms avec octave (piano)
  */
-import { ChordData, NOTE_NAMES, NOTE_TO_MIDI } from '../types/chord';
+import { ChordData, NOTE_NAMES } from '../types/chord';
 
 /**
  * Construit l'URL du backend en utilisant l'hôte courant.
@@ -56,7 +56,6 @@ export function chordToNoteNames(c: ChordData): string[] {
  * Utilise MIDI 36 (C3) comme base.
  */
 export function notesWithOctave(c: ChordData): string[] {
-  const rv = NOTE_TO_MIDI[c.name] ?? 0;
   return c.midiValues.map(v => {
     const mn = 36 + v; // base C3 = 36
     return NOTE_NAMES[mn % 12] + Math.floor(mn / 12);

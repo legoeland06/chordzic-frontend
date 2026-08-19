@@ -8,8 +8,8 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import PianoKeyboard from './PianoKeyboard';
-import { ChordData, NOTE_NAMES, NOTE_TO_MIDI, durationLabel, getNoteColor } from '../types/chord';
-import { getSuggestions as getAutocompleteSuggestions, QUALITY_NAMES } from '../lib/autocomplete';
+import { ChordData, NOTE_TO_MIDI, durationLabel, getNoteColor } from '../types/chord';
+import { getSuggestions as getAutocompleteSuggestions } from '../lib/autocomplete';
 import { notesWithOctave } from '../lib/chordUtils';
 
 /** Noms des intervalles (pour l'affichage des notes). */
@@ -19,7 +19,6 @@ const INTERVAL_NAMES = [
 ];
 
 interface ChordDetailModalProps {
-  chords: { time: number }[];
   chord: ChordData | null;
   chordIdx: number;
   chordsCount: number;
@@ -32,7 +31,7 @@ interface ChordDetailModalProps {
 }
 
 export default function ChordDetailModal({
-  chords, chord, chordIdx, chordsCount, playing,
+  chord, chordIdx, chordsCount, playing,
   onClose, onTogglePlay, onPrev, onNext, onUpdateChord,
 }: ChordDetailModalProps) {
   const [editText, setEditText] = useState('');

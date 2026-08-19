@@ -89,7 +89,6 @@ export function hitTest(
  * Si le clic est sur le vide → CREATING (une nouvelle note est créée).
  */
 export function startInteraction(
-  ctx: InteractionContext,
   notes: PianoNote[],
   coord: MouseCoord,
   pixelsPerBeat: number,

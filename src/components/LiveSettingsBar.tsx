@@ -7,7 +7,6 @@
  * En mode Navig, `showLoop` est à false (le Loop y est déjà géré par
  * LoopControl + les locators).
  */
-import React from 'react';
 import { Gauge, Volume2 } from 'lucide-react';
 
 interface LiveSettingsBarProps {

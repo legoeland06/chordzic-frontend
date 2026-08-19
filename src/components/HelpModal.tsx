@@ -16,8 +16,9 @@
  */
 import React, { useRef, useState } from 'react';
 import LivePiano from './LivePiano';
+import { backendUrl } from '../lib/chordUtils';
 
-const API_BASE = 'http://localhost:4000';
+const API_BASE = backendUrl();
 
 interface HelpModalProps {
   show: boolean;

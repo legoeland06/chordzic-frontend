@@ -77,8 +77,6 @@ export class BrowserSynth {
   private audioCtx: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
   private _playing = false;
-  /** Sortie audio dédiée au clic séparé (mode Navig) — lue par le serveur. */
-  private _clickDevice: string | null = null;
   /** Résout la promesse de fin de lecture du mode séparé (au Stop). */
   private _navPlayResolver: (() => void) | null = null;
   private _buffer: AudioBuffer | null = null;
@@ -386,7 +384,6 @@ export class BrowserSynth {
    * - sortie dédiée choisie (et pas de mix) → clic SÉPARÉ (2 WAV, réponse JSON)
    * - sinon « Dans le rendu » → clic MIXÉ (synchro parfaite) */
   private async _applyClickConfig(body: Record<string, unknown>): Promise<void> {
-    this._clickDevice = null;
     try {
       const cfg = await (await fetch(`${backendUrl()}/click`)).json();
       const renderer = body.renderer === 'external' ? 'external' : 'internal';
@@ -394,7 +391,6 @@ export class BrowserSynth {
         out_device: cfg.out_device,
         in_render: cfg.in_render,
       });
-      if (mode.click_separate) this._clickDevice = cfg.out_device;
       if (mode.click_separate !== undefined) body.click_separate = mode.click_separate;
       if (mode.click_in_render !== undefined) body.click_in_render = mode.click_in_render;
     } catch { /* pas de clic */ }

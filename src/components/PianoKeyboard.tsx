@@ -11,7 +11,6 @@
  *   → toutes les occurrences sur les 2 octaves s'allument.
  */
 
-import React from 'react';
 
 interface PianoKeyboardProps {
   /** Notes actives avec octave (ex: ['F3', 'G#3', 'C4', 'D#4', 'G4']) */
@@ -28,8 +27,6 @@ interface PianoKeyboardProps {
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 // Indices des touches blanches dans les 12 demi-tons
 const WHITE_KEYS = [0, 2, 4, 5, 7, 9, 11];
-// Indices des touches noires
-const BLACK_KEYS = [1, 3, 6, 8, 10];
 
 /**
  * Mini clavier de piano, 2 octaves (C3 à B4 par défaut).
@@ -85,7 +82,7 @@ export default function PianoKeyboard({
     <div className="relative w-full" style={{ height: 84 }}>
       {/* ---------- Touches blanches ---------- */}
       <div className="absolute inset-0 flex">
-        {whiteKeys.map((k, i) => (
+        {whiteKeys.map((k) => (
           <div
             key={`w-${k.note}${k.octave}`}
             draggable={false}

@@ -9,7 +9,6 @@
  * Remplaçant de l'ancien affichage du TrackPanel (perdu à sa suppression),
  * avec un design entièrement revu.
  */
-import React from 'react';
 import { getChordColor } from '../types/chord';
 
 interface ChordNowModalProps {

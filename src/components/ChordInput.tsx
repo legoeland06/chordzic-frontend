@@ -21,10 +21,10 @@ interface ChordInputProps {
 
 export default function ChordInput({ input, onChange }: ChordInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [lastChiffrage] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestIdx, setSuggestIdx] = useState(0);
   const [suggestToken, setSuggestToken] = useState<{start:number;end:number} | null>(null);
-  const [lastChiffrage, setLastChiffrage] = useState('');
 
   /** Applique la suggestion sélectionnée : remplace le token + repositionne le curseur. */
   const applySuggestion = useCallback((suggestion: string) => {

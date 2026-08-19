@@ -118,7 +118,6 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     return max;
   }, [session, barSec]);
   const contentW = Math.max(totalSec * pps, 1);
-  const snapStep = snapValueFor(1, session.tempo, snapUnit, true) - snapValueFor(0, session.tempo, snapUnit, true);
   const snapValue = useCallback(
     (x: number) => snapValueFor(x, session.tempo, snapUnit, snapOn),
     [session.tempo, snapUnit, snapOn],
@@ -204,12 +203,6 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
   const doPause = useCallback(() => { engine.pause(); setPlayState('paused'); }, [engine]);
   const doStop = useCallback(() => { engine.stop(); setPlayState('idle'); setPosSec(0); setLevels({}); setMasterLevel(0); }, [engine]);
   const doBegin = useCallback(() => { engine.stop(); setPlayState('idle'); setPosSec(0); setLevels({}); setMasterLevel(0); }, [engine]);
-  const doScrub = useCallback((sec: number) => {
-    const s = Math.max(0, Math.min(sec, totalSec));
-    setPosSec(s);
-    if (playState === 'playing' || playState === 'paused') engine.seek(s).catch(() => {});
-  }, [playState, engine, totalSec]);
-
   // ── Undo ──────────────────────────────────────────────────────────
   const pushUndo = useCallback(() => {
     undoStackRef.current.push(sessionRef.current.tracks.map(snapOf));
@@ -274,7 +267,6 @@ export default function PostProdView({ session, engine, projectName, onBackToNav
     if (!t) return;
     const ci = t.clips.findIndex(c => c.id === clipId);
     if (ci < 0) return;
-    const clip = t.clips[ci];
     // Pas de limite haute par la durée du clip : la timeline s'étend (convention DAW)
     const s = Math.max(0, snapValue(newStart));
     applyTracks(tracks.map((x, i) => i === trackIdx
