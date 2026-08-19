@@ -976,11 +976,32 @@ export default function DawView({
   const [recNotes, setRecNotes] = useState<PianoNote[]>([]);
   const recTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recAudioRef = useRef<AudioContext | null>(null);
+  const recMetronomeRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Ref de l'état (pour le cleanup de démontage sans fermer la session à
+   * chaque transition — bug « rec ne démarre pas » : le cleanup de l'effet
+   * [recState] envoyait enabled:false juste après enabled:true). */
+  const recStateRef = useRef<'off' | 'countdown' | 'on'>('off');
+  recStateRef.current = recState;
+
+  /** Joue un clic de métronome immédiat (Web Audio). */
+  const playClick = useCallback((ctx: AudioContext, freq: number) => {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.1);
+  }, []);
 
   /** Arrête la session : récupère les notes, les insère dans la piste cible
    * (à la position de la tête au démarrage + offsets), remet l'état à zéro. */
   const stopRecSession = useCallback(async () => {
     if (recTimerRef.current) { clearTimeout(recTimerRef.current); recTimerRef.current = null; }
+    if (recMetronomeRef.current) { clearInterval(recMetronomeRef.current); recMetronomeRef.current = null; }
     try { recAudioRef.current?.close(); } catch { /* ignore */ }
     recAudioRef.current = null;
     try {
@@ -1001,7 +1022,8 @@ export default function DawView({
     setRecTarget(null);
   }, [recTarget, recStartPos, tempo, pianoNotes, onNotesChange]);
 
-  /** Démarre la session serveur (l'enregistrement commence réellement). */
+  /** Démarre la session serveur (l'enregistrement commence réellement) et
+   * poursuit le MÉTRONOME pendant l'enregistrement (clic par temps). */
   const startRecSession = useCallback(() => {
     fetch(`${API_BASE}/rec-midi`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1009,7 +1031,16 @@ export default function DawView({
     }).catch(() => { /* backend injoignable */ });
     setRecStartPos(posBeats);
     setRecState('on');
-  }, [posBeats]);
+    // Métronome continu : clic immédiat puis à chaque temps (le ctx du
+    // décompte reste ouvert — les notes jouées suivent le rythme).
+    const ctx = recAudioRef.current;
+    if (ctx) {
+      playClick(ctx, 800);
+      const intervalMs = 60000 / Math.max(40, tempo);
+      if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
+      recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
+    }
+  }, [posBeats, tempo, playClick]);
 
   /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
   const playCountdown = useCallback((bpm: number) => {
@@ -1061,15 +1092,19 @@ export default function DawView({
     return () => clearInterval(id);
   }, [recState, recStartPos, tempo]);
 
-  /** Sécurité : ferme la session serveur au démontage si elle tourne. */
+  /** Sécurité : ferme la session serveur et le métronome au DÉMONTAGE
+   * uniquement (via la ref — pas à chaque transition d'état, ce qui tuait
+   * la session dès son démarrage). */
   useEffect(() => () => {
-    if (recState !== 'off') {
+    if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
+    if (recAudioRef.current) { try { recAudioRef.current.close(); } catch { /* ignore */ } }
+    if (recStateRef.current !== 'off') {
       fetch(`${API_BASE}/rec-midi`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: false }),
       }).catch(() => { /* ignore */ });
     }
-  }, [recState]);
+  }, []);
 
   /** Piste sélectionnée (objet complet — pour le son à renvoyer au Roland). */
   const selTrack = expandedCh !== null
