@@ -18,8 +18,9 @@
  * tout est dessiné sur un canvas avec rendu optimisé.
  */
 
-import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import React, { memo, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import PlayheadLine from './PlayheadLine';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
   Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Maximize2, Piano, Scan,
@@ -75,8 +76,9 @@ const CLICK_DEADZONE_PX = 5;
 interface PianoRollProps {
   /** Notes à afficher et éditer. */
   notes: PianoNote[];
-  /** Callback quand les notes changent (édition). */
-  onNotesChange: (notes: PianoNote[]) => void;
+  /** Callback quand les notes changent (édition) — canal inclus pour une
+   * prop STABLE (memo) : le parent n a pas besoin d un wrapper par piste. */
+  onNotesChange: (channel: number, notes: PianoNote[]) => void;
   /** Nom de la piste (affiché en haut). */
   trackLabel: string;
   /** Canal MIDI de la piste (pour le titre et la couleur). */
@@ -118,9 +120,6 @@ interface PianoRollProps {
   /** Clavier de piano vertical (marge) visible ? + bascule (rétractable). */
   keysVisible?: boolean;
   onToggleKeys?: () => void;
-  /** Position de lecture GLOBALE (beats, mode Navig) : la piste agrandie est
-   * traversée par la tête de lecture comme les autres lanes. */
-  externalPosBeats?: number;
   /** Enregistrement MIDI (Rec) : état + bascule + notes en cours d'affichage. */
   recState?: 'off' | 'countdown' | 'on';
   onToggleRec?: (channel: number) => void;
@@ -129,7 +128,7 @@ interface PianoRollProps {
 
 // ─── Composant ──────────────────────────────────────────────────────────
 
-export default function PianoRoll({
+function PianoRoll({
   notes,
   onNotesChange,
   trackLabel,
@@ -147,7 +146,6 @@ export default function PianoRoll({
   onExpand,
   keysVisible = true,
   onToggleKeys,
-  externalPosBeats,
   recState = 'off',
   onToggleRec,
   recordingNotes = [],
@@ -512,28 +510,7 @@ export default function PianoRoll({
       ctx.fill();
     }
 
-    // ── Tête de lecture GLOBALE (mode Navig) : la piste agrandie est
-    //    traversée comme les autres lanes (même style rouge). ──
-    if (externalPosBeats !== undefined && externalPosBeats > 0) {
-      const gx = xFromBeat(externalPosBeats, ppb, scrollLeft);
-      if (gx >= -2 && gx <= viewportW + 2) {
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(gx, 0);
-        ctx.lineTo(gx, h);
-        ctx.stroke();
-        ctx.fillStyle = '#f87171';
-        ctx.beginPath();
-        ctx.moveTo(gx - 5, 0);
-        ctx.lineTo(gx + 5, 0);
-        ctx.lineTo(gx, 8);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-
-  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled, externalPosBeats, recordingNotes]);
+  }, [notes, creatingNote, effectivePixelsPerBeat, scrollLeft, userMinPitch, userMaxPitch, channelColor, height, selectedIds, marquee, pianoPlaying, snapUnit, snapEnabled, recordingNotes]);
 
   // ── Re-draw à chaque changement ──
   useEffect(() => {
@@ -1097,7 +1074,7 @@ export default function PianoRoll({
    * si elle est active (l'édition invalide le rendu en cours). */
   const commitNotes = useCallback((newNotes: PianoNote[]) => {
     if (pianoPlaying !== 'idle') stopPlayback();
-    onNotesChange(newNotes);
+    onNotesChange(channel, newNotes);
   }, [pianoPlaying, stopPlayback, onNotesChange]);
 
   // ── Historique undo/redo ──────────────────────────────────────────
@@ -1838,6 +1815,9 @@ export default function PianoRoll({
                   height: canvasHeight,
                 }}
               >
+                {/* Tête de lecture GLOBALE animée (store playhead, sans
+                    re-render ni redraw du canvas — optimisation A) */}
+                <PlayheadLine scale={effectivePixelsPerBeat} contentWidth={Math.max(contentWidth, viewportW)} />
                 <canvas
                   ref={canvasRef}
                   className="block cursor-crosshair sticky left-0 top-0"
@@ -1948,3 +1928,6 @@ export default function PianoRoll({
 function snapToGrid(time: number, unit: number = SNAP_UNIT): number {
   return Math.round(time / unit) * unit;
 }
+
+
+export default memo(PianoRoll);

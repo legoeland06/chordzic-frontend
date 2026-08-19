@@ -9,6 +9,7 @@
  * Remplaçant de l'ancien affichage du TrackPanel (perdu à sa suppression),
  * avec un design entièrement revu.
  */
+import { memo } from 'react';
 import { getChordColor } from '../types/chord';
 
 interface ChordNowModalProps {
@@ -17,7 +18,7 @@ interface ChordNowModalProps {
   playing: boolean;
 }
 
-export default function ChordNowModal({ chords, highlighted, playing }: ChordNowModalProps) {
+function ChordNowModal({ chords, highlighted, playing }: ChordNowModalProps) {
   const current = playing && highlighted >= 0 ? chords[highlighted] : undefined;
   const next = playing && highlighted + 1 < chords.length ? chords[highlighted + 1] : undefined;
   if (!current) return null;
@@ -49,3 +50,6 @@ export default function ChordNowModal({ chords, highlighted, playing }: ChordNow
     </div>
   );
 }
+
+
+export default memo(ChordNowModal);

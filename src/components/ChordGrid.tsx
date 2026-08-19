@@ -11,6 +11,7 @@
  * L'accord en cours de lecture est surligné (highlighted).
  * Le drag & drop est désactivé pendant la lecture.
  */
+import { memo } from 'react';
 import { GripVertical } from 'lucide-react';
 import { ChordData, durationLabel, getChordColor, getNoteColor } from '../types/chord';
 
@@ -28,7 +29,7 @@ interface ChordGridProps {
   onDeleteChord: (idx: number) => void;
 }
 
-export default function ChordGrid({
+function ChordGrid({
   chords, highlighted, playing, dragIdx, tempo,
   onClickChord, onDragStart, onDragOver, onDrop, onDragEnd, onDeleteChord,
 }: ChordGridProps) {
@@ -115,3 +116,6 @@ export default function ChordGrid({
     </div>
   );
 }
+
+
+export default memo(ChordGrid);

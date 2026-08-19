@@ -18,10 +18,13 @@
  * ou ⏱ timer indépendant — un accord identifié tenu ≥ 3 s (réglable) est
  * inséré automatiquement (les deux mains sont occupées à jouer).
  */
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { recognizeChord, RecognizedChord } from '../lib/chordRecognition';
 import { computeAutoInsert, initialAutoInsertState } from '../lib/autoInsert';
 import { NOTE_NAMES } from '../types/chord';
+import { activePitchesAt } from '../lib/pitchesToNotes';
+import type { PianoNote } from '../lib/pianoRollTypes';
+import { getPlayheadPosition } from '../lib/playhead';
 import LivePiano from './LivePiano';
 import { backendUrl } from '../lib/chordUtils';
 
@@ -37,8 +40,9 @@ interface PianoLivePanelProps {
   onInsert: (chord: RecognizedChord, pitches: number[]) => void;
   /** Navig : nom de la piste cible (null = aucune sélectionnée). */
   targetTrackLabel?: string | null;
-  /** Navig : pitchs actifs de la piste jouée à la position courante. */
-  trackPitches?: number[];
+  /** Navig : NOTES de la piste cible — le panneau calcule les pitchs actifs
+   * via le store playhead (illumination ~12 fps, sans re-render du DAW). */
+  trackNotes?: PianoNote[];
   /** Navig : illumination de la piste activée ? */
   illuminationEnabled?: boolean;
   /** Navig : bascule l'illumination piste. */
@@ -54,11 +58,26 @@ function samePitches(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-export default function PianoLivePanel({
+/** Illumination de la piste jouée : lit la position du store playhead à
+ * ~12 fps (imperceptible) et calcule les pitchs actifs — le DAW ne re-rend
+ * plus à chaque tick de lecture (optimisation performance B). */
+function usePlayheadPitches(notes: PianoNote[], enabled: boolean, fps = 12): number[] {
+  const [pitches, setPitches] = useState<number[]>([]);
+  useEffect(() => {
+    if (!enabled) { setPitches([]); return; }
+    const update = () => setPitches(activePitchesAt(notes, getPlayheadPosition()));
+    update();
+    const id = setInterval(update, Math.max(40, Math.round(1000 / fps)));
+    return () => clearInterval(id);
+  }, [notes, enabled, fps]);
+  return pitches;
+}
+
+function PianoLivePanel({
   mode,
   onInsert,
   targetTrackLabel = null,
-  trackPitches = [],
+  trackNotes = [],
   illuminationEnabled = true,
   onToggleIllumination,
   onGoNavig,
@@ -127,10 +146,12 @@ export default function PianoLivePanel({
   const insertDisabled = !canInsert || noTrack;
 
   // Illumination : Live = Roland tenu · Navig = Roland tenu (comme Live)
-  // + piste jouée (toggle ✨, préférence de l'utilisateur).
+  // + piste jouée (toggle ✨) — les pitchs actifs de la piste viennent du
+  // store playhead (~12 fps), pas d'un state du DAW.
+  const trackPitches = usePlayheadPitches(trackNotes, illuminationEnabled && mode === 'navig');
   const pianoPitches = mode === 'live'
     ? active
-    : [...new Set([...active, ...(illuminationEnabled ? trackPitches : [])])];
+    : [...new Set([...active, ...trackPitches])];
 
   const cycleDelay = () => {
     setDelayS(prev => {
@@ -273,3 +294,6 @@ export default function PianoLivePanel({
     </div>
   );
 }
+
+
+export default memo(PianoLivePanel);

@@ -6,6 +6,7 @@
  * limités aux actions principales) — cohérent avec le mode Navig. Le tempo et
  * la bascule 📱 Navig. vivent dans la LiveSettingsBar (rangée de réglages).
  */
+import { memo } from 'react';
 import { Play, Square, Trash2, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
 
 interface ControlBarProps {
@@ -30,7 +31,7 @@ interface ControlBarProps {
 /** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
 const btn = 'h-7 px-2.5 flex items-center gap-1.5 rounded-md text-[10px] font-semibold border transition-colors shrink-0 disabled:opacity-40 disabled:hover:bg-[#141a24]';
 
-export default function ControlBar({
+function ControlBar({
   chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
@@ -127,3 +128,6 @@ export default function ControlBar({
     </div>
   );
 }
+
+
+export default memo(ControlBar);

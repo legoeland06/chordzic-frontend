@@ -12,13 +12,16 @@
  * - LIGNE VERTICALE de lecture qui court pendant la lecture, se fige à la
  *   pause, et se déplace au clic.
  */
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { memo, useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
 import PianoLivePanel from './PianoLivePanel';
 import LiveSettingsBar from './LiveSettingsBar';
+import PlayheadLine from './PlayheadLine';
+import TransportReadout from './TransportReadout';
+import { getPlayheadPosition, setPlayheadPosition } from '../lib/playhead';
 import { AudioEngine, TrackConfig, FX_ZERO } from '../lib/audioEngine';
 import type { SampleLoopCfg } from '../lib/browserSynth';
 import { getClickSig } from '../lib/clickPrefs';
@@ -27,7 +30,7 @@ import { parseRepeat } from '../types/chord';
 import { PIANO_KEYBOARD_WIDTH, DEFAULT_SNAP_UNIT, snapToGrid } from '../lib/pianoRollTypes';
 import type { PianoNote } from '../lib/pianoRollTypes';
 import type { RecognizedChord } from '../lib/chordRecognition';
-import { activePitchesAt, pitchesToPianoNotes } from '../lib/pitchesToNotes';
+import { pitchesToPianoNotes } from '../lib/pitchesToNotes';
 import { RecMidiEvent, countdownClicks, recEventsToNotes } from '../lib/recMidi';
 import { backendUrl } from '../lib/chordUtils';
 
@@ -262,13 +265,12 @@ function laneHeightFor(notes: PianoNote[], detailed: boolean): number {
   return Math.max(48, (Math.min(127, mx + 2) - Math.max(0, mn - 2) + 1) * PITCH_PX);
 }
 
-function TrackLane({
-  track, notes, totalBeats, posBeats, compact, onScrub,
+const TrackLane = memo(function TrackLane({
+  track, notes, totalBeats, compact, onScrub,
 }: {
   track: TrackConfig;
   notes: PianoNote[];
   totalBeats: number;
-  posBeats: number;
   compact: boolean;
   onScrub: (beats: number) => void;
 }) {
@@ -366,25 +368,7 @@ function TrackLane({
       }
     }
 
-    // Ligne de lecture verticale (rouge, pleine hauteur)
-    const px = posBeats * sx;
-    if (px >= 0 && px <= width) {
-      ctx.strokeStyle = '#f87171';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, laneHeight);
-      ctx.stroke();
-      // Repère triangulaire en haut
-      ctx.fillStyle = '#f87171';
-      ctx.beginPath();
-      ctx.moveTo(px - 4, 0);
-      ctx.lineTo(px + 4, 0);
-      ctx.lineTo(px, 6);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }, [notes, color, width, laneHeight, minPitch, maxPitch, totalBeats, posBeats, compact]);
+  }, [notes, color, width, laneHeight, minPitch, maxPitch, totalBeats, compact]);
 
   /** Clic sur le canvas → déplacer la tête de lecture (scrub). */
   const handleScrub = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -405,9 +389,11 @@ function TrackLane({
         onPointerDown={handleScrub}
         title="Clic : déplacer la tête de lecture · Molette : zoomer (centré sur le curseur)"
       />
+      {/* Ligne de lecture animée (store playhead, sans re-render) */}
+      <PlayheadLine scale={totalBeats > 0 ? width / totalBeats : 1} contentWidth={width} />
     </div>
   );
-}
+});
 
 /** Champ locator éditable au format mesure.temps + flèches ▲▼ (±1 temps).
  * La position interne reste en beats (le backend attend des beats). */
@@ -502,7 +488,6 @@ export default function DawView({
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
   type PlayState = 'idle' | 'playing' | 'paused';
   const [playState, setPlayState] = useState<PlayState>('idle');
-  const [posBeats, setPosBeats] = useState(0);
   /** Canal dont la lane est AGRANDIE (PianoRoll intégré). Une seule à la
    * fois : la barre d'outils (dans la zone transport) pilote cette piste. */
   const [expandedCh, setExpandedCh] = useState<number | null>(null);
@@ -713,21 +698,16 @@ export default function DawView({
     const n = parseInt(sig.split('/')[0] ?? '', 10);
     return Number.isFinite(n) && n > 0 ? n : 4;
   })();
-  const measure = Math.floor(posBeats / beatsPerBar) + 1;
-  const beatInBar = Math.floor(posBeats % beatsPerBar) + 1;
-  const durSec = engine.getPianoRollDuration() || (totalBeats * 60) / Math.max(40, tempo);
-  const fmtTime = (sec: number) => {
-    if (!Number.isFinite(sec) || sec < 0) sec = 0;
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    const d = Math.floor((sec % 1) * 10);
-    return `${m}:${String(s).padStart(2, '0')}.${d}`;
-  };
-  const elapsedSec = (posBeats * 60) / Math.max(40, tempo);
 
   // ── Vumètres par piste (énergie des notes actives à la position courante) ──
   const [levels, setLevels] = useState<Record<number, number>>({});
+  /** Vumètres à ~10 fps (imperceptible) : le setLevels re-rend le DAW — on
+   * l évite à chaque tick de lecture (optimisation C). */
+  const lastLevelsRef = useRef(0);
   const refreshLevels = useCallback((beats: number) => {
+    const now = Date.now();
+    if (now - lastLevelsRef.current < 100) return;
+    lastLevelsRef.current = now;
     const cur: Record<number, number> = {};
     for (const t of tracks) {
       const notes = pianoNotes[t.channel] ?? [];
@@ -775,7 +755,7 @@ export default function DawView({
     setMidiPlaying(true);
     midiStartRef.current = performance.now();
     midiFromRef.current = fromBeats;
-    setPosBeats(fromBeats);
+    setPlayheadPosition(fromBeats);
     if (midiTimerRef.current !== null) clearInterval(midiTimerRef.current);
     midiTimerRef.current = window.setInterval(() => {
       const elapsedSec = (performance.now() - midiStartRef.current) / 1000;
@@ -789,14 +769,14 @@ export default function DawView({
           // BOUCLE (repeat) : la tête repart au début de l'intervalle et la
           // lecture CONTINUE — le backend boucle déjà ; NE PAS appeler
           // stopMidi() ici (ça tuait la boucle à la fin du 1er passage).
-          setPosBeats(loopStart + ((beats - loopStart) % (loopEnd - loopStart)));
+          setPlayheadPosition(loopStart + ((beats - loopStart) % (loopEnd - loopStart)));
           return;
         }
-        setPosBeats(totalBeats);
+        setPlayheadPosition(totalBeats);
         stopMidi();
         return;
       }
-      setPosBeats(beats);
+      setPlayheadPosition(beats);
     }, 50);
   }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn, locL, locR]);
 
@@ -804,7 +784,7 @@ export default function DawView({
     stopMidi();
     engine.stop();
     setPlayState('idle');
-    setPosBeats(0);
+    setPlayheadPosition(0);
     setLevels({});
   }, [engine, stopMidi]);
 
@@ -812,7 +792,7 @@ export default function DawView({
     stopMidi();
     engine.stop();
     setPlayState('idle');
-    setPosBeats(0);
+    setPlayheadPosition(0);
     setLevels({});
   }, [engine, stopMidi]);
 
@@ -834,18 +814,18 @@ export default function DawView({
     // l'intervalle, la lecture revient au locator gauche. Une tête avant L
     // (dont 0 par défaut) joue depuis la tête — le premier Play doit
     // entendre le début du morceau, pas sauter à L (bug locator L ≠ 001.1).
-    const startBeats = computeStartBeats(loopOn, locL, locR, posBeats);
+    const startBeats = computeStartBeats(loopOn, locL, locR, getPlayheadPosition());
     if (clickSeparated || contentSig !== renderSigRef.current || clickSig !== renderClickSigRef.current) {
       renderSigRef.current = contentSig;
       renderClickSigRef.current = clickSig;
-      setPosBeats(startBeats);
+      setPlayheadPosition(startBeats);
       onPlay(startBeats);
     } else {
       // Buffer déjà rendu → jouer depuis la position de la tête
       engine.playNavigFrom((startBeats * 60) / tempo, loopOn);
     }
     setPlayState('playing');
-  }, [playState, contentSig, engine, onPlay, posBeats, tempo, loopOn, locL, locR]);
+  }, [playState, contentSig, engine, onPlay, tempo, loopOn, locL, locR]);
 
   const doPause = useCallback(() => {
     engine.pausePianoRoll();
@@ -855,7 +835,7 @@ export default function DawView({
   /** Scrub : clic sur une lane → déplace la tête. En lecture MIDI, relance
    * la lecture MIDI depuis la position cliquée. */
   const doScrub = useCallback(async (beats: number) => {
-    setPosBeats(beats);
+    setPlayheadPosition(beats);
     if (midiPlaying) {
       await stopMidi();
       startMidi(beats);
@@ -883,7 +863,7 @@ export default function DawView({
       if (loopOn && loopEndSec > loopStartSec && raw >= loopEndSec - 0.05) {
         const wrapped = wrapLoopPositionSec(raw, loopStartSec, loopEndSec);
         const b = (wrapped * tempo) / 60;
-        setPosBeats(b);
+        setPlayheadPosition(b);
         refreshLevels(b);
         return;
       }
@@ -891,12 +871,12 @@ export default function DawView({
         // Fin naturelle du buffer (hors boucle)
         if (!loopOn) { doStopRef.current(); return; }
         const b = ((raw % dur) * tempo) / 60;
-        setPosBeats(b);
+        setPlayheadPosition(b);
         refreshLevels(b);
         return;
       }
       const b = (raw * tempo) / 60;
-      setPosBeats(b);
+      setPlayheadPosition(b);
       refreshLevels(b);
     }, 40);
     return () => clearInterval(id);
@@ -914,7 +894,7 @@ export default function DawView({
   useEffect(() => {
     if (!playing && playState !== 'idle') {
       setPlayState('idle');
-      setPosBeats(0);
+      setPlayheadPosition(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
@@ -946,10 +926,9 @@ export default function DawView({
   /** Pitchs ACTIFS de la piste sélectionnée à la position de lecture —
    * même tête pour la lecture WAV et MIDI → illumination fidèle au contenu
    * joué. Figée à la pause (position courante), vide à l'arrêt. */
-  const trackPitches = useMemo(() => {
-    if (expandedCh === null || (playState === 'idle' && !midiPlaying)) return [];
-    return activePitchesAt(pianoNotes[expandedCh] ?? [], posBeats);
-  }, [expandedCh, pianoNotes, posBeats, playState, midiPlaying]);
+  /** Notes de la piste cible (illumination) — stables ; le panneau calcule
+   * les pitchs actifs via le store playhead (sans re-render du DAW). */
+  const trackNotes = expandedCh !== null ? (pianoNotes[expandedCh] ?? []) : [];
 
   /** Insère l'accord reconnu en NOTES dans la piste sélectionnée : fin de
    * la piste (beat entier), durée = une mesure de la signature courante.
@@ -1028,7 +1007,7 @@ export default function DawView({
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
     }).catch(() => { /* backend injoignable */ });
-    setRecStartPos(posBeats);
+    setRecStartPos(getPlayheadPosition());
     setRecState('on');
     // Métronome continu : clic immédiat puis à chaque temps (le ctx du
     // décompte reste ouvert — les notes jouées suivent le rythme).
@@ -1039,7 +1018,7 @@ export default function DawView({
       if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
       recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
     }
-  }, [posBeats, tempo, playClick]);
+  }, [tempo, playClick]);
 
   /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
   const playCountdown = useCallback((bpm: number) => {
@@ -1224,7 +1203,7 @@ export default function DawView({
 
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
-          onClick={() => (midiPlaying ? stopMidi() : startMidi(computeStartBeats(loopOn, locL, locR, posBeats)))}
+          onClick={() => (midiPlaying ? stopMidi() : startMidi(computeStartBeats(loopOn, locL, locR, getPlayheadPosition())))}
           className={`h-7 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
             midiPlaying
               ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'
@@ -1245,11 +1224,13 @@ export default function DawView({
           title={playState === 'playing' ? 'Lecture en cours' : playState === 'paused' ? 'En pause' : 'Arrêté'}
         />
 
-        {/* Compteurs (afficheurs LCD) */}
-        <div className={tLcd} title="Mesure courante · temps dans la mesure">
-          <span className={tLcdLabel}>Mes.</span>
-          <span className={tLcdVal}>{String(measure).padStart(3, '0')}.{beatInBar}</span>
-        </div>
+        {/* Compteurs (afficheurs LCD) — s'abonnent au store playhead (~10 fps),
+            sans re-render du transport/DAW pendant la lecture */}
+        <TransportReadout
+          beatsPerBar={beatsPerBar}
+          tempo={tempo}
+          durSec={engine.getPianoRollDuration() || (totalBeats * 60) / Math.max(40, tempo)}
+        />
         {/* Locators [L, R[ — au format mesure.temps (comme le compteur MES),
             flèches ▲▼ = ±1 temps, édition directe au format MMM.T */}
         <LocatorField
@@ -1262,14 +1243,6 @@ export default function DawView({
           min={locL + 1} max={Math.max(locL + 1, Math.ceil(totalBeats))}
           onChange={(v) => onLocatorsChange(locL, v)}
         />
-        <div className={tLcd} title="Temps écoulé depuis le début">
-          <span className={tLcdLabel}>Temps</span>
-          <span className={tLcdVal}>{fmtTime(elapsedSec)}</span>
-        </div>
-        <div className={tLcd} title="Durée totale du morceau">
-          <span className={tLcdLabel}>Durée</span>
-          <span className={tLcdVal}>{fmtTime(durSec)}</span>
-        </div>
         <div className={tLcd} title="Tempo (BPM)">
           <span className={tLcdLabel}>BPM</span>
           <span className={tLcdVal}>{tempo}</span>
@@ -1394,7 +1367,7 @@ export default function DawView({
             mode="navig"
             onInsert={handlePianoInsert}
             targetTrackLabel={targetTrackLabel}
-            trackPitches={trackPitches}
+            trackNotes={trackNotes}
             illuminationEnabled={illumOn}
             onToggleIllumination={toggleIllum}
             onGoLive={onSetLive}
@@ -1618,7 +1591,7 @@ export default function DawView({
                         <PianoRoll
                           embedded
                           notes={pianoNotes[t.channel] ?? []}
-                          onNotesChange={(notes) => onNotesChange(t.channel, notes)}
+                          onNotesChange={onNotesChange}
                           trackLabel={t.label}
                           channel={t.channel}
                           isDrum={t.channel === 9 || !!t.drums}
@@ -1633,7 +1606,6 @@ export default function DawView({
                           onExpand={() => setModalPianoRoll(t.channel)}
                           keysVisible={keysVisible}
                           onToggleKeys={toggleKeys}
-                          externalPosBeats={posBeats}
                           recState={recState}
                           onToggleRec={toggleRec}
                           recordingNotes={recNotes}
@@ -1643,7 +1615,6 @@ export default function DawView({
                           track={t}
                           notes={pianoNotes[t.channel] ?? []}
                           totalBeats={totalBeats}
-                          posBeats={posBeats}
                           compact
                           onScrub={doScrub}
                         />
@@ -1767,7 +1738,7 @@ export default function DawView({
               <div className="flex-1 min-h-0">
                 <PianoRoll
                   notes={channelNotes}
-                  onNotesChange={(notes) => onNotesChange(modalPianoRoll, notes)}
+                  onNotesChange={onNotesChange}
                   trackLabel={label}
                   channel={modalPianoRoll}
                   isDrum={track?.channel === 9 || !!track?.drums}
@@ -1779,7 +1750,6 @@ export default function DawView({
                   onPlayMidi={(notes) => playMidiViaPort(notes, modalPianoRoll)}
                   keysVisible={keysVisible}
                   onToggleKeys={toggleKeys}
-                  externalPosBeats={posBeats}
                   recState={recState}
                   onToggleRec={toggleRec}
                   recordingNotes={recNotes}

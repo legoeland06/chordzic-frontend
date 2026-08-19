@@ -7,6 +7,7 @@
  * En mode Navig, `showLoop` est à false (le Loop y est déjà géré par
  * LoopControl + les locators).
  */
+import { memo } from 'react';
 import { Gauge, Volume2 } from 'lucide-react';
 
 interface LiveSettingsBarProps {
@@ -50,7 +51,7 @@ function toggleCls(active: boolean, activeCls: string): string {
 
 const selectCls = 'bg-gray-800/60 text-[10px] px-1.5 py-1 rounded-md border border-gray-700/60 outline-none shrink-0 focus:border-gray-500';
 
-export default function LiveSettingsBar({
+function LiveSettingsBar({
   volume, onSetVolume, use432, onSet432, loopOn, onSetLoop,
   walkingBass, onSetWalkingBass, drumPattern, onSetDrumPattern,
   sig, onSetSig, playing, showLoop = true,
@@ -159,3 +160,6 @@ export default function LiveSettingsBar({
     </div>
   );
 }
+
+
+export default memo(LiveSettingsBar);
