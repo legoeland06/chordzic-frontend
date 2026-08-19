@@ -1,75 +1,82 @@
 # chord-frontend — Frontend de chordZIC V2
 
-Interface web **React + TypeScript + Vite** de **chordZIC V2** : un séquenceur de
-grilles d'accords avec piano rolls, pistes drums, boucles d'échantillons, table de
-mixage et export audio.
+Interface web **React + TypeScript + Vite** de **chordZIC V2** : un séquenceur
+de grilles d'accords avec reconnaissance MIDI temps réel, piano 88 touches
+illuminé, piano rolls, pistes drums, boucles d'échantillons, table de mixage
+et export audio.
 
 - Backend : [chordzic-server](https://github.com/legoeland06/chordzic-server)
 - Dev server : **http://localhost:5176**
+- Appli complète (frontend embarqué) : **http://localhost:4000**
 
 ---
 
-## Fonctionnalités
+## Les deux modes
 
-### Grille & lecture
+### 🎸 Mode Live (saisie d'accords + piano)
 - Saisie d'accords avec durée (4, 2, 1, 8, 16 temps) et **silences réels** (`4:_`, `2:_`, `1:_`)
-- Tempo, signature, loop on/off, A = 432 Hz, master volume
-- 6 patterns batterie, walking bass, pompe skank, accent 2&4
-- Mode serveur (MIDI → FluidSynth) et mode Navigateur (Web Audio)
+- **🎹 LivePiano** : piano **88 touches (A0 → C8)** aligné sur le clavier MIDI (Roland) dont les
+  touches s'illument en bleu quand vous jouez — reconnaissance d'accords en temps réel
+  (accord affiché en très gros + notes en clair), insertion dans la grille (clic, « + Grille »,
+  ou **⏱ timer d'auto-insertion** 1-5 s)
+- **🎯 Accord en lecture** : modal circulaire translucide montrant l'accord joué par la séquence
+- Réglages musicaux (LiveSettingsBar) : volume master, 432 Hz, Loop, Walking Bass, Pattern,
+  Mesure, Tempo
+- Mode serveur (MIDI → FluidSynth) ; la sortie du synthé se fait via **▶ MIDI**
+
+### 📱 Mode Navig. (vue DAW)
+- Panneau supérieur **🎹 Piano / 🎚 Mixer** (rétractable) : le même LivePiano y insère l'accord
+  reconnu en **notes** dans la piste cible (celle dont le Piano Roll intégré est ouvert),
+  illumine au contenu de la piste jouée (✨, WAV ou MIDI) et transmet au Roland le
+  **program change** de la piste (son de la piste, pédale de sustain relayée)
+- **Table de mixage** : nom, instrument, MUTE, fader-vumètre, effets (reverb/chorus/delay/drive),
+  ajout/suppression/réordonnancement des pistes
+- **Pistes horizontales** avec mini-vumètres, locators L/R draggables (boucle [L, R[), tête de
+  lecture (scrub au clic)
+- Lecture **▶ Play** = rendu audio interne (FluidSynth, silencieux) ; **▶ MIDI** = toutes les
+  pistes sur le port choisi (Roland)
 
 ![Grille d'accords en mode Live](screenshots/grille_accords_texte_modeLive.png)
 *Grille d'accords en saisie texte (mode Live)*
 
-![Panneau de liste d'accords en mode Live](screenshots/panelChordList_modeLive.png)
-*Panneau de sélection des accords (mode Live)*
-
-![Panneau de contrôle en mode Navigateur](screenshots/controlPanel_modeNavig.png)
-*Panneau de contrôle (mode Navigateur)*
-
-### Pistes & piano rolls
-- Pistes 🎹 instrument et 🥁 **drums** (jouées sur le canal 9)
-- Piano roll par piste : notes, sélection, groupes ⛓, déplacement, zoom
-- **Copier / coller inter-pistes** : presse-papiers global du projet
-  (Ctrl+C copie la sélection, sinon toute la piste ; collage miroir aux mêmes
-  emplacements sur une autre piste, avec confirmation et fusion annulable Ctrl+Z)
-- Suppression de piste avec confirmation obligatoire
-
 ![Vue piste en mode Navigateur](screenshots/trackView_modeNavig.png)
 *Vue d'une piste (mode Navigateur)*
 
-![Liste des pistes en mode Live](screenshots/controlPanel_trackListe_modeLive.png)
-*Liste des pistes avec contrôle (mode Live)*
-
-### Table de mixage
-- Volume, mute, sélecteur d'instrument par piste
-- Réordonnancement des pistes, mini-vumètres
-- Indicateur 💾 d'autosave
-
 ![Table de mixage en mode Navigateur](screenshots/controlPanel_tableMixage_modeNavig.png)
-*Panneau de contrôle et table de mixage (mode Navigateur)*
+*Table de mixage (mode Navigateur)*
 
-### Samples (boucles)
-- Boucle d'échantillon par piste : volume, **offset/décalage** mémorisés par sample
-- **Recadrage automatique sur la grille** (v2.6.7) : la période de boucle est forcée
-  à un multiple exact de la mesure (tempo + signature) — sample trop long **coupé**,
-  trop court **complété par du silence**, micro fade-out anti-clic
-- Démarrage calé dès le premier Play (phase recalculée après chargement)
+## Piano Roll (intégré + modal plein écran)
+
+- **Barre d'outils « studio » unique** (intégré et modal ⛶, parfaitement synchronisés) :
+  édition/sélection, copier/couper/coller (presse-papiers global + badge), grouper ⛓,
+  vélocité/durée, snap 🧲 + quantiser, transport local ▶, undo/redo
+- **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
+- **Molette** : scroll vertical du registre (~quinte/cran, le clavier en marge suit) ·
+  Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection
+- **Clavier en marge rétractable** (bouton 🎹 sur la marge, préférence mémorisée)
+- **Copier / coller inter-pistes** : collage miroir aux mêmes emplacements, fusion annulable Ctrl+Z
+- Pistes 🎹 instrument et 🥁 **drums** (canal 9)
+
+## Samples (boucles)
+
+- Boucle d'échantillon : volume, **offset/décalage** mémorisés par sample
+- **Recadrage automatique sur la grille** (v2.6.7) : période forcée à un multiple exact de la
+  mesure — sample trop long **coupé**, trop court **complété par du silence**, fade-out anti-clic
 - Extraction WAV : le sample actif est **mixé** au morceau exporté
 
-### Sauvegarde
-- **Autosave local** (localStorage, debounce 800 ms + flush au beforeunload)
-  — F5 ne perd rien, restauration automatique au chargement
-- Save / Load / Import côté serveur (archives)
-- Préférences locales (offset sample, click…) persistées par sample
+## Sauvegarde
 
-### Post-production
-- Vue de post-production pour l'assemblage et l'édition des rendus
+- **Autosave local** (localStorage, debounce 800 ms + flush beforeunload) — F5 ne perd rien
+- Save / Load / Import côté serveur (JSON) ; **« Nouveau » garde le mode courant**
 
-![Modal de post-production](screenshots/modal_modProd.png)
-*Modal de post-production*
+## Post-production
 
-### Aide intégrée
-- Bouton ❓ → **HelpModal** : documentation utilisateur complète, mise à jour à chaque release
+- Vue PostProd : bounce des pistes MIDI en audio (WAV, avec effets) puis édition multipiste
+
+## Aide intégrée
+
+- Bouton ❓ → **HelpModal** : documentation utilisateur complète (recherchable), **lecture
+  vocale des rubriques à voix haute** (bouton 🔊, synthèse Piper locale)
 
 ---
 
@@ -91,10 +98,12 @@ React 19 · TypeScript 5 · Vite 6 · Tailwind CSS 4 · Vitest 4 · lucide-react
 
 ```
 src/
-├── components/   # ChordApp, ChordGrid, PianoRoll, DawView, TrackPanel,
+├── components/   # ChordApp, ChordGrid, PianoRoll, DawView, PianoLivePanel,
+│                 # LivePiano, LiveSettingsBar, ControlBar, ChordNowModal,
 │                 # LoopControl, ClickControl, PostProdView, HelpModal…
-├── lib/          # audioEngine, browserSynth, sampleLoop, projectClipboard,
-│                 # sampleOffsets, pianoRollEngine, postProdEngine…
+├── lib/          # audioEngine, browserSynth, livePiano, pitchesToNotes,
+│                 # chordRecognition, pianoRollEngine, playGuard, navPosition,
+│                 # sampleLoop, projectClipboard, postProdEngine…
 └── types/
 ```
 
