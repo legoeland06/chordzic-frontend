@@ -55,8 +55,16 @@ function LivePiano({
   const active = useMemo(() => activePitchSet(activePitches, pitchMin, pitchMax), [activePitches, pitchMin, pitchMax]);
   const widthEm = useMemo(() => pianoWidthEm(pitchMin, pitchMax), [pitchMin, pitchMax]);
 
-  // Touches tenues AU CLIC (note-on envoyée, en attente du relâchement).
+  /** Touches tenues AU CLIC (note-on envoyée, en attente du relâchement). */
   const [held, setHeld] = useState<ReadonlySet<number>>(new Set());
+
+  // Timers de « clic court » : un clic rapide (< 300 ms) laisse sonner la
+  // note ~300 ms (note-off différé) — ainsi on peut plaquer un accord en
+  // cliquant vite (les notes se chevauchent), impossible à la souris avec
+  // une tenue stricte (un seul pointeur). Un maintien prolongé = tenue.
+  const shortClickMs = 300;
+  const downAtRef = useRef<Map<number, number>>(new Map());
+  const shortTimersRef = useRef<Map<number, number>>(new Map());
 
   // Échelle du piano : la font-size est recalculée pour que le piano tienne
   // dans la largeur du conteneur (null = échelle CSS par défaut, ex. SSR).
@@ -83,6 +91,9 @@ function LivePiano({
     const cb = onPlayNoteRef.current;
     if (!cb) return;
     for (const p of heldRef.current) cb(p, false);
+    // Annule les note-off différés des clics courts (plus de timer orphelin).
+    for (const [, t] of shortTimersRef.current) window.clearTimeout(t);
+    shortTimersRef.current.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -90,6 +101,14 @@ function LivePiano({
     if (!onPlayNote) return;
     e.preventDefault();
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* déjà capturé */ }
+    // Re-clic pendant le délai d'un clic court : annule le note-off différé
+    // (sinon il couperait la nouvelle note).
+    const prev = shortTimersRef.current.get(pitch);
+    if (prev !== undefined) {
+      window.clearTimeout(prev);
+      shortTimersRef.current.delete(pitch);
+    }
+    downAtRef.current.set(pitch, performance.now());
     setHeld(prev => {
       if (prev.has(pitch)) return prev;
       const n = new Set(prev);
@@ -110,7 +129,20 @@ function LivePiano({
       n.delete(pitch);
       return n;
     });
-    onPlayNote(pitch, false);
+    // Clic court → note-off DIFFÉRÉ (la note sonne ~300 ms au total) : un
+    // accord se plaque en cliquant vite. Maintien long → coupe immédiate.
+    const elapsed = performance.now() - (downAtRef.current.get(pitch) ?? performance.now());
+    downAtRef.current.delete(pitch);
+    if (elapsed < shortClickMs) {
+      const prev = shortTimersRef.current.get(pitch);
+      if (prev !== undefined) window.clearTimeout(prev);
+      shortTimersRef.current.set(pitch, window.setTimeout(() => {
+        shortTimersRef.current.delete(pitch);
+        onPlayNote(pitch, false);
+      }, Math.max(1, shortClickMs - elapsed)));
+    } else {
+      onPlayNote(pitch, false);
+    }
   };
 
   return (

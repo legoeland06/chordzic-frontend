@@ -260,10 +260,12 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="88 touches" v="Couvre l'étendue réelle du clavier MIDI (A0 → C8) : chaque touche jouée s'illume en bleu en direct (Roland). Le piano s'adapte à la largeur de l'écran (tient toujours sur une ligne)." />
             <Row k="Cliquable" v={<>
               Le piano se joue à la <b className="text-white">souris ou au doigt</b> : chaque touche appuyée envoie
-              sa note au <b className="text-white">Roland</b> (note-on à l'appui, note-off au relâchement,
-              multi-touches possible — accord plaqué au clic). En mode Navig la note sort sur le
-              <b className="text-white"> canal de la piste cible</b> (elle sonne avec l'instrument de la piste) ;
-              en Live, sur le canal par défaut du Roland.
+              sa note au <b className="text-white">Roland</b> (note-on à l'appui, note-off au relâchement).
+              Un <b className="text-white">clic rapide</b> laisse sonner la note ~0,3 s → on plaque un
+              <b className="text-white"> accord en cliquant vite</b> (les notes se chevauchent) ; un maintien
+              prolongé = tenue ; plusieurs doigts (écran tactile) = plusieurs notes. En mode Navig la
+              note sort sur le <b className="text-white">canal de la piste cible</b> (elle sonne avec l'instrument de
+              la piste) ; en Live, sur le canal par défaut du Roland.
             </>} />
             <Row k="Illustration" v={<>
               <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 mt-1">

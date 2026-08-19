@@ -1283,7 +1283,13 @@ export default function DawView({
 
         {/* Boucle + extraction WAV */}
         <button
-          onClick={() => onSetLoop(!loopOn)}
+          onClick={() => {
+            onSetLoop(!loopOn);
+            // La lecture MIDI tourne déjà avec l'ancien réglage → relance à
+            // la position courante pour appliquer le repeat immédiatement
+            // (le serveur n'applique loop_enabled qu'au démarrage).
+            if (midiPlaying) startMidi(getPlayheadPosition());
+          }}
           disabled={playState === 'playing'}
           className={loopOn ? `${tBtn} bg-purple-900/40 border-purple-500 text-purple-400` : tBtn}
           title="Lecture en boucle"

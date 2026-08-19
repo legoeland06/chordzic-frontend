@@ -4,7 +4,7 @@
  * jsdom n'implémente pas la pointer capture : on la stubbe sur les touches.
  */
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import LivePiano from './LivePiano';
@@ -38,7 +38,13 @@ function renderPiano(onPlayNote: (pitch: number, on: boolean) => void): Root {
 }
 
 describe('<LivePiano /> cliquable', () => {
+  beforeEach(() => {
+    // Le note-off d'un clic court est DIFFÉRÉ (~300 ms) : timers factices.
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = '';
   });
 
@@ -52,6 +58,9 @@ describe('<LivePiano /> cliquable', () => {
     expect(onPlayNote).toHaveBeenLastCalledWith(60, true);
 
     act(() => pointer(c4, 'pointerup'));
+    // Clic court → note-off différé (la note sonne ~300 ms) : pas encore.
+    expect(onPlayNote).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(320));
     expect(onPlayNote).toHaveBeenLastCalledWith(60, false);
     expect(onPlayNote).toHaveBeenCalledTimes(2);
 
@@ -88,6 +97,7 @@ describe('<LivePiano /> cliquable', () => {
 
     act(() => pointer(c4, 'pointerup'));
     act(() => pointer(e4, 'pointerup'));
+    act(() => vi.advanceTimersByTime(320));
     expect(onPlayNote).toHaveBeenCalledWith(60, false);
     expect(onPlayNote).toHaveBeenCalledWith(64, false);
 
@@ -102,7 +112,27 @@ describe('<LivePiano /> cliquable', () => {
 
     act(() => pointer(c4, 'pointerdown'));
     act(() => pointer(c4, 'pointercancel'));
+    act(() => vi.advanceTimersByTime(320));
     expect(onPlayNote).toHaveBeenLastCalledWith(60, false);
+
+    act(() => root.unmount());
+  });
+
+  it('re-clic pendant le délai : le note-off différé est annulé (pas de coupure)', () => {
+    const onPlayNote = vi.fn();
+    const root = renderPiano(onPlayNote);
+    const c4 = document.querySelector('li[title="C4"]') as HTMLElement;
+    stubPointerCapture(c4);
+
+    act(() => pointer(c4, 'pointerdown'));
+    act(() => pointer(c4, 'pointerup')); // clic court → note-off dans 300 ms
+    act(() => vi.advanceTimersByTime(100));
+    act(() => pointer(c4, 'pointerdown')); // re-clic : annule le timer
+    act(() => pointer(c4, 'pointerup'));
+    act(() => vi.advanceTimersByTime(320));
+
+    // (on, on, off) — jamais d'off intercalé qui couperait la note
+    expect(onPlayNote.mock.calls.map(c => c[1])).toEqual([true, true, false]);
 
     act(() => root.unmount());
   });
