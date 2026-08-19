@@ -26,6 +26,8 @@ interface ControlBarProps {
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
   hasWav: boolean;
   onTempoChange: (t: number) => void;
+  /** Bascule vers le mode Navig (vue DAW). */
+  onGoNavig: () => void;
 }
 
 export default function ControlBar({
@@ -33,7 +35,7 @@ export default function ControlBar({
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
   onExtractWav, hasWav,
-  onTempoChange,
+  onTempoChange, onGoNavig,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -143,6 +145,18 @@ export default function ControlBar({
           onChange={(e) => onTempoChange(parseInt(e.target.value))}
           className="text-xs font-bold text-blue-400 w-10 shrink-0"
         />
+
+        {/* Séparateur */}
+        <div className="w-px h-5 bg-gray-700 mx-0.5 shrink-0" />
+
+        {/* ── Bascule vers le mode Navig (vue DAW) ── */}
+        <button
+          onClick={onGoNavig}
+          className="px-3 sm:px-4 py-2 bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 border border-violet-700/40"
+          title="Passer en mode Navig (vue DAW : mixeur, pistes, piano roll)"
+        >
+          📱 Navig.
+        </button>
       </div>
     </div>
   );

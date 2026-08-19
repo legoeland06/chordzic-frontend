@@ -1229,6 +1229,7 @@ export default function ChordApp() {
             onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
             onTempoChange={setTempo}
+            onGoNavig={() => setNavigMode(true)}
           />
         </div>
 
