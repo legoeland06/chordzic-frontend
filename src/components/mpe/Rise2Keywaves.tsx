@@ -1,10 +1,11 @@
 /**
  * 🎹 Rise2Keywaves — zone des 25 keywaves du ROLI Seaboard RISE 2 (2 octaves).
  *
- * Le Seaboard simulé représente un clavier qui « ressemble à peine à un
- * piano » : 25 keywaves (C3 → C5) de silicone mat, où les touches noires
- * (chromatiques) sont JUSTE plus foncées que les blanches (grises). Un
- * choix de couleurs (thèmes) s'applique globalement à l'instrument.
+ * Le Seaboard simulé ressemble à un piano assombri : touches BLANCHES pleine
+ * hauteur, touches NOIRES plus courtes (~58 %, comme un vrai piano), palette
+ * sombre à faible contraste, relief sculpté par les lumières (liserés,
+ * ombres, courbes du sommet). Un choix de couleurs (thèmes sombres)
+ * s'applique globalement à l'instrument.
  *
  * Gestes (5D simplifiés, MULTI-TOUCH — chaque doigt tient sa note) :
  *  - STRIKE : appui sur une keywave → note-on (vélocité 100) ;
@@ -53,14 +54,21 @@ const LS_THEME = 'chordzic_rise2_theme';
 const LS_VIB_FREQ = 'chordzic_rise2_vib_freq';
 const LS_VIB_DEPTH = 'chordzic_rise2_vib_depth';
 
+/** Hauteur des touches noires (fraction de la hauteur des blanches). */
+export const RISE2_BLACK_HEIGHT = 0.58;
+
 /** Classes chromatiques : les touches « noires » du Seaboard. */
 const BLACK_PCS = new Set([1, 3, 6, 8, 10]);
 
-/** Thème de couleurs appliqué GLOBALEMENT à l'instrument (touches mattes). */
+/**
+ * Thème de couleurs appliqué GLOBALEMENT à l'instrument.
+ * Palette SOMBRE à faible contraste : les blanches sont des gris sombres,
+ * les noires juste plus foncées — le relief vient des lumières (CSS).
+ */
 interface Rise2Theme {
   id: string;
   name: string;
-  /** « Blanches » (naturelles) : dégradé haut → bas, gris mat. */
+  /** « Blanches » (naturelles) : dégradé haut → bas. */
   white: [string, string];
   /** « Noires » (chromatiques) : juste plus foncées. */
   black: [string, string];
@@ -69,11 +77,11 @@ interface Rise2Theme {
 }
 
 const THEMES: Rise2Theme[] = [
-  { id: 'matte', name: 'Gris matte', white: ['#a3a9b1', '#6f757d'], black: ['#52575e', '#33373d'], dot: '#67e8f9' },
-  { id: 'ocean', name: 'Bleu glacier', white: ['#8aa8c4', '#5d7a96'], black: ['#3c5066', '#263544'], dot: '#a5f3fc' },
-  { id: 'forest', name: 'Vert forêt', white: ['#8bab96', '#5f8270'], black: ['#3a5143', '#28372c'], dot: '#86efac' },
-  { id: 'ember', name: 'Ambre', white: ['#d0a76f', '#a47c49'], black: ['#6e5230', '#4a371e'], dot: '#fde68a' },
-  { id: 'rose', name: 'Rose poudré', white: ['#cba0ac', '#a17581'], black: ['#6e4853', '#4c313a'], dot: '#f9a8d4' },
+  { id: 'matte', name: 'Gris nuit', white: ['#3e444d', '#272c34'], black: ['#2b3038', '#181c22'], dot: '#67e8f9' },
+  { id: 'ocean', name: 'Bleu nuit', white: ['#33455c', '#202d3f'], black: ['#242f40', '#151d29'], dot: '#a5f3fc' },
+  { id: 'forest', name: 'Vert sombre', white: ['#33453b', '#202e27'], black: ['#242f2a', '#161e1a'], dot: '#86efac' },
+  { id: 'ember', name: 'Ambre sombre', white: ['#4a3d2c', '#33291c'], black: ['#332a1e', '#211b13'], dot: '#fde68a' },
+  { id: 'rose', name: 'Rose nuit', white: ['#4a3a40', '#33262b'], black: ['#33252a', '#21181c'], dot: '#f9a8d4' },
 ];
 
 /** Lit un nombre persistant (défaut si absent/invalide). */
@@ -278,8 +286,9 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
       className="relative flex-1 min-h-[45vh] rounded-xl border border-gray-700/80 bg-[#0d1420] select-none touch-none cursor-crosshair overflow-hidden"
       title="Keywaves ROLI Seaboard RISE 2 : appui = Strike · glissé vertical = Bend · glissé horizontal (petit) = Vibrato · molette = Pression"
     >
-      {/* Surface : 25 keywaves 2 octaves (blanches grises / noires plus foncées) */}
-      <div className="flex h-full gap-[3px] px-[3px] pt-2 pb-1.5">
+      {/* Surface : 25 keywaves 2 octaves — blanches pleine hauteur, noires
+          plus courtes (58 %), palette sombre, relief par les lumières */}
+      <div className="flex h-full items-start gap-[3px] px-[3px] pt-2 pb-1.5">
         {Array.from({ length: RISE2_KEYWAVES }, (_, i) => {
           const pitch = RISE2_START_PITCH + i;
           const isBlack = BLACK_PCS.has(pitch % 12);
@@ -289,7 +298,7 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
             <div
               key={i}
               ref={(el) => { keywaveRefs.current[i] = el; }}
-              className="rise2-keywave relative flex-1 rounded-t-[40%] rounded-b-[5px]"
+              className={`rise2-keywave relative flex-1 rounded-t-[42%] rounded-b-[5px]${isBlack ? ' rise2-black' : ''}`}
               style={{ background: `linear-gradient(180deg, ${c0} 0%, ${c1} 100%)` }}
             >
               {/* Repère des notes C (comme les repères tactiles du RISE 2) */}

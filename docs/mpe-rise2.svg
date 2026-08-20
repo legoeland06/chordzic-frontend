@@ -1,44 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 290" font-family="system-ui, -apple-system, sans-serif">
   <defs>
     <linearGradient id="w" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a3a9b1"/><stop offset="1" stop-color="#6f757d"/>
+      <stop offset="0" stop-color="#3e444d"/><stop offset="1" stop-color="#272c34"/>
     </linearGradient>
     <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#52575e"/><stop offset="1" stop-color="#33373d"/>
+      <stop offset="0" stop-color="#2b3038"/><stop offset="1" stop-color="#181c22"/>
     </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
   </defs>
 
   <!-- Fond sombre (surface du module) -->
   <rect x="4" y="4" width="712" height="282" rx="14" fill="#0d1420" stroke="#3a4a63" stroke-width="1.5"/>
 
-  <!-- 25 keywaves (2 octaves C3 → C5), style silicone mat -->
+  <!-- 25 keywaves (2 octaves C3 → C5) : blanches pleine hauteur -->
   <g>
-    <!-- indices des touches « noires » : pitch % 12 ∈ {1,3,6,8,10} -->
-    <rect x="10"  y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="38"  y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="66"  y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="94"  y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="122" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="150" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="178" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="206" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="234" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="262" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="290" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="318" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="346" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="374" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="402" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="430" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="458" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="486" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="514" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="542" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="570" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="598" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="626" y="46" width="25" height="180" rx="10" fill="url(#b)"/>
-    <rect x="654" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
-    <rect x="682" y="46" width="25" height="180" rx="10" fill="url(#w)"/>
+    <rect x="10"  y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="38"  y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="66"  y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="94"  y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="122" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="150" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="178" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="206" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="234" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="262" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="290" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="318" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="346" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="374" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="402" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="430" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="458" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="486" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="514" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="542" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="570" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="598" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="626" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="654" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+    <rect x="682" y="46" width="25" height="180" rx="9" fill="url(#w)"/>
+  </g>
+
+  <!-- Touches noires : plus courtes (58 %), posées devant, ombre portée -->
+  <g filter="url(#sh)">
+    <rect x="38"  y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="94"  y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="178" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="234" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="290" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="374" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="430" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="514" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="570" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+    <rect x="626" y="46" width="25" height="104" rx="8" fill="url(#b)"/>
+  </g>
+
+  <!-- Liserés de lumière sur le sommet des touches (relief) -->
+  <g fill="#ffffff" opacity="0.10">
+    <rect x="10"  y="46" width="25" height="12" rx="9"/>
+    <rect x="38"  y="46" width="25" height="12" rx="9"/>
+    <rect x="66"  y="46" width="25" height="12" rx="9"/>
+    <rect x="94"  y="46" width="25" height="12" rx="9"/>
+    <rect x="122" y="46" width="25" height="12" rx="9"/>
+    <rect x="150" y="46" width="25" height="12" rx="9"/>
+    <rect x="178" y="46" width="25" height="12" rx="9"/>
+    <rect x="206" y="46" width="25" height="12" rx="9"/>
+    <rect x="234" y="46" width="25" height="12" rx="9"/>
+    <rect x="262" y="46" width="25" height="12" rx="9"/>
+    <rect x="290" y="46" width="25" height="12" rx="9"/>
+    <rect x="318" y="46" width="25" height="12" rx="9"/>
+    <rect x="346" y="46" width="25" height="12" rx="9"/>
+    <rect x="374" y="46" width="25" height="12" rx="9"/>
+    <rect x="402" y="46" width="25" height="12" rx="9"/>
+    <rect x="430" y="46" width="25" height="12" rx="9"/>
+    <rect x="458" y="46" width="25" height="12" rx="9"/>
+    <rect x="486" y="46" width="25" height="12" rx="9"/>
+    <rect x="514" y="46" width="25" height="12" rx="9"/>
+    <rect x="542" y="46" width="25" height="12" rx="9"/>
+    <rect x="570" y="46" width="25" height="12" rx="9"/>
+    <rect x="598" y="46" width="25" height="12" rx="9"/>
+    <rect x="626" y="46" width="25" height="12" rx="9"/>
+    <rect x="654" y="46" width="25" height="12" rx="9"/>
+    <rect x="682" y="46" width="25" height="12" rx="9"/>
   </g>
 
   <!-- Repères des notes C -->
@@ -68,6 +113,6 @@
     25 keywaves · C3 → C5 · 2 octaves — pose = accord juste · translation du poignet = bend · glissando en traversant
   </text>
   <text x="360" y="278" text-anchor="middle" fill="#6b7280" font-size="10.5">
-    multi-touch : chaque doigt tient sa note · le dernier doigt bougé pilote bend/vibrato
+    look piano sombre : touches noires plus courtes · multi-touch · le dernier doigt bougé pilote bend/vibrato
   </text>
 </svg>

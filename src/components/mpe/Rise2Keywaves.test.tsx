@@ -259,15 +259,30 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     act(() => h.root.unmount());
   });
 
+  it('look piano : les touches noires sont plus courtes (classe rise2-black sur les chromatiques)', () => {
+    mockRect(W, H);
+    const h = renderZone();
+    const els = Array.from(document.querySelectorAll('.rise2-keywave')) as HTMLElement[];
+    expect(els.length).toBe(25);
+    // Indices chromatiques (pitch % 12 ∈ {1,3,6,8,10}) à partir de C3 = 48
+    const blackIdx = new Set([1, 3, 6, 8, 10, 13, 15, 18, 20, 22]);
+    els.forEach((el, i) => {
+      expect(el.classList.contains('rise2-black')).toBe(blackIdx.has(i));
+    });
+    // La hauteur réduite (58 %) est imposée par Rise2Keywaves.css
+    // (.rise2-black { height: 58% }) — la classe est le contrat visuel.
+    act(() => h.root.unmount());
+  });
+
   it('couleurs : un thème s applique globalement à toutes les keywaves', async () => {
     mockRect(W, H);
     const h = renderZone();
     const styleOf = () => (document.querySelector('.rise2-keywave') as HTMLElement).getAttribute('style') ?? '';
-    expect(styleOf()).toContain('rgb(163, 169, 177)'); // #a3a9b1 — Gris matte par défaut
-    // Sélectionne le thème Bleu glacier
-    const swatch = document.querySelector('[title="Couleur de l\'instrument : Bleu glacier"]') as HTMLButtonElement;
+    expect(styleOf()).toContain('rgb(62, 68, 77)'); // #3e444d — Gris nuit par défaut
+    // Sélectionne le thème Bleu nuit
+    const swatch = document.querySelector('[title="Couleur de l\'instrument : Bleu nuit"]') as HTMLButtonElement;
     act(() => swatch.click());
-    expect(styleOf()).toContain('rgb(138, 168, 196)'); // #8aa8c4
+    expect(styleOf()).toContain('rgb(51, 69, 92)'); // #33455c
     expect(localStorage.getItem('chordzic_rise2_theme')).toBe('ocean');
     act(() => h.root.unmount());
   });

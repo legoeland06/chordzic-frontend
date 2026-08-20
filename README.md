@@ -113,9 +113,10 @@ clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
 
 ### 🎛 ROLI Seaboard RISE 2 — 25 keywaves, 2 octaves
 
-Un clavier qui « ressemble à peine à un piano » : surface de **silicone mat** où les touches
-noires sont **juste plus foncées** que les blanches (grises) — avec un **choix de couleurs
-appliqué globalement** à l'instrument (5 thèmes persistés).
+Un « piano assombri » : touches **blanches pleine hauteur**, touches **noires plus courtes**
+(~58 %, comme un vrai piano), palette **sombre à faible contraste** — le relief est sculpté par les
+lumières (liserés, ombres, courbes du sommet). Un **choix de couleurs** sombres s'applique
+globalement à l'instrument (5 thèmes persistés).
 
 <img src="docs/mpe-rise2.svg" alt="ROLI Seaboard RISE 2 — gestes" width="680">
 
