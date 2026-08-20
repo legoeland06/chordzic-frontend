@@ -15,6 +15,8 @@ import { backendUrl } from './chordUtils';
 const API_BASE = backendUrl();
 
 export type LfoShapeName = 'sin' | 'triangle' | 'square';
+/** Cible du son pendant le monitoring MPE : auto / roland / fluid (PC). */
+export type MpeTargetName = 'auto' | 'roland' | 'fluid';
 
 export interface MpeState {
   enabled: boolean;
@@ -29,11 +31,17 @@ export interface MpeState {
   lfo_freq: number;
   lfo_depth_st: number;
   lfo_shape: LfoShapeName;
+  /** Cible de sortie du monitoring. */
+  target: MpeTargetName;
   /** Canal cible explicite (null = auto). */
   channel: number | null;
-  /** Canal cible RÉSOLU par le serveur (écho ✨ sinon canal MPE sinon 1). */
+  /** Canal cible RÉSOLU par le serveur (écho ✨ sinon canal MPE sinon 0). */
   target_channel: number;
+  /** Route active : main (Roland/écho) | fluid (PC) | none. */
+  route: 'main' | 'fluid' | 'none';
   echo_active: boolean;
+  /** Vrai si la connexion FluidSynth est disponible côté serveur. */
+  fluid_ok: boolean;
   /** Pitchs tenus sur le Roland. */
   notes: number[];
   rec_active: boolean;
@@ -53,9 +61,12 @@ export const EMPTY_MPE_STATE: MpeState = {
   lfo_freq: 0,
   lfo_depth_st: 0,
   lfo_shape: 'sin',
+  target: 'auto',
   channel: null,
-  target_channel: 1,
+  target_channel: 0,
+  route: 'none',
   echo_active: false,
+  fluid_ok: false,
   notes: [],
   rec_active: false,
   effective_bend: BEND_CENTER,
@@ -70,6 +81,7 @@ export interface MpePatch {
   lfo_freq?: number;
   lfo_depth_st?: number;
   lfo_shape?: LfoShapeName;
+  target?: MpeTargetName;
   channel?: number | null;
 }
 
@@ -102,9 +114,12 @@ export async function fetchMpeState(): Promise<MpeState> {
       lfo_freq: typeof j.lfo_freq === 'number' ? j.lfo_freq : 0,
       lfo_depth_st: typeof j.lfo_depth_st === 'number' ? j.lfo_depth_st : 0,
       lfo_shape: (['sin', 'triangle', 'square'] as const).includes(j.lfo_shape) ? j.lfo_shape : 'sin',
+      target: (['auto', 'roland', 'fluid'] as const).includes(j.target) ? j.target : 'auto',
       channel: typeof j.channel === 'number' ? j.channel : null,
-      target_channel: typeof j.target_channel === 'number' ? j.target_channel : 1,
+      target_channel: typeof j.target_channel === 'number' ? j.target_channel : 0,
+      route: (['main', 'fluid', 'none'] as const).includes(j.route) ? j.route : 'none',
       echo_active: !!j.echo_active,
+      fluid_ok: !!j.fluid_ok,
       notes: Array.isArray(j.notes) ? j.notes : [],
       rec_active: !!j.rec_active,
       effective_bend: typeof j.effective_bend === 'number' ? j.effective_bend : BEND_CENTER,
