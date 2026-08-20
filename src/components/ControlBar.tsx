@@ -8,7 +8,6 @@
  */
 import { memo } from 'react';
 import { Play, Square, Trash2, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
-import MpeMenu from './mpe/MpeMenu';
 
 interface ControlBarProps {
   chords: { time: number }[];
@@ -27,10 +26,6 @@ interface ControlBarProps {
   onExtractWav: () => void;
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
   hasWav: boolean;
-  /** Ouvre le menu 🎛 MPE : sélection d'un module de contrôleur MPE. */
-  onSelectMpe: (moduleId: string) => void;
-  /** Vrai si une modal MPE est ouverte (style du bouton). */
-  mpeActive: boolean;
 }
 
 /** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
@@ -40,7 +35,7 @@ function ControlBar({
   chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
-  onExtractWav, hasWav, onSelectMpe, mpeActive,
+  onExtractWav, hasWav,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -68,9 +63,6 @@ function ControlBar({
         >
           <Square className="w-3 h-3" /> Stop
         </button>
-
-        {/* ── Menu MPE Modules (bouton unique : Seaboard, Push, futurs…) ── */}
-        <MpeMenu onSelect={onSelectMpe} active={mpeActive} />
 
         {/* ── Extraction du rendu WAV (mode Navig) ── */}
         <button

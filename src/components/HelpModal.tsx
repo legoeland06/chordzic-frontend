@@ -310,7 +310,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               temps réel.
             </p>
             <p className="font-bold text-white mt-3">🧩 Modules disponibles</p>
-            <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression. D'autres contrôleurs arrivent (ROLI Seaboard RISE 2, LinnStrument, Osmose…)." />
+            <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression." />
+            <Row k="🎛 ROLI Seaboard RISE 2" v="49 keywaves (C2 → C6) en 5D : appui = Strike (la note joue), glisser horizontalement DANS la keywave = Glide (pitch bend — le centre de la keywave = neutre), traverser une keywave voisine = glissando (la note change), glisser verticalement = Slide (timbre), molette = Press (aftertouch), relâchement = Lift. Repères des notes C sur les keywaves." />
             <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger immédiat, couleurs par dégradés) — voir la section dédiée plus bas." />
             <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
             <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±2 (bend musical)." />

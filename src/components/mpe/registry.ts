@@ -8,6 +8,7 @@
  */
 import type { ComponentType } from 'react';
 import PushPadGrid from './PushPadGrid';
+import Rise2Modal from './Rise2Modal';
 import SeaboardModal from './SeaboardModal';
 
 /** Props communes des modals de modules. */
@@ -38,6 +39,13 @@ export const MPE_MODULES: MpeModule[] = [
     modal: SeaboardModal,
   },
   {
+    id: 'rise2',
+    name: 'ROLI Seaboard RISE 2',
+    icon: '🎛',
+    description: '49 keywaves 5D : Strike (note) · Glide (bend) · Slide (timbre) · Press · Lift — glissando en traversant',
+    modal: Rise2Modal,
+  },
+  {
     id: 'push',
     name: 'Push 3 — pads',
     icon: '🥁',
@@ -45,7 +53,6 @@ export const MPE_MODULES: MpeModule[] = [
     modal: PushPadGrid,
   },
   // Prochains modules à venir :
-  //  - ROLI Seaboard RISE 2 (keywaves 5D : Strike/Glide/Slide/Press/Lift)
   //  - LinnStrument (grille isomorphique 25×8)
   //  - Expressive E Osmose (clavier 49 touches à aftertouch polyphonique)
 ];

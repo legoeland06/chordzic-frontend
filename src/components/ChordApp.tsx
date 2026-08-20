@@ -1348,7 +1348,6 @@ export default function ChordApp() {
             onExport={handleExport} onImport={() => fileInputRef.current?.click()}
             onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
-            onSelectMpe={setActiveMpe} mpeActive={activeMpe !== null}
           />
         </div>
 
