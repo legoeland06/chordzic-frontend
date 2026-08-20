@@ -30,6 +30,8 @@ interface ControlBarProps {
   onOpenMpe: () => void;
   /** Vrai si la modal MPE est ouverte (style du bouton). */
   mpeActive: boolean;
+  /** Ouvre la modal 🥁 Push 3 (pads échantillonnés). */
+  onOpenPush: () => void;
 }
 
 /** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
@@ -39,7 +41,7 @@ function ControlBar({
   chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
-  onExtractWav, hasWav, onOpenMpe, mpeActive,
+  onExtractWav, hasWav, onOpenMpe, mpeActive, onOpenPush,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -79,6 +81,15 @@ function ControlBar({
           title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant que tu joues sur le Roland ou pendant un enregistrement"
         >
           🎛 MPE {mpeActive ? '●' : ''}
+        </button>
+
+        {/* ── Modal Push 3 (pads échantillonnés) ── */}
+        <button
+          onClick={onOpenPush}
+          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#e8a060] hover:bg-[#1a2230]`}
+          title="🥁 Push 3 — 64 pads déclenchables : importe un sample (wav/mp3…) par pad, chaque appui redéclenche sans délai"
+        >
+          🥁 Push
         </button>
 
         {/* ── Extraction du rendu WAV (mode Navig) ── */}

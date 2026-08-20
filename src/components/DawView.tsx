@@ -126,6 +126,8 @@ interface DawViewProps {
   onHelp: () => void;
   /** Ouvre la modal 🎛 MPE (simulation de contrôleur MPE). */
   onOpenMpe: () => void;
+  /** Ouvre la modal 🥁 Push 3 (pads échantillonnés). */
+  onOpenPush: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
   /** Vrai pendant le bounce (le bouton est désactivé). */
@@ -486,7 +488,7 @@ export default function DawView({
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
-  onOpenMpe,
+  onOpenMpe, onOpenPush,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -1350,6 +1352,15 @@ const REC_COUNTDOWN_BEATS = 4;
           title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant le jeu ou l'enregistrement"
         >
           🎛
+        </button>
+
+        {/* Modal Push 3 (pads échantillonnés) */}
+        <button
+          onClick={onOpenPush}
+          className={`${tBtn} text-[#e8a060] hover:bg-[#3a2a12] hover:border-[#6a4a2a]`}
+          title="🥁 Push 3 — 64 pads déclenchables (import de samples, retrigger)"
+        >
+          🥁
         </button>
 
         </div>

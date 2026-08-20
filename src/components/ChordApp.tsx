@@ -27,6 +27,7 @@ import CollapsiblePanel from './CollapsiblePanel';
 import { sendPianoNote } from '../lib/pianoNote';
 import ChordNowModal from './ChordNowModal';
 import MpeModal from './MpeModal';
+import PushPadGrid from './PushPadGrid';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import HelpModal from './HelpModal';
@@ -314,6 +315,8 @@ export default function ChordApp() {
   const [showHelp, setShowHelp] = useState(false);
   /** Modal 🎛 MPE (simulation de contrôleur MPE) ouverte ? */
   const [mpeOpen, setMpeOpen] = useState(false);
+  /** Modal 🥁 Push 3 (pads échantillonnés) ouverte ? */
+  const [pushOpen, setPushOpen] = useState(false);
   const [savedGrilles, setSavedGrilles] = useState<GrilleEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1249,6 +1252,7 @@ export default function ChordApp() {
             onPostProd={bounceToPostProd}
             bouncing={bouncing}
             onOpenMpe={() => setMpeOpen(true)}
+            onOpenPush={() => setPushOpen(true)}
           />
         ) : (
           <>
@@ -1282,6 +1286,7 @@ export default function ChordApp() {
             onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
             onOpenMpe={() => setMpeOpen(true)} mpeActive={mpeOpen}
+            onOpenPush={() => setPushOpen(true)}
           />
         </div>
 
@@ -1455,6 +1460,10 @@ export default function ChordApp() {
         {/* Modal 🎛 MPE — simulation de contrôleur MPE (jouer sur le son
             en direct pendant le jeu sur le Roland ou un enregistrement). */}
         {mpeOpen && <MpeModal onClose={() => setMpeOpen(false)} />}
+
+        {/* Modal 🥁 Push 3 — 64 pads échantillonnés (import de samples,
+            retrigger immédiat, couleurs par dégradés). */}
+        {pushOpen && <PushPadGrid onClose={() => setPushOpen(false)} />}
 
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland · Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}

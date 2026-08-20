@@ -138,6 +138,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
     { id: 'livepiano', icon: '🎹', title: 'LivePiano', keys: 'piano live accord détecté illumination insertion grille piste roland midi timer program sustain son' },
     { id: 'mpe', icon: '🎛', title: 'MPE — expression', keys: 'mpe bend pitch aftertouch pression timbre brillance cc74 lfo vibrato seaboard roli osmose enregistrement rec expression jouer sur le son' },
+    { id: 'push3', icon: '🥁', title: 'Push 3 — pads', keys: 'push ableton pads sample échantillon import wav mp3 ogg flac retrigger drum machine couleur dégradé palette déclencher' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
     { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
@@ -321,6 +322,29 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="font-bold text-white mt-3">ℹ️ Notes</p>
             <Row k="Fermeture" v="Fermer la modal remet automatiquement l'expression à zéro (jamais de note qui reste bendée)." />
             <Row k="Canal cible" v="Le canal 1 par défaut (ton canal de jeu). Si l'écho ✨ d'une piste est actif (mode Navig), les modulations suivent le canal de la piste." />
+          </Section>
+
+          {/* ── Push 3 — pads ── */}
+          <Section id="push3" icon="🥁" title="Push 3 — pads" onSpeak={speakSection} speaking={speakingId === 'push3'}>
+            <p>
+              Le bouton <b className="text-white">🥁 Push</b> (barre de contrôle en mode Live, transport en mode
+              Navig) ouvre une <b className="text-white">simulation de l'Ableton Push 3</b> : une grille de{' '}
+              <b className="text-white">64 pads (8×8)</b>, chacun déclenchant un échantillon audio importé.{' '}
+              À chaque appui, le son du pad s'arrête et se <b className="text-white">redéclenche sans délai</b>
+              (retrigger — comportement drum machine).
+            </p>
+            <p className="font-bold text-white mt-3">📥 Importer des samples</p>
+            <Row k="Bouton Importer" v="Importe un fichier audio (wav / mp3 / ogg / flac / m4a / aiff, max 25 Mo) vers le premier pad libre — sinon le pad 1 (remplacé)." />
+            <Row k="Par pad" v="Clic droit (ou touche 🎵 du pad) pour assigner/remplacer le sample d'un pad précis. Le sample est uploadé sur le serveur (~/samples/pads/) et joué via Web Audio." />
+            <Row k="Formats" v="Tout ce que le navigateur sait décoder (wav, mp3, ogg, flac, m4a, aiff…). Un sample illisible est signalé." />
+            <p className="font-bold text-white mt-3">🎹 Déclenchement</p>
+            <Row k="Clic = jouer" v="Chaque appui arrête la lecture précédente du pad et redéclenche depuis le début — zéro délai, idéal pour les breaks et les coups." />
+            <Row k="Volume" v="Slider global (0-100 %) pour l'ensemble des pads." />
+            <p className="font-bold text-white mt-3">🎨 Couleurs par dégradés</p>
+            <Row k="Palette" v="9 teintes de base (rouge, orange, jaune, vert, cyan, bleu, violet, rose, blanc). Le blanc = pads « éteints » (style Push)." />
+            <Row k="Dégradé" v="4 modes : ■ solide (une seule couleur), ▶ horizontal, ▼ vertical, ⤡ diagonal — les 64 pads s'échelonnent en luminosité sur la grille." />
+            <p className="font-bold text-white mt-3">💾 Persistance</p>
+            <Row k="Local" v="Les samples assignés, les couleurs et le volume sont mémorisés dans le navigateur (localStorage) : retrouvés au prochain chargement." />
           </Section>
 
           {/* ── Barre de contrôle ── */}
