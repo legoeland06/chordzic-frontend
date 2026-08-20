@@ -20,6 +20,7 @@ import { X } from 'lucide-react';
 import {
   BEND_CENTER,
   EMPTY_MPE_STATE,
+  GM_PROGRAMS,
   LfoShapeName,
   MpeState,
   MpeTargetName,
@@ -66,6 +67,8 @@ function MpeModal({ onClose }: MpeModalProps) {
   const [lfoDepth, setLfoDepth] = useState(0);
   const [lfoShape, setLfoShape] = useState<LfoShapeName>('sin');
   const [target, setTarget] = useState<MpeTargetName>('auto');
+  /** Instrument GM courant (mode PC). */
+  const [program, setProgram] = useState(0);
   /** Retour auto au centre au relâchement (style Seaboard) vs maintien. */
   const [returnMode, setReturnMode] = useState<'center' | 'hold'>('center');
   /** État serveur (notes tenues, canal cible, rec…) — poll temps réel. */
@@ -118,8 +121,12 @@ function MpeModal({ onClose }: MpeModalProps) {
     void resetMpe();
   };
   const sendTarget = (t: MpeTargetName) => { setTarget(t); void sendMpe({ target: t }); };
+  const sendProgram = (p: number) => { setProgram(p); void sendMpe({ program: p }); };
 
-  const routeLabel = server.route === 'fluid' ? 'PC' : server.route === 'main' ? (server.echo_active ? '✨ piste' : 'Roland') : '—';
+  // Route PC : cible fluid explicite, OU sortie principale FluidSynth
+  // (pas de Roland branché → le mode Auto passe par le PC).
+  const isPcRoute = server.route === 'fluid' || (server.route === 'main' && server.main_is_fluid);
+  const routeLabel = isPcRoute ? 'PC' : server.route === 'main' ? (server.echo_active ? '✨ piste' : 'Roland') : '—';
 
   return (
     <div className="fixed inset-1 sm:inset-2 z-50 flex items-stretch bg-black/70 backdrop-blur-sm p-1 sm:p-2">
@@ -242,6 +249,22 @@ function MpeModal({ onClose }: MpeModalProps) {
                 {TARGETS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
+
+            {/* Instrument GM (mode PC : les modulations s'entendent sur
+                n'importe quel instrument, et le bend est expressif sur les
+                leads / pads / guitares) */}
+            {isPcRoute && (
+              <div className="flex items-center gap-1 shrink-0" title="Instrument joué par le PC (program GM)">
+                <span className="text-[9px] text-gray-500">Inst</span>
+                <select
+                  value={program}
+                  onChange={(e) => sendProgram(parseInt(e.target.value))}
+                  className="bg-gray-800/60 text-[10px] px-1 py-0.5 rounded-md border border-gray-700/60 outline-none focus:border-gray-500 max-w-[180px]"
+                >
+                  {GM_PROGRAMS.map((name, i) => <option key={i} value={i}>{i} · {name}</option>)}
+                </select>
+              </div>
+            )}
 
             <button
               onClick={() => setReturnMode(m => m === 'center' ? 'hold' : 'center')}

@@ -33,6 +33,8 @@ export interface MpeState {
   lfo_shape: LfoShapeName;
   /** Cible de sortie du monitoring. */
   target: MpeTargetName;
+  /** Instrument GM (0-127) posé sur le canal cible (mode PC / sans Roland). */
+  program: number;
   /** Canal cible explicite (null = auto). */
   channel: number | null;
   /** Canal cible RÉSOLU par le serveur (écho ✨ sinon canal MPE sinon 0). */
@@ -42,6 +44,8 @@ export interface MpeState {
   echo_active: boolean;
   /** Vrai si la connexion FluidSynth est disponible côté serveur. */
   fluid_ok: boolean;
+  /** Vrai si la sortie principale est FluidSynth (pas de Roland branché). */
+  main_is_fluid: boolean;
   /** Pitchs tenus sur le Roland. */
   notes: number[];
   rec_active: boolean;
@@ -62,11 +66,13 @@ export const EMPTY_MPE_STATE: MpeState = {
   lfo_depth_st: 0,
   lfo_shape: 'sin',
   target: 'auto',
+  program: 0,
   channel: null,
   target_channel: 0,
   route: 'none',
   echo_active: false,
   fluid_ok: false,
+  main_is_fluid: false,
   notes: [],
   rec_active: false,
   effective_bend: BEND_CENTER,
@@ -82,6 +88,8 @@ export interface MpePatch {
   lfo_depth_st?: number;
   lfo_shape?: LfoShapeName;
   target?: MpeTargetName;
+  /** Instrument GM (0-127) posé sur le canal cible. */
+  program?: number;
   channel?: number | null;
 }
 
@@ -115,11 +123,13 @@ export async function fetchMpeState(): Promise<MpeState> {
       lfo_depth_st: typeof j.lfo_depth_st === 'number' ? j.lfo_depth_st : 0,
       lfo_shape: (['sin', 'triangle', 'square'] as const).includes(j.lfo_shape) ? j.lfo_shape : 'sin',
       target: (['auto', 'roland', 'fluid'] as const).includes(j.target) ? j.target : 'auto',
+      program: typeof j.program === 'number' ? j.program : 0,
       channel: typeof j.channel === 'number' ? j.channel : null,
       target_channel: typeof j.target_channel === 'number' ? j.target_channel : 0,
       route: (['main', 'fluid', 'none'] as const).includes(j.route) ? j.route : 'none',
       echo_active: !!j.echo_active,
       fluid_ok: !!j.fluid_ok,
+      main_is_fluid: !!j.main_is_fluid,
       notes: Array.isArray(j.notes) ? j.notes : [],
       rec_active: !!j.rec_active,
       effective_bend: typeof j.effective_bend === 'number' ? j.effective_bend : BEND_CENTER,
@@ -139,8 +149,7 @@ export async function resetMpe(): Promise<boolean> {
   }
 }
 
-/**
- * Throttle avec trailing : au plus un appel par fenêtre `ms`, le dernier
+/** Throttle avec trailing : au plus un appel par fenêtre `ms`, le dernier
  * argument de la fenêtre est envoyé en fin de fenêtre. Idéal pour les
  * pointermove (~60-120 Hz) vers un POST ~30 ms.
  */
@@ -163,6 +172,42 @@ export function throttleTrailing<A extends unknown[]>(
 }
 
 // ── Mapping des gestes (purs, testables) ──────────────────────────────
+
+/** Les 128 instruments GM (program 0-127) — pour le sélecteur du mode PC. */
+export const GM_PROGRAMS: string[] = [
+  'Acoustic Grand Piano', 'Bright Acoustic Piano', 'Electric Grand Piano', 'Honky-tonk Piano',
+  'Electric Piano 1', 'Electric Piano 2', 'Harpsichord', 'Clavinet',
+  'Celesta', 'Glockenspiel', 'Music Box', 'Vibraphone',
+  'Marimba', 'Xylophone', 'Tubular Bells', 'Dulcimer',
+  'Drawbar Organ', 'Percussive Organ', 'Rock Organ', 'Church Organ',
+  'Reed Organ', 'Accordion', 'Harmonica', 'Tango Accordion',
+  'Acoustic Guitar (nylon)', 'Acoustic Guitar (steel)', 'Electric Guitar (jazz)', 'Electric Guitar (clean)',
+  'Electric Guitar (muted)', 'Overdriven Guitar', 'Distortion Guitar', 'Guitar Harmonics',
+  'Acoustic Bass', 'Electric Bass (finger)', 'Electric Bass (pick)', 'Fretless Bass',
+  'Slap Bass 1', 'Slap Bass 2', 'Synth Bass 1', 'Synth Bass 2',
+  'Violin', 'Viola', 'Cello', 'Contrabass',
+  'Tremolo Strings', 'Pizzicato Strings', 'Orchestral Harp', 'Timpani',
+  'String Ensemble 1', 'String Ensemble 2', 'Synth Strings 1', 'Synth Strings 2',
+  'Choir Aahs', 'Voice Oohs', 'Synth Voice', 'Orchestra Hit',
+  'Trumpet', 'Trombone', 'Tuba', 'Muted Trumpet',
+  'French Horn', 'Brass Section', 'Synth Brass 1', 'Synth Brass 2',
+  'Soprano Sax', 'Alto Sax', 'Tenor Sax', 'Baritone Sax',
+  'Oboe', 'English Horn', 'Bassoon', 'Clarinet',
+  'Piccolo', 'Flute', 'Recorder', 'Pan Flute',
+  'Blown Bottle', 'Shakuhachi', 'Whistle', 'Ocarina',
+  'Lead 1 (square)', 'Lead 2 (sawtooth)', 'Lead 3 (calliope)', 'Lead 4 (chiff)',
+  'Lead 5 (charang)', 'Lead 6 (voice)', 'Lead 7 (fifths)', 'Lead 8 (bass + lead)',
+  'Pad 1 (new age)', 'Pad 2 (warm)', 'Pad 3 (polysynth)', 'Pad 4 (choir)',
+  'Pad 5 (bowed)', 'Pad 6 (metallic)', 'Pad 7 (halo)', 'Pad 8 (sweep)',
+  'FX 1 (rain)', 'FX 2 (soundtrack)', 'FX 3 (crystal)', 'FX 4 (atmosphere)',
+  'FX 5 (brightness)', 'FX 6 (goblins)', 'FX 7 (echoes)', 'FX 8 (sci-fi)',
+  'Sitar', 'Banjo', 'Shamisen', 'Koto',
+  'Kalimba', 'Bag pipe', 'Fiddle', 'Shanai',
+  'Tinkle Bell', 'Agogo', 'Steel Drums', 'Woodblock',
+  'Taiko Drum', 'Melodic Tom', 'Synth Drum', 'Reverse Cymbal',
+  'Guitar Fret Noise', 'Breath Noise', 'Seashore', 'Bird Tweet',
+  'Telephone Ring', 'Helicopter', 'Applause', 'Gunshot',
+];
 
 /** Position X (0-1) → pitch bend 14-bit (0-16383). */
 export function xToBend(x: number): number {
