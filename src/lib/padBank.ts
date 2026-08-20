@@ -228,14 +228,19 @@ export function padSampleUrl(name: string): string {
 
 /**
  * POST /pad-trigger — joue un sample côté SERVEUR (ffplay, retrigger).
+ * `loop` : boucle le sample en continu (ffplay -loop 0) jusqu'au Stop.
  * Retourne true si le serveur a accepté (200).
  */
-export async function triggerPadServer(file: string, volume: number): Promise<boolean> {
+export async function triggerPadServer(file: string, volume: number, loop: boolean): Promise<boolean> {
   try {
     const res = await fetch(`${backendUrl()}/pad-trigger`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file, volume: Math.max(0, Math.min(100, Math.round(volume))) }),
+      body: JSON.stringify({
+        file,
+        volume: Math.max(0, Math.min(100, Math.round(volume))),
+        loop,
+      }),
     });
     return res.ok;
   } catch {
@@ -290,6 +295,8 @@ export class PadPlayer {
   metroAudible = false;
   /** Pads armés : joueront au prochain beat (quantification). */
   private armed = new Set<number>();
+  /** Mode loop appliqué aux pads armés (le toggle est global). */
+  private armedLoop = true;
   /** Appelé à chaque beat planifié (1-4 Hz) : (beatIdx, bpm). */
   onBeat: ((beat: number, bpm: number) => void) | null = null;
 
@@ -318,8 +325,9 @@ export class PadPlayer {
     }
   }
 
-  /** Joue un pad à un temps audio donné (0 = maintenant). */
-  playAt(index: number, when: number): void {
+  /** Joue un pad à un temps audio donné (0 = maintenant). `loop` : boucle
+   *  le sample en continu jusqu'au ■ Stop (défaut : OFF, one-shot). */
+  playAt(index: number, when: number, loop = false): void {
     const buf = this.buffers[index];
     if (!buf) return;
     const old = this.sources[index];
@@ -333,6 +341,7 @@ export class PadPlayer {
     }
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
+    src.loop = loop;
     src.connect(this.gain);
     src.start(when);
     this.sources[index] = src;
@@ -412,14 +421,17 @@ export class PadPlayer {
    *   IMMÉDIATEMENT (coup d'ancre) ; retour 'immediate' ;
    * - métronome en route → le pad est ARMÉ et jouera au prochain beat
    *   (quantification) ; retour 'armed'.
+   * `loop` : le sample boucle en continu jusqu'au Stop (défaut : vrai —
+   * le mode loop est le fonctionnement par défaut du 64-pad).
    */
-  playQuantized(index: number, tempo: number): 'immediate' | 'armed' {
+  playQuantized(index: number, tempo: number, loop = true): 'immediate' | 'armed' {
     if (!this.running) {
       this.startMetronome(tempo);
-      this.playAt(index, 0);
+      this.playAt(index, 0, loop);
       return 'immediate';
     }
     this.armed.add(index);
+    this.armedLoop = loop;
     return 'armed';
   }
 
@@ -427,7 +439,7 @@ export class PadPlayer {
   private scheduleBeat(): void {
     const when = this.nextBeat;
     if (this.metroAudible) this.playClick(when, this.beatIdx % 4 === 0);
-    for (const i of this.armed) this.playAt(i, when);
+    for (const i of this.armed) this.playAt(i, when, this.armedLoop);
     this.armed.clear();
     this.nextBeat += 60 / this.bpm;
     this.beatIdx++;

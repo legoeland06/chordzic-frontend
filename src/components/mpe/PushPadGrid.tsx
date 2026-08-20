@@ -16,8 +16,12 @@
  *   un MÉTRONOME qui tourne en parallèle (audible si désiré 🔉) ; tous les
  *   appuis suivants sont quantifiés sur le prochain battement (synchronisés
  *   métronomiquement). Le bouton ■ Stop arrête pads + métronome.
+ * - 🔁 Mode LOOP par défaut : les samples bouclent en continu jusqu'au
+ *   ■ Stop (toggle global persistant ; un nouvel appui redéclenche la
+ *   boucle depuis le début — retrigger).
  * - Persistance locale (localStorage `chordzic_pads`) : slots (samples +
- *   couleurs + tempos par pad), couleur globale, volume — au chargement.
+ *   couleurs + tempos par pad), couleur globale, volume, mode de lecture,
+ *   loop — au chargement.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, Volume2 } from 'lucide-react';
@@ -58,6 +62,8 @@ interface StoredPads {
   volume: number;
   /** Lecture des samples : navigateur (Web Audio) ou serveur (ffplay). */
   playMode: PlayMode;
+  /** Mode loop (défaut : vrai — les samples bouclent jusqu'au Stop). */
+  loop: boolean;
 }
 
 const DEFAULT_STORED: StoredPads = {
@@ -65,6 +71,7 @@ const DEFAULT_STORED: StoredPads = {
   color: { ...EMPTY_PAD_COLOR },
   volume: 0.9,
   playMode: 'browser',
+  loop: true,
 };
 
 function loadStored(): StoredPads {
@@ -89,6 +96,7 @@ function loadStored(): StoredPads {
       },
       volume: typeof j.volume === 'number' ? Math.max(0, Math.min(1, j.volume)) : 0.9,
       playMode: j.playMode === 'server' ? 'server' : 'browser',
+      loop: j.loop === false ? false : true, // défaut : loop ON
     };
   } catch {
     return DEFAULT_STORED;
@@ -118,6 +126,8 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   const [metroAudible, setMetroAudible] = useState(false);
   /** Chemin de lecture : navigateur (Web Audio) ou serveur (ffplay). */
   const [playMode, setPlayModeState] = useState<PlayMode>(stored.playMode);
+  /** Mode loop : les samples bouclent jusqu'au Stop (défaut : vrai). */
+  const [loop, setLoop] = useState(stored.loop);
   /** Timers serveur en attente (quantification) — annulés au Stop. */
   const serverTimersRef = useRef(new Map<number, number>());
 
@@ -157,11 +167,11 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   // Persistance à chaque changement
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ slots, color, volume, playMode }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ slots, color, volume, playMode, loop }));
     } catch {
       /* stockage plein — ignoré */
     }
-  }, [slots, color, volume, playMode]);
+  }, [slots, color, volume, playMode, loop]);
 
   const setStatusFlash = useCallback((msg: string) => {
     setStatus(msg);
@@ -194,7 +204,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     if (playMode === 'server') {
       if (!player.isMetronomeRunning()) {
         player.startMetronome(tempo);
-        void triggerPadServer(slot.file, volume * 100); // coup d'ancre
+        void triggerPadServer(slot.file, volume * 100, loop); // coup d'ancre
         return;
       }
       setArmed(prev => {
@@ -205,12 +215,12 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
       const delayMs = Math.max(0, (player.nextBeatTime() - player.currentTime() - SERVER_PLAY_LEAD_S) * 1000);
       const timer = window.setTimeout(() => {
         serverTimersRef.current.delete(index);
-        void triggerPadServer(slot.file!, volume * 100);
+        void triggerPadServer(slot.file!, volume * 100, loop);
       }, delayMs);
       serverTimersRef.current.set(index, timer);
       return;
     }
-    const res = player.playQuantized(index, tempo);
+    const res = player.playQuantized(index, tempo, loop);
     if (res === 'armed') {
       setArmed(prev => {
         const n = new Set(prev);
@@ -218,7 +228,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
         return n;
       });
     }
-  }, [playMode, slots, volume]);
+  }, [playMode, slots, volume, loop]);
 
   // ── Clic sur un pad : peinture, tempo ou déclenchement ──
   const onPadClick = useCallback((index: number) => {
@@ -511,6 +521,17 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
             title="Les samples sont joués par le SERVEUR (ffplay — sortie audio du PC). Le métronome reste local ; les déclenchements sont anticipés pour arriver sur le battement"
           >
             🖧 Serveur
+          </button>
+          <button
+            onClick={() => setLoop(l => !l)}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded border transition-colors shrink-0 ${
+              loop
+                ? 'bg-emerald-900/40 border-emerald-500/50 text-emerald-300'
+                : 'bg-gray-800/60 border-gray-700/60 text-gray-500 hover:text-gray-300'
+            }`}
+            title="Mode LOOP (défaut : ON) : les samples bouclent en continu jusqu'au ■ Stop — désactive pour un déclenchement one-shot"
+          >
+            🔁 Loop {loop ? 'ON' : 'OFF'}
           </button>
           <div className="w-px h-4 bg-gray-700/60 shrink-0" />
           <div className="flex items-center gap-1.5 shrink-0">

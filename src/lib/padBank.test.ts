@@ -160,7 +160,7 @@ describe('PadPlayer — métronome & quantification', () => {
   });
 
   function makeCtx() {
-    const sources: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] = [];
+    const sources: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; loop: boolean }[] = [];
     const ctx = {
       destination: {},
       currentTime: 0,
@@ -168,7 +168,7 @@ describe('PadPlayer — métronome & quantification', () => {
       createGain: () => ({ gain: { value: 0 }, connect: vi.fn() }),
       createBuffer: (_ch: number, len: number, _sr: number) => ({ getChannelData: () => new Float32Array(len) }),
       createBufferSource: () => {
-        const s = { buffer: null, connect: vi.fn(), start: vi.fn(), stop: vi.fn(), disconnect: vi.fn(), onended: null };
+        const s = { buffer: null, connect: vi.fn(), start: vi.fn(), stop: vi.fn(), disconnect: vi.fn(), onended: null, loop: false };
         sources.push(s);
         return s;
       },
@@ -223,6 +223,21 @@ describe('PadPlayer — métronome & quantification', () => {
     player.stopMetronome();
     expect(player.isMetronomeRunning()).toBe(false);
     expect(player.isArmed(0)).toBe(false);
+  });
+
+  it('playQuantized : le mode LOOP est appliqué à la source (défaut true, false si désactivé)', () => {
+    vi.useFakeTimers();
+    const { ctx, sources } = makeCtx();
+    const player = new PadPlayer(ctx);
+    player.buffers[0] = {} as AudioBuffer;
+    player.playQuantized(0, 120); // loop par défaut
+    expect(sources[0].loop).toBe(true);
+    player.stopMetronome();
+    // Loop désactivé : nouvelle ancre → source one-shot
+    player.buffers[0] = {} as AudioBuffer;
+    player.playQuantized(0, 120, false);
+    expect(sources[1].loop).toBe(false);
+    player.stopMetronome();
   });
 
   it('métronome audible : un clic est programmé à chaque battement (accent au temps 1)', () => {

@@ -155,7 +155,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
     { id: 'livepiano', icon: '🎹', title: 'LivePiano', keys: 'piano live accord détecté illumination insertion grille piste roland midi timer program sustain son' },
     { id: 'mpe', icon: '🎛', title: 'MPE — expression', keys: 'mpe bend pitch aftertouch pression timbre brillance cc74 lfo vibrato seaboard roli osmose enregistrement rec expression jouer sur le son' },
-    { id: 'push3', icon: '🥁', title: 'Push 3 — pads', keys: 'push ableton pads sample échantillon import wav mp3 ogg flac retrigger drum machine couleur dégradé palette peinture peindre tempo bpm métronome quantifié synchronisé stop lecture navigateur serveur ffplay déclencher' },
+    { id: 'push3', icon: '🥁', title: 'Push 3 — pads', keys: 'push ableton pads sample échantillon import wav mp3 ogg flac retrigger drum machine loop boucle couleur dégradé palette peinture peindre tempo bpm métronome quantifié synchronisé stop lecture navigateur serveur ffplay déclencher' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
     { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
@@ -329,7 +329,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="font-bold text-white mt-3">🧩 Modules disponibles</p>
             <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression." />
             <Row k="🎛 ROLI Seaboard RISE 2" v="25 keywaves (C3 → C5, 2 octaves) — un piano assombri : touches blanches pleine hauteur, noires plus courtes, palette sombre, relief par les lumières. Appui = note · glissé vertical = bend (pose = juste) · glissé horizontal (petit) = vibrato · molette = pression · multi-touch. Voir le détail plus bas." />
-            <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger, couleur posable par pad, tempo importé par pad, métronome synchronisé, lecture navigateur OU serveur, stop) — voir la section dédiée plus bas." />
+            <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger, mode loop par défaut, couleur posable par pad, tempo importé par pad, métronome synchronisé, lecture navigateur OU serveur, stop) — voir la section dédiée plus bas." />
             <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
             <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±2 (bend musical)." />
             <Row k="Glisser ▲ ▼ (Y)" v="Timbre / brillance (CC74) : en haut = brillant, en bas = sombre." />
@@ -375,6 +375,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Formats" v="Tout ce que le navigateur sait décoder (wav, mp3, ogg, flac, m4a, aiff…). Un sample illisible est signalé." />
             <p className="font-bold text-white mt-3">🎹 Déclenchement & métronome</p>
             <Row k="Clic = jouer" v="Chaque appui arrête la lecture précédente du pad et redéclenche depuis le début — zéro délai, idéal pour les breaks et les coups." />
+            <Row k="🔁 Mode LOOP (défaut)" v="Par défaut, les samples BOUCLENT en continu jusqu'au ■ Stop : tu construis des boucles rythmiques en empilant les pads. Un nouvel appui sur un pad en boucle le redéclenche depuis le début (retrigger). Désactive le toggle 🔁 pour un déclenchement one-shot." />
             <Row k="⏱ Tempo importé" v="À l'import, le tempo du sample est DÉTECTÉ automatiquement (tempo_imported du pad, affiché ⚡N sur la case) et ajustable : survole un pad, le curseur Tempo règle SON tempo." />
             <Row k="🎵 Métronome synchronisé" v="Le premier appui sur un pad démarre un MÉTRONOME qui tourne en parallèle au tempo du pad (battements + accent sur le temps 1). TOUS les appuis suivants sont quantifiés : le pad est armé (pulsation cyan) et joue au PROCHAIN battement — toujours calé, même si tu cliques entre deux temps." />
             <Row k="🔉 Audible / muet" v="Le métronome tourne toujours ; le bouton 🔉 Son/Muet décide si tu l'entends. Le badge ● BPM · temps affiche l'état en direct." />

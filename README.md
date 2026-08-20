@@ -155,6 +155,8 @@ Grille de **64 pads (8×8)** échantillonnés : import de samples (wav/mp3/ogg/f
   ramène tous les pads au dégradé global ;
 - **Relief convexe** : dégradé interne qui bombe chaque case (lumière en haut, ombre sur les
   bords) ;
+- **🔁 Mode LOOP par défaut** : les samples **bouclent en continu** jusqu'au ■ Stop (toggle
+  🔁 Loop ON/OFF, persistant — OFF = one-shot) ; un nouvel appui redéclenche la boucle ;
 - **⏱ Tempo importé par pad** : détecté automatiquement à l'import (badge ⚡N, ajustable au
   survol) ;
 - **🎵 Métronome synchronisé** : le premier appui démarre un métronome au tempo du pad ; tous
@@ -165,6 +167,9 @@ Grille de **64 pads (8×8)** échantillonnés : import de samples (wav/mp3/ogg/f
   anticipés de la latence) ; persistant ;
 - **■ Stop** : arrête les pads, le métronome et les lectures serveur ;
 - Clic = jouer (retrigger) · clic droit = assigner un sample · volume global.
+
+Le déclenchement (retrigger), la quantification et le loop fonctionnent dans les DEUX chemins
+de lecture (🖥 navigateur et 🖧 serveur).
 
 <img src="docs/mpe-push.svg" alt="Push 3 — 64 pads" width="680">
 

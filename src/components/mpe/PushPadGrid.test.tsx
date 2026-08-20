@@ -130,9 +130,19 @@ describe('PushPadGrid — couleurs par pad', () => {
     const { root } = renderGrid();
     act(() => pad(0).click());
     expect(triggers.length).toBe(1);
-    expect(triggers[0].body).toEqual({ file: 'pad_1.wav', volume: 90 });
+    expect(triggers[0].body).toEqual({ file: 'pad_1.wav', volume: 90, loop: true }); // loop par défaut ON
     // Le métronome local tourne (maître du timing) — badge actif
     expect(playerIsRunning()).toBe(true);
+    act(() => root.unmount());
+  });
+
+  it('🔁 Loop : défaut ON, le toggle persiste OFF', () => {
+    const { root } = renderGrid();
+    const loopBtn = () => buttonWithText('Loop');
+    expect(loopBtn().textContent).toContain('ON');
+    act(() => loopBtn().click());
+    expect(buttonWithText('Loop').textContent).toContain('OFF');
+    expect(JSON.parse(localStorage.getItem('chordzic_pads') ?? '{}').loop).toBe(false);
     act(() => root.unmount());
   });
 });
