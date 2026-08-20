@@ -23,6 +23,7 @@ import LiveSettingsBar from './LiveSettingsBar';
 import ProgressBar from './ProgressBar';
 import ChordGrid from './ChordGrid';
 import PianoLivePanel from './PianoLivePanel';
+import CollapsiblePanel from './CollapsiblePanel';
 import { sendPianoNote } from '../lib/pianoNote';
 import ChordNowModal from './ChordNowModal';
 import ChordDetailModal from './ChordDetailModal';
@@ -77,6 +78,9 @@ export default function ChordApp() {
   const [volume, setVolume] = useState(127);
   const [use432, setUse432] = useState(false);
   const [browserAudio, setBrowserAudio] = useState(false);
+  /** Panneau LivePiano rétractable en mode Live (comme le panneau Navig) —
+   * le contenu reste monté : la reco d'accords continue même replié. */
+  const [livePanelOpen, setLivePanelOpen] = useState(true);
   /** Vrai dès qu'un WAV a été rendu en mode Navig (bouton Extract actif). */
   const [hasWav, setHasWav] = useState(false);
   /** Session audio du mode PostProd (bounce multitrack) — null tant qu'aucun bounce. */
@@ -1247,13 +1251,21 @@ export default function ChordApp() {
             {/* Saisie des accords */}
             <ChordInput input={input} onChange={setInput} />
 
-            {/* 🎹 Reconnaissance d'accords (mode Live) : piano + badge temps réel + clic = insertion grille */}
-            <PianoLivePanel
-              mode="live"
-              onInsert={(chord) => insertDetectedChord(chord.label)}
-              onGoNavig={() => setNavigMode(true)}
-              onPlayNote={livePlayNote}
-            />
+            {/* 🎹 Reconnaissance d'accords (mode Live) : piano + badge temps réel + clic = insertion grille.
+                Rétractable (chevron) comme le panneau Navig — le contenu reste
+                monté : la reco continue quand le piano est replié. */}
+            <CollapsiblePanel
+              title="🎹 Piano Live — reconnaissance d'accords"
+              open={livePanelOpen}
+              onToggle={() => setLivePanelOpen(v => !v)}
+            >
+              <PianoLivePanel
+                mode="live"
+                onInsert={(chord) => insertDetectedChord(chord.label)}
+                onGoNavig={() => setNavigMode(true)}
+                onPlayNote={livePlayNote}
+              />
+            </CollapsiblePanel>
 
             {/* Contrôles + TrackPanel */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">

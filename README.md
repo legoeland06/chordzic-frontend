@@ -29,6 +29,7 @@ s'adapte toujours à la largeur de l'écran.
 *LivePiano : accord de Do majeur illuminé (C4·E4·G4), fondamentales C2·C3 à l'octave en basse*
 
 ### 🎸 Mode Live (saisie d'accords + piano)
+- **Panneau LivePiano rétractable** (chevron ▲/▼ — la reconnaissance d'accords continue même replié)
 - Saisie d'accords avec durée (4, 2, 1, 8, 16 temps) et **silences réels** (`4:_`, `2:_`, `1:_`)
 - **🎹 LivePiano** : piano **88 touches (A0 → C8)** aligné sur le clavier MIDI (Roland) dont les
   touches s'illument en bleu quand vous jouez — reconnaissance d'accords en temps réel

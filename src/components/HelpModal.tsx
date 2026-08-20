@@ -253,8 +253,9 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p>
               Le <b className="text-white">LivePiano</b> est le panneau commun aux deux modes : piano 88 touches +
               reconnaissance d'accords en temps réel + insertion. En mode <b className="text-white">Live</b> il se trouve
-              sous la saisie d'accords ; en mode <b className="text-white">📱 Navig.</b>, il occupe le panneau supérieur
-              (onglet <b>🎹 Piano</b>).
+              sous la saisie d'accords, <b>rétractable</b> via le chevron ▲/▼ (la reconnaissance continue de
+              tourner même piano replié) ; en mode <b className="text-white">📱 Navig.</b>, il occupe le panneau
+              supérieur (onglet <b>🎹 Piano</b>, rétractable lui aussi).
             </p>
             <p className="font-bold text-white mt-3">🎹 Le piano</p>
             <Row k="88 touches" v="Couvre l'étendue réelle du clavier MIDI (A0 → C8) : chaque touche jouée s'illume en bleu en direct (Roland). Le piano s'adapte à la largeur de l'écran (tient toujours sur une ligne)." />
