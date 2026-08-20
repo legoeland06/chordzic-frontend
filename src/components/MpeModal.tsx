@@ -62,7 +62,7 @@ function MpeModal({ onClose }: MpeModalProps) {
   const [bend, setBend] = useState(BEND_CENTER);
   const [pressure, setPressure] = useState(0);
   const [timbre, setTimbre] = useState(TIMBRE_CENTER);
-  const [pitchRange, setPitchRange] = useState(48);
+  const [pitchRange, setPitchRange] = useState(2);
   const [lfoFreq, setLfoFreq] = useState(0);
   const [lfoDepth, setLfoDepth] = useState(0);
   const [lfoShape, setLfoShape] = useState<LfoShapeName>('sin');

@@ -28,8 +28,7 @@ export interface MpeState {
   timbre: number;
   /** Range de bend en demi-tons (RPN 0). */
   pitch_range_st: number;
-  lfo_freq: number;
-  lfo_depth_st: number;
+  lfo_freq: number;  lfo_depth_st: number;
   lfo_shape: LfoShapeName;
   /** Cible de sortie du monitoring. */
   target: MpeTargetName;
@@ -61,7 +60,7 @@ export const EMPTY_MPE_STATE: MpeState = {
   bend: BEND_CENTER,
   pressure: 0,
   timbre: TIMBRE_CENTER,
-  pitch_range_st: 48,
+  pitch_range_st: 2,
   lfo_freq: 0,
   lfo_depth_st: 0,
   lfo_shape: 'sin',
