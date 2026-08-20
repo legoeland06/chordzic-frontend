@@ -1,30 +1,25 @@
 /**
- * InstrumentPicker — sélecteur d'instruments pour le rendu WAV + moteur
- * VST3 live (Surge XT).
+ * InstrumentPicker — 🎛️ Instruments : moteur live (ce que le pianiste
+ * entend en jouant) + assignation d'instruments par piste (rendu WAV).
  *
- * Rendu : charge `/instruments-list` (banques SFZ + plugins VST3 natifs) et
- * permet d'affecter un instrument à chaque piste. Piste sans instrument →
- * FluidSynth (GM). Persisté en localStorage.
+ * Moteur live (3 sources) :
+ *   🔌 thru      → les notes reviennent au Roland (son GM interne)
+ *   🎸 vst3      → Surge XT → audio USB → haut-parleurs du Roland (637 presets)
+ *   🎹 fluid     → FluidSynth (SoundFont GM) — instrument GM au choix
+ * Navigation : ←/→ change de source, ↑/↓ change d'instrument (incrément
+ * facile), le choix s'applique immédiatement.
  *
- * Live : charge `/vst3-presets` (les 637 presets Surge XT, catégorisés) et
- * pilote le moteur temps réel du serveur (`/live-vst3`) : quand il est actif,
- * les notes du pianiste passent par Surge → audio USB → haut-parleurs du
- * Roland au lieu du thru MIDI (Roland GM).
+ * Assignation par piste : glisser-déposé d'un instrument (ou <select>) vers
+ * une piste → l'instrument est utilisé par le serveur au rendu WAV (Play).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { backendUrl } from '../lib/chordUtils';
 import {
-  fetchSurgePresets,
-  filterPresets,
-  groupPresets,
-  LiveVst3State,
-  SurgePreset,
-} from '../lib/vst3Live';
-
-export interface RenderInstrument {
-  engine: 'sfz' | 'vst3' | 'fluidsynth';
-  path: string;
-}
+  fetchLiveInstrument, fetchSoundfonts, fetchSurgePresets,
+  filterPresets, formatSize, GM_PROGRAMS, groupPresets,
+  LiveInstrumentState, LiveSource, nextSource, RenderInstrument,
+  setLiveInstrument, SoundfontInfo, stepInList, SurgePreset,
+} from '../lib/liveInstrument';
 
 interface Props {
   /** Pistes : {canal, label} — ordre d'affichage. */
@@ -32,10 +27,10 @@ interface Props {
   /** Sélection courante : canal → instrument (fluidsynth = vide/absent). */
   value: Record<number, RenderInstrument>;
   onChange: (v: Record<number, RenderInstrument>) => void;
-  /** État du moteur VST3 live (serveur). */
-  liveVst3: LiveVst3State;
-  /** Change le moteur live : (activé, preset optionnel = chemin .fxp ou nom). */
-  onLiveVst3Change: (enabled: boolean, preset?: string | null) => void;
+  /** État du moteur live (serveur). */
+  live: LiveInstrumentState;
+  /** Change le moteur live : (source, {preset|program}). */
+  onLiveChange: (source: LiveSource, preset?: string | null, program?: number | null) => void;
   onClose: () => void;
 }
 
@@ -44,6 +39,8 @@ interface CatalogItem {
   path: string;
   kind: 'sfz' | 'vst3';
 }
+
+type Tab = 'best' | 'surge' | 'sfz' | 'sf2';
 
 /** Nom d'affichage lisible : "CelloEnsSusVib" → "Cello Ens Sus Vib". */
 function prettyName(name: string): string {
@@ -54,17 +51,30 @@ function prettyName(name: string): string {
     .trim();
 }
 
+const SOURCE_META: Record<LiveSource, { icon: string; label: string; hint: string }> = {
+  thru: { icon: '🔌', label: 'Roland GM', hint: 'Son interne du Roland (thru MIDI)' },
+  vst3: { icon: '🎸', label: 'Surge XT', hint: 'Preset Surge → audio USB → haut-parleurs du Roland' },
+  fluid: { icon: '🎹', label: 'FluidSynth', hint: 'SoundFont GM du serveur (son PC)' },
+};
+
 export default function InstrumentPicker({
-  channels, value, onChange, liveVst3, onLiveVst3Change, onClose,
+  channels, value, onChange, live, onLiveChange, onClose,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [surgePresets, setSurgePresets] = useState<SurgePreset[]>([]);
   const [surgeLoading, setSurgeLoading] = useState(true);
-  /** Recherche dans les presets Surge (nom ou catégorie). */
-  const [surgeQuery, setSurgeQuery] = useState('');
+  const [soundfonts, setSoundfonts] = useState<SoundfontInfo[]>([]);
+  const [sfLoading, setSfLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('best');
+  const [query, setQuery] = useState('');
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  /** Piste survolée par un drag (highlight). */
+  const [dragOverCh, setDragOverCh] = useState<number | null>(null);
+  /** Index de l'élément sélectionné dans la liste plate (clavier ↑/↓). */
+  const [selIndex, setSelIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,11 +83,8 @@ export default function InstrumentPicker({
         const resp = await fetch(`${backendUrl()}/instruments-list`);
         const data = (await resp.json()) as CatalogItem[];
         if (!cancelled) setCatalog(data);
-      } catch {
-        /* serveur injoignable — liste vide */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { /* serveur injoignable */ }
+      finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -86,221 +93,422 @@ export default function InstrumentPicker({
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchSurgePresets();
-        if (!cancelled) setSurgePresets(data);
-      } catch {
-        /* serveur injoignable — liste vide */
-      } finally {
-        if (!cancelled) setSurgeLoading(false);
-      }
+        const [surge, sfs] = await Promise.all([fetchSurgePresets(), fetchSoundfonts()]);
+        if (!cancelled) { setSurgePresets(surge); setSoundfonts(sfs); }
+      } catch { /* serveur injoignable */ }
+      finally { if (!cancelled) { setSurgeLoading(false); setSfLoading(false); } }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const sfz = useMemo(() => catalog.filter(i => i.kind === 'sfz'), [catalog]);
-  const vst3 = useMemo(() => catalog.filter(i => i.kind === 'vst3'), [catalog]);
-  const surgeGroups = useMemo(
-    () => groupPresets(filterPresets(surgePresets, surgeQuery)),
-    [surgePresets, surgeQuery],
+  // ── Listes visibles (onglet + recherche) ──
+  const bestSurge = useMemo(() => surgePresets.filter(p => p.best), [surgePresets]);
+  const surgeFiltered = useMemo(() => filterPresets(surgePresets, query), [surgePresets, query]);
+  const bestFiltered = useMemo(() => filterPresets(bestSurge, query), [bestSurge, query]);
+  const sfzItems = useMemo(() => catalog.filter(i => i.kind === 'sfz'), [catalog]);
+  const sfzFiltered = useMemo(
+    () => sfzItems.filter(i => !query || prettyName(i.name).toLowerCase().includes(query.toLowerCase())),
+    [sfzItems, query],
   );
-  const surgeCount = useMemo(() => filterPresets(surgePresets, surgeQuery).length, [surgePresets, surgeQuery]);
+  const sf2Filtered = useMemo(
+    () => soundfonts.filter(s => !query || s.name.toLowerCase().includes(query.toLowerCase())),
+    [soundfonts, query],
+  );
 
-  /** Sélection d'une piste : vide → FluidSynth ; sinon engine déduit du catalogue. */
+  /** Liste plate d'items pour l'onglet courant (navigation ↑/↓ + rendu). */
+  type FlatItem =
+    | { kind: 'surge'; preset: SurgePreset }
+    | { kind: 'sfz'; item: CatalogItem }
+    | { kind: 'sf2'; sf: SoundfontInfo };
+  const flatList: FlatItem[] = useMemo(() => {
+    if (tab === 'best') return bestFiltered.map(preset => ({ kind: 'surge' as const, preset }));
+    if (tab === 'surge') return surgeFiltered.map(preset => ({ kind: 'surge' as const, preset }));
+    if (tab === 'sfz') return sfzFiltered.map(item => ({ kind: 'sfz' as const, item }));
+    return sf2Filtered.map(sf => ({ kind: 'sf2' as const, sf }));
+  }, [tab, bestFiltered, surgeFiltered, sfzFiltered, sf2Filtered]);
+
+  const itemKey = (i: FlatItem) =>
+    i.kind === 'surge' ? i.preset.path : i.kind === 'sfz' ? i.item.path : i.sf.path;
+
+  // Sélection courante dans la liste plate : l'instrument live si présent.
+  const livePath = live.source === 'vst3' ? live.vst3.preset?.path ?? null : null;
+  useEffect(() => {
+    const idx = flatList.findIndex(i => itemKey(i) === livePath);
+    setSelIndex(idx >= 0 ? idx : 0);
+  }, [tab, query, livePath, flatList]);
+
+  // ── Application au live ──
+  const applyLive = useCallback(async (source: LiveSource, preset?: string | null, program?: number | null) => {
+    setLiveBusy(true);
+    setLiveError(null);
+    try {
+      await onLiveChange(source, preset, program);
+    } catch (e) {
+      setLiveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLiveBusy(false);
+    }
+  }, [onLiveChange]);
+
+  /** Applique un item au live (seuls les presets Surge sont live-compatibles). */
+  const applyItemLive = useCallback((item: FlatItem) => {
+    if (item.kind === 'surge') {
+      void applyLive('vst3', item.preset.path);
+    }
+  }, [applyLive]);
+
+  // ── Navigation clavier (le modal entier écoute) ──
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (e.key === 'Escape') { onClose(); return; }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const delta = e.key === 'ArrowLeft' ? -1 : 1;
+      const ns = nextSource(live.source, delta);
+      const firstSurge = flatList.find(i => i.kind === 'surge');
+      const vst3Preset =
+        live.vst3.preset?.path ?? (firstSurge && firstSurge.kind === 'surge' ? firstSurge.preset.path : undefined);
+      void applyLive(
+        ns,
+        ns === 'vst3' ? vst3Preset : null,
+        ns === 'fluid' ? (live.fluid.program ?? 0) : null,
+      );
+      return;
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      const next = stepInList(flatList, flatList[selIndex] ?? null, delta);
+      if (next >= 0) {
+        setSelIndex(next);
+        const item = flatList[next];
+        if (item) applyItemLive(item);
+        listRef.current?.querySelector(`[data-idx="${next}"]`)?.scrollIntoView({ block: 'nearest' });
+      }
+      return;
+    }
+    if (e.key === 'Enter' && flatList[selIndex]) {
+      e.preventDefault();
+      applyItemLive(flatList[selIndex]);
+    }
+  }, [live, flatList, selIndex, applyLive, applyItemLive, onClose]);
+
+  // ── Drag & drop vers les pistes ──
+  const startDrag = (e: React.DragEvent, item: FlatItem) => {
+    const engine = item.kind === 'surge' ? 'vst3' as const : item.kind === 'sfz' ? 'sfz' as const : 'sf2' as const;
+    e.dataTransfer.setData('application/x-chordzic-instrument', JSON.stringify({ engine, path: itemKey(item) }));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+  const dropOnChannel = (e: React.DragEvent, channel: number) => {
+    e.preventDefault();
+    setDragOverCh(null);
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/x-chordzic-instrument')) as RenderInstrument;
+      if (data.path) onChange({ ...value, [channel]: data });
+    } catch { /* drop invalide */ }
+  };
+
+  // ── Sélection par piste (select) ──
   const pick = (channel: number, path: string) => {
     const next = { ...value };
     if (!path) {
       delete next[channel];
     } else {
       const item = catalog.find(i => i.path === path);
-      next[channel] = { engine: item?.kind ?? 'sfz', path };
+      next[channel] = item ? { engine: item.kind, path } : { engine: 'sfz', path };
     }
     onChange(next);
   };
-
   const selected = (channel: number) => value[channel]?.path ?? '';
 
-  /** Bascule le moteur live. À l'activation sans preset : le preset courant
-   * s'il existe, sinon le premier de la liste (ou erreur claire du serveur). */
-  const toggleLive = async (enabled: boolean) => {
-    setLiveBusy(true);
-    setLiveError(null);
-    try {
-      const preset = enabled
-        ? liveVst3.preset?.path ?? surgePresets[0]?.path ?? null
-        : null;
-      await onLiveVst3Change(enabled, preset);
-    } catch (e) {
-      setLiveError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLiveBusy(false);
-    }
-  };
+  // ── Infos de l'instrument courant (live) ──
+  const currentPreset = live.source === 'vst3' && live.vst3.preset
+    ? surgePresets.find(p => p.path === live.vst3.preset?.path)
+    : undefined;
+  const currentName = live.source === 'thru'
+    ? 'Roland GM'
+    : live.source === 'vst3'
+      ? (live.vst3.preset?.name ?? '—')
+      : (live.fluid.program != null ? GM_PROGRAMS[live.fluid.program] ?? `GM ${live.fluid.program}` : 'GM (défaut)');
+  const currentSub = live.source === 'thru'
+    ? 'Son interne du piano — thru MIDI'
+    : live.source === 'vst3'
+      ? `${currentPreset?.category ?? 'Surge XT'} · Surge XT`
+      : 'FluidSynth · MuseScore General';
 
-  /** Choix d'un preset : active le moteur avec ce preset. */
-  const pickLivePreset = async (path: string) => {
-    if (!path) return;
-    setLiveBusy(true);
-    setLiveError(null);
-    try {
-      await onLiveVst3Change(true, path);
-    } catch (e) {
-      setLiveError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLiveBusy(false);
-    }
-  };
-
-  const toggleBtn = liveVst3.enabled
-    ? 'bg-emerald-600 text-white border-emerald-400'
-    : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white';
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: 'best', label: '⭐ Best-of', count: bestSurge.length },
+    { id: 'surge', label: '🎸 Surge', count: surgePresets.length },
+    { id: 'sfz', label: '🎻 SFZ', count: sfzItems.length },
+    { id: 'sf2', label: '🗂 SF2/SF3', count: soundfonts.length },
+  ];
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
+      onKeyDown={handleKeyDown}
     >
       <div
-        className="w-full max-w-lg rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-5"
+        className="w-full max-w-2xl rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-5 max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-white font-bold text-lg">🎛️ Instruments</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors"
-            title="Fermer"
+            title="Fermer (Échap)"
           >
             ✕
           </button>
         </div>
 
-        {/* ── Moteur live VST3 (Surge XT → haut-parleurs du Roland) ── */}
-        <div className="mb-4 rounded-lg bg-gray-800/60 border border-gray-700 p-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="min-w-0">
-              <p className="text-sm text-white font-semibold">🎸 Moteur live (Surge XT)</p>
-              <p className="text-[11px] text-gray-400 leading-snug">
-                {liveVst3.enabled
-                  ? <>Le piano sonne <span className="text-emerald-300">Surge</span> par les haut-parleurs du Roland</>
-                  : <>Thru MIDI (Roland GM) — active un preset pour sonner Surge</>}
+        {/* ── 🎹 Ce que tu entends en jouant ── */}
+        <div className="mb-4 rounded-xl bg-gray-800/60 border border-gray-700 p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
+            🎹 Ce que tu entends en jouant
+          </p>
+
+          {/* Sources */}
+          <div className="flex gap-1.5 mb-3">
+            {(Object.keys(SOURCE_META) as LiveSource[]).map(src => {
+              const meta = SOURCE_META[src];
+              const active = live.source === src;
+              return (
+                <button
+                  key={src}
+                  onClick={() => void applyLive(src, src === 'vst3' ? (live.vst3.preset?.path ?? undefined) : null, src === 'fluid' ? (live.fluid.program ?? 0) : null)}
+                  disabled={liveBusy}
+                  title={meta.hint}
+                  className={`flex-1 px-2 py-1.5 rounded-lg border text-xs font-semibold transition-colors disabled:opacity-50 ${
+                    active
+                      ? src === 'vst3'
+                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
+                        : src === 'fluid'
+                          ? 'bg-sky-600/20 border-sky-500 text-sky-300'
+                          : 'bg-amber-600/20 border-amber-500 text-amber-300'
+                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {meta.icon} {meta.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Instrument courant */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const next = stepInList(flatList, flatList[selIndex] ?? null, -1);
+                if (next >= 0) { setSelIndex(next); applyItemLive(flatList[next]); }
+              }}
+              disabled={liveBusy}
+              className="shrink-0 w-9 h-9 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition-colors text-lg disabled:opacity-40"
+              title="Instrument précédent (↑)"
+            >
+              ◀
+            </button>
+            <div className="flex-1 min-w-0 text-center">
+              <p className={`text-xl font-bold truncate ${live.source === 'vst3' ? 'text-emerald-300' : live.source === 'fluid' ? 'text-sky-300' : 'text-amber-300'}`}>
+                {live.source === 'vst3' && currentPreset?.best ? '⭐ ' : ''}{currentName}
               </p>
+              <p className="text-[11px] text-gray-500 truncate">{currentSub}</p>
             </div>
             <button
-              onClick={() => toggleLive(!liveVst3.enabled)}
+              onClick={() => {
+                const next = stepInList(flatList, flatList[selIndex] ?? null, 1);
+                if (next >= 0) { setSelIndex(next); applyItemLive(flatList[next]); }
+              }}
               disabled={liveBusy}
-              className={`shrink-0 px-3 h-7 rounded-lg border text-xs font-bold transition-colors disabled:opacity-50 ${toggleBtn}`}
-              title={liveVst3.enabled ? 'Arrêter le moteur Surge (retour thru MIDI)' : 'Démarrer le moteur Surge'}
+              className="shrink-0 w-9 h-9 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition-colors text-lg disabled:opacity-40"
+              title="Instrument suivant (↓)"
             >
-              {liveBusy ? '…' : liveVst3.enabled ? 'ON' : 'OFF'}
+              ▶
             </button>
           </div>
 
-          {surgeLoading ? (
-            <p className="text-xs text-gray-500 py-1">Chargement des presets Surge…</p>
-          ) : surgePresets.length === 0 ? (
-            <p className="text-xs text-red-400 py-1">
-              Aucun preset Surge détecté — Surge XT installé sur le serveur ?
-            </p>
-          ) : (
-            <>
-              <input
-                type="text"
-                value={surgeQuery}
-                onChange={e => setSurgeQuery(e.target.value)}
-                placeholder={`Recherche parmi ${surgePresets.length} presets…`}
-                className="w-full mb-1.5 rounded-lg bg-gray-900 border border-gray-700 text-gray-200 text-xs px-2 py-1.5 focus:outline-none focus:border-emerald-500"
-              />
-              <select
-                value={liveVst3.preset?.path ?? ''}
-                onChange={e => pickLivePreset(e.target.value)}
-                disabled={liveBusy}
-                className="w-full rounded-lg bg-gray-900 border border-gray-700 text-gray-200 text-xs px-2 py-1.5 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
-                size={4}
-              >
-                {liveVst3.preset && !surgePresets.some(p => p.path === liveVst3.preset?.path) && (
-                  <option value={liveVst3.preset.path}>✱ {liveVst3.preset.name}</option>
-                )}
-                {surgeGroups.map(g => (
-                  <optgroup key={g.category} label={`${g.category} (${g.items.length})`}>
-                    {g.items.map(p => (
-                      <option key={p.path} value={p.path}>{p.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <p className="text-[10px] text-gray-500 mt-1">
-                {surgeQuery ? `${surgeCount} preset(s) — ` : ''}
-                Le choix d'un preset démarre le moteur (notes → Surge → audio USB).
-              </p>
-            </>
+          {/* Instrument GM (source FluidSynth) */}
+          {live.source === 'fluid' && (
+            <select
+              value={live.fluid.program ?? 0}
+              onChange={e => void applyLive('fluid', null, Number(e.target.value))}
+              disabled={liveBusy}
+              className="mt-2 w-full rounded-lg bg-gray-900 border border-gray-700 text-gray-200 text-xs px-2 py-1.5 focus:outline-none focus:border-sky-500"
+            >
+              {GM_PROGRAMS.map((name, i) => (
+                <option key={i} value={i}>{i + 1}. {name}</option>
+              ))}
+            </select>
           )}
-          {(liveError || liveVst3.error) && (
-            <p className="text-[11px] text-red-400 mt-1.5">
-              ⚠️ {liveError ?? liveVst3.error}
-            </p>
+
+          <p className="text-[10px] text-gray-500 mt-2">
+            ←/→ source · ↑/↓ instrument · le choix s'applique immédiatement
+          </p>
+          {(liveError || live.vst3.error) && (
+            <p className="text-[11px] text-red-400 mt-1">⚠️ {liveError ?? live.vst3.error}</p>
           )}
         </div>
 
-        {/* ── Instruments du rendu par piste ── */}
-        <p className="text-xs text-gray-400 mb-2 leading-relaxed">
-          Instrument par piste pour le rendu WAV. Les banques{' '}
-          <span className="text-cyan-300">SFZ</span> et les plugins{' '}
-          <span className="text-emerald-300">VST3</span> natifs sont détectés
-          automatiquement. Piste sans instrument → <b>FluidSynth (GM)</b>.
-        </p>
+        {/* ── Liste d'instruments ── */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="🔍 Recherche (nom, catégorie…)"
+            className="w-full mb-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-xs px-2.5 py-1.5 focus:outline-none focus:border-cyan-500"
+          />
+          <div className="flex gap-1 mb-1.5 flex-wrap">
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                  tab === t.id
+                    ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {t.label} <span className="text-gray-600">{t.count}</span>
+              </button>
+            ))}
+          </div>
 
-        {loading ? (
-          <p className="text-gray-500 text-sm py-4 text-center">Chargement des instruments…</p>
-        ) : catalog.length === 0 ? (
-          <p className="text-red-400 text-sm py-4 text-center">
-            Aucun instrument détecté — vérifie que le serveur tourne et que des
-            banques SFZ / plugins VST3 sont installés.
+          <div
+            ref={listRef}
+            className="max-h-[26vh] overflow-y-auto rounded-lg bg-gray-950/60 border border-gray-800 divide-y divide-gray-800/60"
+          >
+            {surgeLoading || loading || sfLoading ? (
+              <p className="text-gray-500 text-xs py-4 text-center">Chargement…</p>
+            ) : flatList.length === 0 ? (
+              <p className="text-gray-500 text-xs py-4 text-center">Aucun instrument — vérifie le serveur.</p>
+            ) : (
+              flatList.map((item, idx) => {
+                const key = itemKey(item);
+                const isSel = idx === selIndex;
+                const isLive = key === livePath;
+                const label = item.kind === 'surge' ? item.preset.name : item.kind === 'sfz' ? prettyName(item.item.name) : item.sf.name;
+                const sub = item.kind === 'surge'
+                  ? item.preset.category
+                  : item.kind === 'sfz' ? 'SFZ' : `${item.sf.kind.toUpperCase()} · ${formatSize(item.sf.size)}`;
+                return (
+                  <div
+                    key={key}
+                    data-idx={idx}
+                    draggable
+                    onDragStart={e => startDrag(e, item)}
+                    onClick={() => { setSelIndex(idx); applyItemLive(item); }}
+                    className={`flex items-center justify-between gap-2 px-2.5 py-1.5 cursor-pointer transition-colors ${
+                      isSel ? 'bg-cyan-600/15' : isLive ? 'bg-emerald-600/10' : 'hover:bg-gray-800/60'
+                    }`}
+                    title={item.kind === 'surge' ? 'Clic : entendre ce son · Glisser : assigner à une piste' : 'Glisser : assigner à une piste (rendu WAV)'}
+                  >
+                    <span className="text-xs text-gray-200 truncate">
+                      {item.kind === 'surge' && item.preset.best ? '⭐ ' : ''}{label}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-gray-500">
+                      {isLive ? '🔊 ' : ''}{sub}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">
+            Glisse un instrument sur une piste ci-dessous pour l'assigner au rendu WAV.
           </p>
-        ) : (
-          <div className="space-y-2 max-h-[35vh] overflow-y-auto pr-1">
+        </div>
+
+        {/* ── 📦 Assignation par piste (rendu WAV) ── */}
+        <div className="rounded-xl bg-gray-800/40 border border-gray-700 p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
+            📦 Par piste — utilisé au rendu WAV (▶ Play)
+          </p>
+          <div className="space-y-1.5">
             {channels.map(({ channel, label }) => (
-              <div key={channel} className="flex items-center gap-2">
-                <span className="w-24 shrink-0 text-xs text-gray-300 font-medium">
+              <div
+                key={channel}
+                onDragOver={e => { e.preventDefault(); setDragOverCh(channel); }}
+                onDragLeave={() => setDragOverCh(ch => ch === channel ? null : ch)}
+                onDrop={e => dropOnChannel(e, channel)}
+                className={`flex items-center gap-2 rounded-lg border px-2 py-1 transition-colors ${
+                  dragOverCh === channel
+                    ? 'border-cyan-400 bg-cyan-600/10'
+                    : value[channel]
+                      ? 'border-cyan-700/60 bg-gray-900'
+                      : 'border-gray-800 bg-gray-900/60'
+                }`}
+              >
+                <span className="w-20 shrink-0 text-[11px] text-gray-300 font-medium">
                   {label}
-                  <span className="text-gray-600"> (ch {channel})</span>
+                  <span className="text-gray-600"> ch{channel}</span>
                 </span>
                 <select
                   value={selected(channel)}
                   onChange={e => pick(channel, e.target.value)}
-                  className="flex-1 min-w-0 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-sm px-2 py-1.5 focus:outline-none focus:border-cyan-500"
+                  className="flex-1 min-w-0 rounded-md bg-gray-800 border border-gray-700 text-gray-200 text-[11px] px-1.5 py-1 focus:outline-none focus:border-cyan-500"
                 >
                   <option value="">FluidSynth (GM)</option>
-                  {sfz.length > 0 && (
-                    <optgroup label={`SFZ (${sfz.length})`}>
-                      {sfz.map(i => (
-                        <option key={i.path} value={i.path}>
-                          {prettyName(i.name)}
-                        </option>
+                  {bestSurge.length > 0 && (
+                    <optgroup label={`⭐ Surge best-of (${bestSurge.length})`}>
+                      {bestSurge.map(p => (
+                        <option key={p.path} value={p.path}>{p.name} ({p.category})</option>
                       ))}
                     </optgroup>
                   )}
-                  {vst3.length > 0 && (
-                    <optgroup label={`VST3 (${vst3.length})`}>
-                      {vst3.map(i => (
-                        <option key={i.path} value={i.path}>
-                          {i.name}
-                        </option>
+                  {surgePresets.length > 0 && (
+                    <optgroup label={`🎸 Surge (${surgePresets.length})`}>
+                      {surgePresets.map(p => (
+                        <option key={p.path} value={p.path}>{p.name} ({p.category})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {sfzItems.length > 0 && (
+                    <optgroup label={`🎻 SFZ (${sfzItems.length})`}>
+                      {sfzItems.map(i => (
+                        <option key={i.path} value={i.path}>{prettyName(i.name)}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {soundfonts.length > 0 && (
+                    <optgroup label={`🗂 SoundFonts (${soundfonts.length})`}>
+                      {soundfonts.map(s => (
+                        <option key={s.path} value={s.path}>{s.name} ({s.kind.toUpperCase()})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {catalog.filter(i => i.kind === 'vst3').length > 0 && (
+                    <optgroup label={`🔌 VST3 plugins (${catalog.filter(i => i.kind === 'vst3').length})`}>
+                      {catalog.filter(i => i.kind === 'vst3').map(i => (
+                        <option key={i.path} value={i.path}>{i.name}</option>
                       ))}
                     </optgroup>
                   )}
                 </select>
+                {value[channel] && (
+                  <button
+                    onClick={() => pick(channel, '')}
+                    className="shrink-0 text-gray-500 hover:text-white text-xs px-1"
+                    title="Revenir à FluidSynth (GM)"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
           </div>
-        )}
+        </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={() => onChange({})}
             className="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors text-sm"
             title="Revenir au rendu FluidSynth (GM) pour toutes les pistes"
           >
-            ↺ Tout FluidSynth
+            ↺ Tout GM
           </button>
           <button
             onClick={onClose}

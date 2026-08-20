@@ -540,14 +540,29 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               l'<b>Extract Wav</b>. Le bouton 🎛️ est surligné quand des instruments sont actifs.
             </>} />
             <Row k="🎸 Moteur live" v={<>
-              En haut du sélecteur 🎛️ : le <b className="text-white">moteur live Surge XT</b> — les
-              <b className="text-emerald-300"> 637 presets</b> d'usine (Leads, Pads, Basses, Plucks, Polysynths…)
-              classés par catégorie, avec recherche. Quand le moteur est <b className="text-emerald-300">ON</b>,
-              les notes que tu joues au piano ne reviennent plus en <b>thru MIDI</b> (son GM du Roland) : elles
-              passent par <b>Surge XT</b> → audio USB → <b>haut-parleurs du Roland</b>. Choisir un preset démarre
-              le moteur ; le bouton ON/OFF l'arrête (retour thru MIDI). La préférence est mémorisée et réactivée
-              au chargement. ⚠️ Le Roland doit être branché en USB (device « roland ») ; pendant que le moteur
-              live tourne, le thru MIDI est coupé (pas de double son).
+              En haut du sélecteur 🎛️ : ce que tu entends <b>en jouant</b>. Trois
+              sources — <b className="text-amber-300">🔌 Roland GM</b> (thru MIDI, son interne
+              du piano, défaut), <b className="text-emerald-300">🎸 Surge XT</b> (les presets
+              d'usine → audio USB → <b>haut-parleurs du Roland</b>) et
+              <b className="text-sky-300"> 🎹 FluidSynth</b> (SoundFont GM du serveur, son PC —
+              choisis ton instrument GM dans la liste des 128).
+              <b className="text-white"> Navigation au clavier</b> : <b>←/→</b> change de source,
+              <b>↑/↓</b> incrémente l'instrument (⭐ best-of curaté par catégorie :
+              Leads, Pads, Basses, Plucks, Polysynths, Keys, Brass…), le choix
+              s'applique immédiatement. La préférence est mémorisée et réactivée
+              au chargement. ⚠️ Le Roland doit être branché en USB ; pendant que
+              Surge tourne, le thru est coupé (pas de double son).
+            </>} />
+            <Row k="📦 Rendu par piste" v={<>
+              Dans le même sélecteur 🎛️ : <b>glisse un instrument</b> (⭐ Best-of,
+              🎸 Surge, 🎻 SFZ dont piano Salamander, 🗂 SF2/SF3 de
+              <code>~/soundfonts</code>) <b>sur une piste</b> pour l'assigner au
+              <b>rendu WAV</b> — l'instrument est utilisé par le serveur au clic
+              sur <b>▶ Play</b>, à l'<b>Extract Wav</b> et à l'export <b>✂ L–R</b>.
+              Le <b>&lt;select&gt;</b> de chaque piste fait pareil. Piste sans
+              instrument → <b>FluidSynth (GM)</b>. Les SoundFonts assignées
+              remplacent la GM pour cette piste. Le bouton 🎛️ est surligné dès
+              qu'un instrument ou le moteur live est actif.
             </>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Réglable dans les deux modes (rangée de réglages du mode Live, transport en Navig)." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Réglable dans les deux modes." />

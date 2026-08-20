@@ -37,12 +37,13 @@ import { PostProdEngine } from '../lib/postProdEngine';
 import { PostProdSession, PostProdTrack, createFullClip, trackColorForChannel } from '../lib/postProdTypes';
 import { backendUrl, chordToNoteNames } from '../lib/chordUtils';
 import {
-  fetchLiveVst3 as fetchLiveVst3Api,
-  loadSavedLiveVst3,
-  saveLiveVst3,
-  setLiveVst3 as setLiveVst3Api,
-  LiveVst3State,
-} from '../lib/vst3Live';
+  fetchLiveInstrument,
+  loadSavedLiveInstrument,
+  saveLiveInstrument,
+  setLiveInstrument as setLiveInstrumentApi,
+  LiveInstrumentState,
+  LiveSource,
+} from '../lib/liveInstrument';
 
 const API_BASE = backendUrl();
 
@@ -112,7 +113,7 @@ export default function ChordApp() {
   /** Instruments du rendu par canal (SFZ/VST3) — vide = FluidSynth (GM).
    * Persisté en localStorage (préférence de session, comme le piano ✨). */
   const [renderInstruments, setRenderInstruments] = useState<
-    Record<number, import('./InstrumentPicker').RenderInstrument>
+    Record<number, import('../lib/liveInstrument').RenderInstrument>
   >(() => {
     try {
       const raw = localStorage.getItem('chordzic_render_instruments');
@@ -121,52 +122,69 @@ export default function ChordApp() {
     return {};
   });
   const handleRenderInstrumentsChange = useCallback(
-    (v: Record<number, import('./InstrumentPicker').RenderInstrument>) => {
+    (v: Record<number, import('../lib/liveInstrument').RenderInstrument>) => {
       setRenderInstruments(v);
       try { localStorage.setItem('chordzic_render_instruments', JSON.stringify(v)); } catch { /* ignore */ }
     },
     [],
   );
 
-  /** Moteur VST3 live (Surge XT → haut-parleurs du Roland) : état serveur +
+  /** Moteur live (ce que le pianiste entend en jouant) : thru Roland /
+   * Surge XT (audio USB → Roland) / FluidSynth (son PC). État serveur +
    * préférence persistée (réactivée au chargement si le serveur a redémarré). */
-  const [liveVst3, setLiveVst3] = useState<LiveVst3State>({
-    enabled: false,
-    preset: null,
-    error: null,
+  const [live, setLive] = useState<LiveInstrumentState>({
+    source: 'thru',
+    vst3: { enabled: false, preset: null, error: null },
+    fluid: { program: null, soundfont: null },
   });
 
-  const handleLiveVst3Change = useCallback(async (enabled: boolean, preset?: string | null) => {
-    const state = await setLiveVst3Api(enabled, preset ?? undefined);
-    setLiveVst3(state);
-    saveLiveVst3({ enabled: state.enabled, preset: state.preset?.path ?? null });
+  const handleLiveChange = useCallback(async (
+    source: LiveSource,
+    preset?: string | null,
+    program?: number | null,
+  ) => {
+    const state = await setLiveInstrumentApi(source, { preset, program });
+    setLive(state);
+    saveLiveInstrument({
+      source: state.source,
+      preset: state.vst3.preset?.path ?? null,
+      program: state.fluid.program,
+    });
   }, []);
 
-  // Synchronisation au chargement : l'état serveur fait foi ; si une
-  // préférence persistée dit ON mais que le serveur a redémarré (moteur
-  // coupé), on réactive le moteur avec le preset sauvegardé.
+  // Synchronisation au chargement : l'état serveur fait foi ; si la
+  // préférence persistée dit autre chose que thru mais que le serveur a
+  // redémarré (moteur coupé), on réactive la source avec le preset/program
+  // sauvegardés.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const server = await fetchLiveVst3Api();
+        const server = await fetchLiveInstrument();
         if (cancelled) return;
-        if (server.enabled) {
-          setLiveVst3(server);
-          saveLiveVst3({ enabled: true, preset: server.preset?.path ?? null });
+        if (server.source !== 'thru') {
+          setLive(server);
+          saveLiveInstrument({
+            source: server.source,
+            preset: server.vst3.preset?.path ?? null,
+            program: server.fluid.program,
+          });
           return;
         }
-        const saved = loadSavedLiveVst3();
-        if (saved.enabled && saved.preset) {
+        const saved = loadSavedLiveInstrument();
+        if (saved.source !== 'thru') {
           try {
-            const state = await setLiveVst3Api(true, saved.preset);
-            if (!cancelled) setLiveVst3(state);
+            const state = await setLiveInstrumentApi(saved.source, {
+              preset: saved.preset,
+              program: saved.program,
+            });
+            if (!cancelled) setLive(state);
           } catch {
             /* moteur indisponible (Roland débranché…) — silencieux */
           }
         }
       } catch {
-        /* serveur injoignable — l'état reste désactivé */
+        /* serveur injoignable — l'état reste thru */
       }
     })();
     return () => { cancelled = true; };
@@ -1409,8 +1427,8 @@ export default function ChordApp() {
             onPostProd={bounceToPostProd}
             renderInstruments={renderInstruments}
             onRenderInstrumentsChange={handleRenderInstrumentsChange}
-            liveVst3={liveVst3}
-            onLiveVst3Change={handleLiveVst3Change}
+            live={live}
+            onLiveChange={handleLiveChange}
             bouncing={bouncing}
             onSelectMpe={setActiveMpe}
             mpeActive={activeMpe !== null}

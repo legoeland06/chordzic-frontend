@@ -134,13 +134,17 @@ interface DawViewProps {
   onExportSection: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
-  /** Instruments du rendu par canal (SFZ/VST3) — vide = FluidSynth. */
-  renderInstruments: Record<number, import('./InstrumentPicker').RenderInstrument>;
-  onRenderInstrumentsChange: (v: Record<number, import('./InstrumentPicker').RenderInstrument>) => void;
-  /** Moteur VST3 live (Surge XT → haut-parleurs du Roland) — état serveur. */
-  liveVst3: import('../lib/vst3Live').LiveVst3State;
-  /** Change le moteur live : (activé, preset optionnel). */
-  onLiveVst3Change: (enabled: boolean, preset?: string | null) => void;
+  /** Instruments du rendu par canal (SFZ/Surge/SF2/VST3) — vide = FluidSynth. */
+  renderInstruments: Record<number, import('../lib/liveInstrument').RenderInstrument>;
+  onRenderInstrumentsChange: (v: Record<number, import('../lib/liveInstrument').RenderInstrument>) => void;
+  /** Moteur live (thru Roland / Surge XT / FluidSynth) — état serveur. */
+  live: import('../lib/liveInstrument').LiveInstrumentState;
+  /** Change le moteur live : (source, preset?, program?). */
+  onLiveChange: (
+    source: import('../lib/liveInstrument').LiveSource,
+    preset?: string | null,
+    program?: number | null,
+  ) => void;
   /** Vrai pendant le bounce (le bouton est désactivé). */
   bouncing: boolean;
 }
@@ -502,7 +506,7 @@ export default function DawView({
   onSelectMpe, mpeActive, onExportSection,
   onPostProd, bouncing,
   renderInstruments, onRenderInstrumentsChange,
-  liveVst3, onLiveVst3Change,
+  live, onLiveChange,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
   type PlayState = 'idle' | 'playing' | 'paused';
@@ -1409,8 +1413,8 @@ const REC_COUNTDOWN_BEATS = 4;
           <button onClick={() => setShowPorts(true)} title="Ports MIDI & Audio — choisir vers quoi brancher l'application" className={tBtn}><Settings className="w-3.5 h-3.5" /></button>
           <button
             onClick={() => setShowInstruments(true)}
-            title="Instruments — rendu SFZ/VST3 par piste + moteur live Surge"
-            className={`${tBtn} ${Object.keys(renderInstruments).length > 0 || liveVst3.enabled ? 'text-cyan-300 border-cyan-500/50' : ''}`}
+            title="Instruments — moteur live (Surge/FluidSynth) + rendu par piste"
+            className={`${tBtn} ${Object.keys(renderInstruments).length > 0 || live.source !== 'thru' ? 'text-cyan-300 border-cyan-500/50' : ''}`}
           >
             🎛️
           </button>
@@ -1863,14 +1867,14 @@ const REC_COUNTDOWN_BEATS = 4;
         );
       })()}
 
-      {/* Modal 🎛️ Instruments (rendu SFZ/VST3 par piste + moteur live Surge) */}
+      {/* Modal 🎛️ Instruments (moteur live + rendu par piste) */}
       {showInstruments && (
         <InstrumentPicker
           channels={tracks.map(t => ({ channel: t.channel, label: t.label ?? `Piste ${t.channel}` }))}
           value={renderInstruments}
           onChange={onRenderInstrumentsChange}
-          liveVst3={liveVst3}
-          onLiveVst3Change={onLiveVst3Change}
+          live={live}
+          onLiveChange={onLiveChange}
           onClose={() => setShowInstruments(false)}
         />
       )}

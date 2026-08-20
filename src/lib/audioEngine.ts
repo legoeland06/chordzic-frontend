@@ -81,18 +81,18 @@ export class AudioEngine {
   private masterVol = 127;
   /** Config instruments libres pour le rendu WAV : {canal: {engine, path}}.
    * Vide → rendu FluidSynth (GM) classique. */
-  private renderInstruments: Record<number, { engine: 'sfz' | 'vst3' | 'fluidsynth'; path: string }> = {};
+  private renderInstruments: Record<number, import('./browserSynth').RenderInstrument> = {};
 
-  /** Fixe les instruments par canal pour le rendu WAV (SFZ/VST3). */
+  /** Fixe les instruments par canal pour le rendu WAV (SFZ/VST3/SF2). */
   setRenderInstruments(
-    instr: Record<number, { engine: 'sfz' | 'vst3' | 'fluidsynth'; path: string }>,
+    instr: Record<number, import('./browserSynth').RenderInstrument>,
   ) {
     this.renderInstruments = instr;
   }
 
-  /** Moteur global dérivé : "sfz" ou "vst3" si un instrument non-FluidSynth
-   * est choisi, sinon undefined (chemin FluidSynth historique). */
-  private renderEngine(): 'sfz' | 'vst3' | undefined {
+  /** Moteur global dérivé : "sfz", "vst3" ou "sf2" si un instrument
+   * non-FluidSynth est choisi, sinon undefined (chemin FluidSynth). */
+  private renderEngine(): import('./browserSynth').RenderInstrument['engine'] | undefined {
     return deriveRenderEngine(this.renderInstruments);
   }
 
