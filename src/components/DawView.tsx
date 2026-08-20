@@ -122,7 +122,7 @@ interface DawViewProps {
   /** Met à jour les notes d'une piste (édition directe dans le PianoRoll intégré). */
   onNotesChange: (channel: number, notes: PianoNote[]) => void;
   /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
-  onPlayMidiAll: (startAtBeats?: number) => void;
+  onPlayMidiAll: (startAtBeats?: number, excludeChannel?: number) => void;
   onHelp: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
@@ -744,7 +744,7 @@ export default function DawView({
     try { await fetch(`${API_BASE}/navig-stop-midi`, { method: 'POST' }); } catch { /* ignore */ }
   }, []);
 
-  const startMidi = useCallback((fromBeats = 0) => {
+  const startMidi = useCallback((fromBeats = 0, excludeChannel?: number) => {
     // Toggle exclusif : la lecture MIDI remplace la lecture WAV (sinon le
     // WAV — et son clic mixé — continue de tourner par-dessus le MIDI).
     if (playState === 'playing') {
@@ -752,7 +752,7 @@ export default function DawView({
       setPlayState('idle');
       setLevels({});
     }
-    onPlayMidiAll(fromBeats);
+    onPlayMidiAll(fromBeats, excludeChannel);
     setMidiPlaying(true);
     midiStartRef.current = performance.now();
     midiFromRef.current = fromBeats;
@@ -1025,6 +1025,13 @@ export default function DawView({
     }).catch(() => { /* backend injoignable */ });
     setRecStartPos(getPlayheadPosition());
     setRecState('on');
+    // PLAY-ALONG : si aucune lecture MIDI ne tourne, lance l'accompagnement
+    // (toutes les pistes SAUF celle enregistrée — l'utilisateur contrôle ce
+    // qu'il entend avec les MUTE du mixeur ; la lecture continue après le
+    // REC, on l'arrête avec ▶ MIDI / Stop).
+    if (!midiPlaying && recTarget !== null) {
+      startMidi(getPlayheadPosition(), recTarget);
+    }
     // Métronome continu : clic immédiat puis à chaque temps (le ctx du
     // décompte reste ouvert — les notes jouées suivent le rythme).
     const ctx = recAudioRef.current;
@@ -1034,7 +1041,7 @@ export default function DawView({
       if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
       recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
     }
-  }, [tempo, playClick]);
+  }, [tempo, playClick, midiPlaying, recTarget, startMidi]);
 
   /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
   const playCountdown = useCallback((bpm: number) => {

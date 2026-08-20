@@ -71,7 +71,9 @@ s'adapte toujours à la largeur de l'écran.
 - **● Rec MIDI** : enregistrement du clavier (Roland) dans la piste agrandie — décompte de
   4 temps au métronome, les notes jouées s'affichent en direct (cyan), insertion à la tête
   de lecture à l'arrêt (événements horodatés côté serveur, ordre d'appui conservé,
-  repiquage ignoré)
+  repiquage ignoré). **Play-along** : au démarrage, les AUTRES pistes jouent en
+  accompagnement (la piste enregistrée est exclue) ; les MUTE du mixeur choisissent ce
+  qu'on entend ; la lecture continue après l'arrêt du REC
 - **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
 - **Molette** : scroll vertical du registre (1 demi-ton/cran « de case en case », le clavier en marge suit) ·
   Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection

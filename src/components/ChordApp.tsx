@@ -859,7 +859,7 @@ export default function ChordApp() {
   /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
    * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
    * `startAtBeats` : position de départ (0 = début). */
-  const playMidiAll = useCallback(async (startAtBeats = 0) => {
+  const playMidiAll = useCallback(async (startAtBeats = 0, excludeChannel?: number) => {
     const hasNotes = Object.values(pianoNotes).some(notes => notes.length > 0);
     if (!hasPlayableContent(chords.length, hasNotes ? 1 : 0)) {
       setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)'); setStatusColor('text-red-400');
@@ -884,6 +884,9 @@ export default function ChordApp() {
       custom_notes: customNotes.length > 0 ? customNotes : undefined,
       custom_channels: customChannels.length > 0 ? customChannels : undefined,
       start_at: startAtBeats > 0 ? startAtBeats : undefined,
+      // Play-along REC : le canal en cours d'enregistrement est exclu
+      // (l'utilisateur joue cette piste lui-même — les autres accompagnent).
+      ...(excludeChannel !== undefined ? { exclude_channel: excludeChannel } : {}),
       // Locators [L, R[ : le repeat boucle l'intervalle au lieu du morceau
       // complet (le backend ne les utilise que si loop_enabled).
       ...(locR > locL ? { loop_start: locL, loop_end: locR } : {}),
