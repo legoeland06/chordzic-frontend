@@ -158,6 +158,7 @@ function PianoRoll({
   /** Canvas de la colonne clavier (fixe à droite, hors du scroll). */
   const keysCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // ── Plage de pitch par canal : chaque instrument voit son registre utile ──
   // (ex: la basse s'ouvre sur le grave, le lead sur le médium/aigu)
@@ -193,6 +194,31 @@ function PianoRoll({
   // Largeur visible du conteneur : le canvas reste fixé à cette largeur,
   // c'est un spacer interne qui porte la largeur réelle du contenu.
   const [viewportW, setViewportW] = useState(800);
+
+  // Bloque le scroll NATIF de la fenêtre quand le curseur est DANS le piano
+  // roll (intégré ET modal) : le onWheel React est inopérant pour
+  // preventDefault (le listener racine de React est passif pour wheel) →
+  // ce listener natif NON-PASSIF annule le défilement de la page, seul le
+  // piano roll répond. Couvre la zone d'édition + les portails (toolbar et
+  // marge clavier, hors du composant en mode embarqué).
+  useEffect(() => {
+    const targets: (HTMLElement | null)[] = [
+      rootRef.current,
+      document.getElementById('pianoroll-toolbar-slot'),
+      document.getElementById('pianoroll-keys-slot'),
+    ];
+    const handler = (e: WheelEvent) => e.preventDefault();
+    const attached: HTMLElement[] = [];
+    for (const t of targets) {
+      if (t) {
+        t.addEventListener('wheel', handler, { passive: false });
+        attached.push(t);
+      }
+    }
+    return () => {
+      for (const t of attached) t.removeEventListener('wheel', handler);
+    };
+  }, [embedded]);
 
   // ── Sélection / presse-papiers / vélocité ────────────────────────
   const [tool, setTool] = useState<'edit' | 'select'>('edit');
@@ -1360,7 +1386,7 @@ function PianoRoll({
   };
 
   // ── Gestion du scroll horizontal ──
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = (e: React.WheelEvent<HTMLElement>) => {
     if (e.shiftKey) {
       // Scroll horizontal avec Shift+molette
       e.preventDefault();
@@ -1736,7 +1762,7 @@ function PianoRoll({
   };
 
   return (
-    <div className={embedded ? 'w-full h-full flex flex-col bg-[#0e1016]' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70'}>
+    <div ref={rootRef} className={embedded ? 'w-full h-full flex flex-col bg-[#0e1016]' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70'}>
       <div className={embedded ? 'flex flex-col flex-1 min-h-0' : 'bg-gray-900 rounded-xl border border-gray-700 shadow-2xl flex flex-col max-w-[95vw] max-h-[90vh] w-full'}>
         {/* Header (masqué en mode embarqué : l'info est dans le panneau gauche) */}
         {!embedded && (
@@ -1866,7 +1892,12 @@ function PianoRoll({
               </div>
             )}
             {embedded && keysVisible && createPortal(
-              <canvas ref={keysCanvasRef} className="block w-full h-full" />,
+              <canvas
+                ref={keysCanvasRef}
+                className="block w-full h-full"
+                onWheel={handleWheel}
+                style={{ touchAction: 'none' }}
+              />,
               document.getElementById('pianoroll-keys-slot') ?? document.body,
             )}
           </div>
