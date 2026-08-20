@@ -14,6 +14,7 @@
  */
 import React, { memo, useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano, Scissors } from 'lucide-react';
+import MpeMenu from './mpe/MpeMenu';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -124,10 +125,10 @@ interface DawViewProps {
   /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
   onPlayMidiAll: (startAtBeats?: number, excludeChannel?: number, recAfterBeats?: number) => Promise<boolean>;
   onHelp: () => void;
-  /** Ouvre la modal 🎛 MPE (simulation de contrôleur MPE). */
-  onOpenMpe: () => void;
-  /** Ouvre la modal 🥁 Push 3 (pads échantillonnés). */
-  onOpenPush: () => void;
+  /** Menu 🎛 MPE : sélection d'un module de contrôleur MPE. */
+  onSelectMpe: (moduleId: string) => void;
+  /** Vrai si une modal MPE est ouverte (style du bouton). */
+  mpeActive: boolean;
   /** Exporte la section [L, R[ (locators) en WAV. */
   onExportSection: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
@@ -490,7 +491,7 @@ export default function DawView({
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
-  onOpenMpe, onOpenPush, onExportSection,
+  onSelectMpe, mpeActive, onExportSection,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -1357,23 +1358,8 @@ const REC_COUNTDOWN_BEATS = 4;
 
         <div className={tSep} />
 
-        {/* Modal MPE (jouer sur le son en direct) */}
-        <button
-          onClick={onOpenMpe}
-          className={`${tBtn} text-[#7fd4e0] hover:bg-[#12303a] hover:border-[#2a6a7a]`}
-          title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant le jeu ou l'enregistrement"
-        >
-          🎛
-        </button>
-
-        {/* Modal Push 3 (pads échantillonnés) */}
-        <button
-          onClick={onOpenPush}
-          className={`${tBtn} text-[#e8a060] hover:bg-[#3a2a12] hover:border-[#6a4a2a]`}
-          title="🥁 Push 3 — 64 pads déclenchables (import de samples, retrigger)"
-        >
-          🥁
-        </button>
+        {/* Menu MPE Modules (bouton unique : Seaboard, Push, futurs…) */}
+        <MpeMenu onSelect={onSelectMpe} active={mpeActive} />
 
         </div>
         {/* Rangée 2b — réglages musicaux (volume master, 432Hz, WB, pattern,

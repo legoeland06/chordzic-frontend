@@ -1,20 +1,16 @@
 /**
- * 🎛 MpeModules — MODULE PARENT du système MPE (MIDI Polyphonic Expression).
+ * 🎹 SeaboardModal — module « Seaboard (strip) » du système MPE.
  *
- * Regroupe tous les contrôleurs simulés (ROLI Seaboard, LinnStrument,
- * Osmose…) derrière un point d'entrée unique : l'utilisateur choisit le
- * module qu'il veut utiliser EN DIRECT, et le parent route les gestes du
- * module actif vers le serveur, qui les injecte dans le flux MIDI renvoyé
- * au clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
+ * Un contrôleur MPE (MIDI Polyphonic Expression) simulé : bande tactile
+ * plein écran (X = pitch bend, Y = timbre, molette = pression) dont les
+ * gestes sont envoyés au serveur, qui les injecte en direct dans le flux
+ * MIDI renvoyé au clavier (Roland / FluidSynth) ou les horodate pendant
+ * un Rec. Ce module est listé dans `MPE_MODULES` (registry) et ouvert via
+ * le menu du bouton « 🎛 MPE ».
  *
- * Le cadre est COMMUN à tous les modules :
- *  - la zone de manipulation (le composant du module — plein écran) ;
- *  - les réglages fins (sliders bend/pression/timbre, range ±, LFO,
- *    cible du son, retour auto) ;
- *  - l'état temps réel (notes tenues, canal résolu, bend effectif, REC).
- *
- * PERFORMANCE : le composant du module est isolé (zéro re-render pendant
- * le glissé — voir MpeStrip) ; les gestes sont échantillonnés à ~60 Hz.
+ * PERFORMANCE : la zone de manipulation (MpeStrip) est isolée — zéro
+ * re-render pendant le glissé (curseur en transform CSS, gestes
+ * échantillonnés à ~60 Hz en rAF).
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
@@ -31,7 +27,7 @@ import {
   resetMpe,
   sendMpe,
 } from '../../lib/mpe';
-import { MPE_MODULES, getMpeModule, MpeModule } from './registry';
+import MpeStrip from './MpeStrip';
 
 /** Nom de note MIDI (pour l'affichage des notes tenues). */
 function noteName(pitch: number): string {
@@ -56,23 +52,11 @@ const RANGES = [2, 7, 12, 24, 48];
 const labelCls = 'text-[9px] font-bold uppercase tracking-wider text-gray-500 shrink-0 w-14';
 const valueCls = 'text-[10px] font-mono text-cyan-300 w-9 text-right shrink-0';
 
-/** Clé localStorage du dernier module choisi. */
-const LS_MODULE = 'chordzic_mpe_module';
-
-interface MpeModulesProps {
+interface SeaboardModalProps {
   onClose: () => void;
 }
 
-function MpeModules({ onClose }: MpeModulesProps) {
-  const [module, setModule] = useState<MpeModule>(() => {
-    try {
-      const saved = localStorage.getItem(LS_MODULE);
-      return saved ? getMpeModule(saved) : MPE_MODULES[0];
-    } catch {
-      return MPE_MODULES[0];
-    }
-  });
-
+function SeaboardModal({ onClose }: SeaboardModalProps) {
   const [bend, setBend] = useState(BEND_CENTER);
   const [pressure, setPressure] = useState(0);
   const [timbre, setTimbre] = useState(TIMBRE_CENTER);
@@ -104,12 +88,8 @@ function MpeModules({ onClose }: MpeModulesProps) {
     return () => clearInterval(id);
   }, []);
 
-  // Persistance du module choisi
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_MODULE, module.id);
-    } catch { /* ignoré */ }
-  }, [module.id]);
+  // Persistance du module choisi — supprimée : le choix se fait via le
+  // menu du bouton MPE (les onglets ont été retirés).
 
   // Geste du module actif : envoi IMMÉDIAT (échantillonné à ~60 Hz par le
   // module — aucune valeur perdue). Aucun setState ici : le parent ne
@@ -148,50 +128,29 @@ function MpeModules({ onClose }: MpeModulesProps) {
   const isPcRoute = server.route === 'fluid' || (server.route === 'main' && server.main_is_fluid);
   const routeLabel = isPcRoute ? 'PC' : server.route === 'main' ? (server.echo_active ? '✨ piste' : 'Roland') : '—';
 
-  const ActiveModule = module.component;
-
   return (
     <div className="fixed inset-1 sm:inset-2 z-50 flex items-stretch bg-black/70 backdrop-blur-sm p-1 sm:p-2">
       <div className="w-full max-w-[1400px] mx-auto bg-[#141a24] border border-gray-700 rounded-2xl shadow-2xl p-2 sm:p-3 flex flex-col gap-2 max-h-full">
-        {/* ── Titre + sélecteur de module ── */}
+        {/* ── Titre + badge du son ── */}
         <div className="flex items-center justify-between gap-2 shrink-0 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-sm font-bold text-gray-200 tracking-wide shrink-0">🎛 MPE Modules</h2>
-            {/* Sélecteur : un onglet par contrôleur simulé */}
-            <div className="flex items-center gap-1">
-              {MPE_MODULES.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setModule(m)}
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition-colors ${
-                    module.id === m.id
-                      ? 'bg-cyan-900/50 border-cyan-500/60 text-cyan-200'
-                      : 'bg-gray-800/60 border-gray-700/60 text-gray-400 hover:text-gray-200'
-                  }`}
-                  title={m.description}
-                >
-                  {m.icon} {m.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] text-gray-500 hidden sm:inline">
+          <h2 className="text-sm font-bold text-gray-200 tracking-wide">
+            🎹 Seaboard — Expression{' '}
+            <span className="text-gray-500 font-normal">
               · son : <b className={server.route === 'fluid' ? 'text-green-400' : 'text-cyan-300'}>{routeLabel}</b>
               {server.fluid_ok === false && <span className="text-amber-400"> · FluidSynth indisponible</span>}
             </span>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-              title="Fermer (remet l'expression à zéro)"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            title="Fermer (remet l'expression à zéro)"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* ── Zone de manipulation du module actif (plein écran) ── */}
-        <ActiveModule returnMode={returnMode} onGesture={handleGesture} onGestureEnd={handleGestureEnd} />
+        {/* ── Zone de manipulation (plein écran) ── */}
+        <MpeStrip returnMode={returnMode} onGesture={handleGesture} onGestureEnd={handleGestureEnd} />
 
         {/* ── Réglages fins (barres compactes, communes à tous les modules) ── */}
         <div className="shrink-0 space-y-1">
@@ -349,4 +308,4 @@ function MpeModules({ onClose }: MpeModulesProps) {
   );
 }
 
-export default memo(MpeModules);
+export default memo(SeaboardModal);

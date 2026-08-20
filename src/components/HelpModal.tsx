@@ -299,18 +299,19 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
           <Section id="mpe" icon="🎛" title="MPE — expression" onSpeak={speakSection} speaking={speakingId === 'mpe'}>
             <p>
               Le bouton <b className="text-white">🎛 MPE</b> (barre de contrôle en mode Live, transport en mode
-              Navig) ouvre le <b className="text-white">module parent « MPE Modules »</b> : il regroupe les{' '}
-              <b className="text-white">contrôleurs MPE simulés</b> (MIDI Polyphonic Expression) et permet de{' '}
-              <b className="text-white">choisir celui qu'on veut utiliser en direct</b> (onglets en haut à
-              droite du titre) — chacun permet de <b className="text-white">jouer sur le son en direct</b> — bend,
-              pression et timbre — pendant que tu joues sur le Roland <b className="text-white">ou pendant un
-              enregistrement</b> (les gestes sont alors horodatés avec les notes et réappliqués au rendu).
-              Le serveur relaie tes notes (Local Control OFF) et y injecte les modulations : ce que tu
-              entends est modulé en temps réel.
+              Navig) est <b className="text-white">unique</b> : il ouvre un <b className="text-white">menu</b> listant{' '}
+              <b className="text-white">tous les contrôleurs MPE simulés</b> (MIDI Polyphonic Expression) —
+              ceux déjà développés (🎹 Seaboard, 🥁 Push 3 — pads) et ceux à venir (ROLI Seaboard
+              RISE 2, LinnStrument, Osmose…). Le choix ouvre la modal du module, qui permet de{' '}
+              <b className="text-white">jouer sur le son en direct</b> — bend, pression et timbre — pendant que tu
+              joues sur le Roland <b className="text-white">ou pendant un enregistrement</b> (les gestes sont alors
+              horodatés avec les notes et réappliqués au rendu). Le serveur relaie tes notes
+              (Local Control OFF) et y injecte les modulations : ce que tu entends est modulé en
+              temps réel.
             </p>
             <p className="font-bold text-white mt-3">🧩 Modules disponibles</p>
-            <Row k="🎹 Seaboard (strip)" v="Le module actuel : bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression. D'autres contrôleurs arrivent (ROLI Seaboard RISE 2, LinnStrument, Osmose…)." />
-            <Row k="Choix mémorisé" v="Le dernier module utilisé est conservé (localStorage) et rouvert à la prochaine session." />
+            <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression. D'autres contrôleurs arrivent (ROLI Seaboard RISE 2, LinnStrument, Osmose…)." />
+            <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger immédiat, couleurs par dégradés) — voir la section dédiée plus bas." />
             <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
             <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±2 (bend musical)." />
             <Row k="Glisser ▲ ▼ (Y)" v="Timbre / brillance (CC74) : en haut = brillant, en bas = sombre." />
@@ -335,7 +336,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               Navig) ouvre une <b className="text-white">simulation de l'Ableton Push 3</b> : une grille de{' '}
               <b className="text-white">64 pads (8×8)</b>, chacun déclenchant un échantillon audio importé.{' '}
               À chaque appui, le son du pad s'arrête et se <b className="text-white">redéclenche sans délai</b>
-              (retrigger — comportement drum machine).
+              (retrigger — comportement drum machine). Accessible via le menu <b className="text-white">🎛 MPE →
+              « Push 3 — pads »</b>.
             </p>
             <p className="font-bold text-white mt-3">📥 Importer des samples</p>
             <Row k="Bouton Importer" v="Importe un fichier audio (wav / mp3 / ogg / flac / m4a / aiff, max 25 Mo) vers le premier pad libre — sinon le pad 1 (remplacé)." />

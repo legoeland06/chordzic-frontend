@@ -93,23 +93,24 @@ s'adapte toujours à la largeur de l'écran.
 
 ## 🎛 MPE Modules (expression en direct)
 
-Le bouton **🎛 MPE** ouvre le **module parent** qui regroupe les contrôleurs MPE simulés
-(MIDI Polyphonic Expression) et route les gestes du module actif vers le serveur, qui les
-injecte en direct dans le flux MIDI renvoyé au clavier (Roland / FluidSynth) ou les horodate
-pendant un Rec.
+Le bouton **🎛 MPE** (unique dans l'interface) ouvre un **menu** qui liste TOUS les modules de
+contrôleurs MPE simulés (MIDI Polyphonic Expression) ; le choix ouvre la modal du module, dont
+les gestes sont routés vers le serveur qui les injecte en direct dans le flux MIDI renvoyé au
+clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
 
 - **Architecture modulaire** : chaque contrôleur est un module (`components/mpe/registry.ts`)
-  qui respecte `MpeModuleProps` (returnMode + onGesture/onGestureEnd) — le parent
-  (`MpeModules.tsx`) affiche le sélecteur et rend le module actif. Pour ajouter un
-  contrôleur : créer son composant puis l'ajouter à `MPE_MODULES`.
-- **Modules actuels** : Seaboard (strip tactile — X = bend, Y = timbre, molette = pression).
-  À venir : ROLI Seaboard RISE 2 (keywaves 5D), LinnStrument, Expressive E Osmose.
-- **Cadre commun à tous les modules** : sliders bend/pression/timbre, range ±2..±48 (RPN 0),
-  LFO vibrato (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM
-  (mode PC), retour auto ou maintien, état temps réel (notes tenues, canal, REC).
-- **Performance** : le module actif est isolé (aucun state React — curseur en transform CSS,
-  valeurs en textContent, gestes échantillonnés à ~60 Hz en rAF) → zéro re-render pendant
-  le glissé. La lib partagée vit dans `lib/mpe/` (types, api, gestures).
+  qui fournit une MODAL complète (`{ onClose }`) — le menu (`MpeMenu.tsx`) les liste. Pour
+  ajouter un contrôleur : créer sa modal puis l'ajouter à `MPE_MODULES`.
+- **Modules actuels** : 🎹 Seaboard (strip tactile — X = bend, Y = timbre, molette = pression)
+  et 🥁 Push 3 — pads (64 pads échantillonnés, retrigger). À venir : ROLI Seaboard RISE 2
+  (keywaves 5D), LinnStrument, Expressive E Osmose.
+- **Seaboard** : cadre commun sliders bend/pression/timbre, range ±2..±48 (RPN 0), LFO vibrato
+  (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM (mode PC),
+  retour auto ou maintien, état temps réel (notes tenues, canal, REC).
+- **Performance** : la zone de manipulation du Seaboard (MpeStrip) est isolée (aucun state
+  React — curseur en transform CSS, valeurs en textContent, gestes échantillonnés à ~60 Hz en
+  rAF) → zéro re-render pendant le glissé. La lib partagée vit dans `lib/mpe/` (types, api,
+  gestures) et `lib/padBank.ts` (pads Push).
 
 ## Performances (lecture temps réel)
 
@@ -160,8 +161,9 @@ src/
 │                 # LivePiano, LiveSettingsBar, ControlBar, ChordNowModal,
 │                 # LoopControl, ClickControl, PostProdView, PlayheadLine,
 │                 # TransportReadout, HelpModal…
-│                 # mpe/         # MPE Modules : MpeModules (parent), registry
-│                 #              # (modules de contrôleurs), MpeStrip (Seaboard)
+│                 # mpe/         # MPE Modules : MpeMenu (menu du bouton 🎛),
+│                 #              # registry (modules), SeaboardModal, MpeStrip,
+│                 #              # PushPadGrid (module Push 3 — pads)
 ├── lib/          # audioEngine, browserSynth, livePiano, pitchesToNotes,
 │                 # chordRecognition, pianoRollEngine, playGuard, navPosition,
 │                 # sampleLoop, projectClipboard, postProdEngine, playhead…

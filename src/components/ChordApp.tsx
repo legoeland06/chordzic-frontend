@@ -26,8 +26,7 @@ import PianoLivePanel from './PianoLivePanel';
 import CollapsiblePanel from './CollapsiblePanel';
 import { sendPianoNote } from '../lib/pianoNote';
 import ChordNowModal from './ChordNowModal';
-import MpeModules from './mpe/MpeModules';
-import PushPadGrid from './PushPadGrid';
+import { getMpeModule } from './mpe/registry';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
 import HelpModal from './HelpModal';
@@ -313,10 +312,8 @@ export default function ChordApp() {
   const [projectName, setProjectName] = useState<string | null>(null);
   /** Documentation utilisateur (bouton ❓ du header). */
   const [showHelp, setShowHelp] = useState(false);
-  /** Modal 🎛 MPE (simulation de contrôleur MPE) ouverte ? */
-  const [mpeOpen, setMpeOpen] = useState(false);
-  /** Modal 🥁 Push 3 (pads échantillonnés) ouverte ? */
-  const [pushOpen, setPushOpen] = useState(false);
+  /** Modal 🎛 MPE ouverte ? Le module actif (id) — null = fermée. */
+  const [activeMpe, setActiveMpe] = useState<string | null>(null);
   const [savedGrilles, setSavedGrilles] = useState<GrilleEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1316,8 +1313,8 @@ export default function ChordApp() {
             onSetSig={setSig}
             onPostProd={bounceToPostProd}
             bouncing={bouncing}
-            onOpenMpe={() => setMpeOpen(true)}
-            onOpenPush={() => setPushOpen(true)}
+            onSelectMpe={setActiveMpe}
+            mpeActive={activeMpe !== null}
             onExportSection={exportSection}
           />
         ) : (
@@ -1351,8 +1348,7 @@ export default function ChordApp() {
             onExport={handleExport} onImport={() => fileInputRef.current?.click()}
             onNewProject={requestNewProject}
             onExtractWav={handleExtractWav} hasWav={hasWav}
-            onOpenMpe={() => setMpeOpen(true)} mpeActive={mpeOpen}
-            onOpenPush={() => setPushOpen(true)}
+            onSelectMpe={setActiveMpe} mpeActive={activeMpe !== null}
           />
         </div>
 
@@ -1523,13 +1519,12 @@ export default function ChordApp() {
         {/* Aide utilisateur */}
         <HelpModal show={showHelp} onClose={() => setShowHelp(false)} />
 
-        {/* Modal 🎛 MPE — simulation de contrôleur MPE (jouer sur le son
-            en direct pendant le jeu sur le Roland ou un enregistrement). */}
-        {mpeOpen && <MpeModules onClose={() => setMpeOpen(false)} />}
-
-        {/* Modal 🥁 Push 3 — 64 pads échantillonnés (import de samples,
-            retrigger immédiat, couleurs par dégradés). */}
-        {pushOpen && <PushPadGrid onClose={() => setPushOpen(false)} />}
+        {/* Modal 🎛 MPE — le module sélectionné dans le menu (Seaboard,
+            Push 3 — pads, et les futurs contrôleurs du registry). */}
+        {activeMpe && (() => {
+          const Modal = getMpeModule(activeMpe).modal;
+          return <Modal onClose={() => setActiveMpe(null)} />;
+        })()}
 
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland · Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}

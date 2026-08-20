@@ -1,23 +1,24 @@
 /**
- * Tests du registre des modules MPE : les contrôleurs enregistrés sont
- * valides (id unique, composant présent) et la sélection fonctionne.
+ * Tests du registre et du menu MPE : les modules enregistrés sont valides,
+ * la sélection via le menu remonte l'id du module choisi.
  */
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import { MPE_MODULES, getMpeModule, mpeModuleIds } from './registry';
-import MpeStrip from './MpeStrip';
-import MpeModules from './MpeModules';
+import SeaboardModal from './SeaboardModal';
+import PushPadGrid from './PushPadGrid';
+import MpeMenu from './MpeMenu';
 
 describe('registre des modules MPE', () => {
-  it('au moins un module est enregistré (le Seaboard par défaut)', () => {
-    expect(MPE_MODULES.length).toBeGreaterThanOrEqual(1);
+  it('les modules Seaboard et Push sont enregistrés (le Seaboard en premier)', () => {
+    expect(MPE_MODULES.length).toBeGreaterThanOrEqual(2);
     expect(MPE_MODULES[0].id).toBe('seaboard');
-    expect(MPE_MODULES[0].name).toContain('Seaboard');
+    expect(mpeModuleIds()).toContain('push');
   });
 
-  it('chaque module a un id unique, un nom, une icône et un composant', () => {
+  it('chaque module a un id unique, un nom, une icône, une description et une modal', () => {
     const ids = mpeModuleIds();
     expect(new Set(ids).size).toBe(ids.length); // unicité
     for (const m of MPE_MODULES) {
@@ -25,56 +26,61 @@ describe('registre des modules MPE', () => {
       expect(m.name.length).toBeGreaterThan(0);
       expect(m.icon.length).toBeGreaterThan(0);
       expect(m.description.length).toBeGreaterThan(0);
-      // memo() retourne un objet {$$typeof, type…} — vérifier qu'il est
-      // rendable (présent et non-null) plutôt que le type exact.
-      expect(m.component).toBeTruthy();
+      // memo() retourne un objet {$$typeof, type…} — vérifier la rendabilité
+      expect(m.modal).toBeTruthy();
     }
   });
 
   it('getMpeModule retourne le module demandé, sinon le premier', () => {
     expect(getMpeModule('seaboard').id).toBe('seaboard');
+    expect(getMpeModule('push').id).toBe('push');
     expect(getMpeModule('inconnu').id).toBe(MPE_MODULES[0].id);
   });
 
-  it('le module Seaboard rend bien le composant MpeStrip', () => {
-    expect(MPE_MODULES[0].component).toBe(MpeStrip);
+  it('les modals des modules correspondent aux composants attendus', () => {
+    expect(getMpeModule('seaboard').modal).toBe(SeaboardModal);
+    expect(getMpeModule('push').modal).toBe(PushPadGrid);
   });
 });
 
-describe('rendu du module parent avec le module actif', () => {
-  class MockResizeObserver {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = MockResizeObserver;
-
+describe('MpeMenu (le « deuxième menu » du bouton MPE)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     document.body.innerHTML = '';
   });
 
-  it('le sélecteur liste les modules et le module actif est rendu', () => {
-    // Rendu minimal du parent (fetch mocké — pas de vrai réseau en test)
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({}),
-    }) as unknown as typeof fetch;
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      width: 1000, height: 200, left: 0, top: 0, right: 1000, bottom: 200, x: 0, y: 0,
-      toJSON: () => ({}),
-    } as DOMRect);
-
+  it('affiche la liste des modules au clic et remonte la sélection', () => {
+    const onSelect = vi.fn();
     const root = createRoot(document.body);
     act(() => {
-      root.render(<MpeModules onClose={() => {}} />);
+      root.render(<MpeMenu onSelect={onSelect} active={false} />);
     });
-    // Le titre « MPE Modules » + le nom du module Seaboard sont visibles
-    const html = document.body.innerHTML;
-    expect(html).toContain('MPE Modules');
-    expect(html).toContain('Seaboard');
-    // La zone tactile (title « Glisser ») est rendue
-    expect(html).toContain('Glisser');
+    const btn = document.querySelector('button') as HTMLElement;
+    expect(btn.textContent).toContain('MPE');
+
+    // Menu fermé : aucun module visible
+    expect(document.body.innerHTML).not.toContain('Seaboard');
+
+    act(() => btn.click());
+    expect(document.body.innerHTML).toContain('Seaboard');
+    expect(document.body.innerHTML).toContain('Push 3');
+
+    // Clic sur le premier module → onSelect avec son id, menu refermé
+    const items = document.querySelectorAll('button');
+    const seaboardItem = Array.from(items).find(b => b.textContent?.includes('Seaboard')) as HTMLElement;
+    act(() => seaboardItem.click());
+    expect(onSelect).toHaveBeenCalledWith('seaboard');
+    expect(document.body.innerHTML).not.toContain('Push 3'); // refermé
+    act(() => root.unmount());
+  });
+
+  it('le bouton est marqué actif quand une modal MPE est ouverte', () => {
+    const root = createRoot(document.body);
+    act(() => {
+      root.render(<MpeMenu onSelect={() => {}} active={true} />);
+    });
+    const btn = document.querySelector('button') as HTMLElement;
+    expect(btn.textContent).toContain('●');
     act(() => root.unmount());
   });
 });

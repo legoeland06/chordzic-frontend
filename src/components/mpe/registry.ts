@@ -1,50 +1,48 @@
 /**
- * registry.ts — registre des modules de contrôleurs MPE.
+ * registry.ts — registre des modules MPE (contrôleurs simulés).
  *
- * Chaque module = un contrôleur simulé (ROLI Seaboard, LinnStrument,
- * Osmose…) : une zone de manipulation plein écran qui émet des gestes
- * d'expression. Le module PARENT (MpeModules) liste ces modules, laisse
- * l'utilisateur choisir celui qu'il veut utiliser EN DIRECT, et route les
- * gestes du module actif vers le serveur (bend / pression / timbre / LFO).
- *
- * Pour ajouter un contrôleur : créer son composant (qui respecte
- * MpeModuleProps) puis l'ajouter à MPE_MODULES.
+ * Le bouton « 🎛 MPE » (unique dans l'UI) ouvre un MENU qui liste TOUS les
+ * modules enregistrés ici ; chaque module est une MODAL complète. Pour
+ * ajouter un contrôleur (ROLI Seaboard RISE 2, LinnStrument, Osmose…) :
+ * créer sa modal (composant avec `onClose`) puis l'ajouter à MPE_MODULES.
  */
 import type { ComponentType } from 'react';
-import type { StripGesture } from '../../lib/mpe';
-import MpeStrip from './MpeStrip';
+import PushPadGrid from './PushPadGrid';
+import SeaboardModal from './SeaboardModal';
 
-/** Props communes que chaque module reçoit du parent. */
-export interface MpeModuleProps {
-  /** Retour auto du bend au centre au relâchement vs maintien. */
-  returnMode: 'center' | 'hold';
-  /** Échantillon de geste (~1×/frame pendant un glissé). */
-  onGesture: (g: StripGesture) => void;
-  /** Fin du geste (relâchement) — synchronise les réglages du parent. */
-  onGestureEnd: (g: StripGesture) => void;
+/** Props communes des modals de modules. */
+export interface MpeModuleModalProps {
+  onClose: () => void;
 }
 
-/** Description d'un module de contrôleur MPE. */
+/** Description d'un module MPE. */
 export interface MpeModule {
   id: string;
-  /** Nom affiché dans le sélecteur. */
+  /** Nom affiché dans le menu. */
   name: string;
   /** Icône (emoji). */
   icon: string;
-  /** Description courte (tooltip / aide). */
+  /** Description courte (menu / aide). */
   description: string;
-  /** Le composant du contrôleur simulé. */
-  component: ComponentType<MpeModuleProps>;
+  /** La modal complète du module. */
+  modal: ComponentType<MpeModuleModalProps>;
 }
 
-/** Les modules disponibles. Le premier est le module par défaut. */
+/** Les modules disponibles — l'ordre du menu. */
 export const MPE_MODULES: MpeModule[] = [
   {
     id: 'seaboard',
     name: 'Seaboard (strip)',
     icon: '🎹',
     description: 'Bande tactile : X = pitch bend · Y = timbre · molette = pression (aftertouch)',
-    component: MpeStrip,
+    modal: SeaboardModal,
+  },
+  {
+    id: 'push',
+    name: 'Push 3 — pads',
+    icon: '🥁',
+    description: '64 pads échantillonnés : import de samples, retrigger immédiat, couleurs par dégradés',
+    modal: PushPadGrid,
   },
   // Prochains modules à venir :
   //  - ROLI Seaboard RISE 2 (keywaves 5D : Strike/Glide/Slide/Press/Lift)
@@ -57,7 +55,7 @@ export function getMpeModule(id: string): MpeModule {
   return MPE_MODULES.find((m) => m.id === id) ?? MPE_MODULES[0];
 }
 
-/** Ids des modules disponibles (pour la persistance du choix). */
+/** Ids des modules disponibles. */
 export function mpeModuleIds(): string[] {
   return MPE_MODULES.map((m) => m.id);
 }

@@ -8,6 +8,7 @@
  */
 import { memo } from 'react';
 import { Play, Square, Trash2, Save, FolderOpen, Download, FilePlus2 } from 'lucide-react';
+import MpeMenu from './mpe/MpeMenu';
 
 interface ControlBarProps {
   chords: { time: number }[];
@@ -26,12 +27,10 @@ interface ControlBarProps {
   onExtractWav: () => void;
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
   hasWav: boolean;
-  /** Ouvre la modal 🎛 MPE (simulation de contrôleur MPE). */
-  onOpenMpe: () => void;
-  /** Vrai si la modal MPE est ouverte (style du bouton). */
+  /** Ouvre le menu 🎛 MPE : sélection d'un module de contrôleur MPE. */
+  onSelectMpe: (moduleId: string) => void;
+  /** Vrai si une modal MPE est ouverte (style du bouton). */
   mpeActive: boolean;
-  /** Ouvre la modal 🥁 Push 3 (pads échantillonnés). */
-  onOpenPush: () => void;
 }
 
 /** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
@@ -41,7 +40,7 @@ function ControlBar({
   chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
-  onExtractWav, hasWav, onOpenMpe, mpeActive, onOpenPush,
+  onExtractWav, hasWav, onSelectMpe, mpeActive,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -70,27 +69,8 @@ function ControlBar({
           <Square className="w-3 h-3" /> Stop
         </button>
 
-        {/* ── Modal MPE (simulation de contrôleur d'expression) ── */}
-        <button
-          onClick={onOpenMpe}
-          className={`${btn} ${
-            mpeActive
-              ? 'bg-cyan-900/60 border-cyan-500/60 text-cyan-200 hover:bg-cyan-800/60'
-              : 'bg-[#141a24] border-[#242c3a] text-[#7fd4e0] hover:bg-[#1a2230]'
-          }`}
-          title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant que tu joues sur le Roland ou pendant un enregistrement"
-        >
-          🎛 MPE {mpeActive ? '●' : ''}
-        </button>
-
-        {/* ── Modal Push 3 (pads échantillonnés) ── */}
-        <button
-          onClick={onOpenPush}
-          className={`${btn} bg-[#141a24] border-[#242c3a] text-[#e8a060] hover:bg-[#1a2230]`}
-          title="🥁 Push 3 — 64 pads déclenchables : importe un sample (wav/mp3…) par pad, chaque appui redéclenche sans délai"
-        >
-          🥁 Push
-        </button>
+        {/* ── Menu MPE Modules (bouton unique : Seaboard, Push, futurs…) ── */}
+        <MpeMenu onSelect={onSelectMpe} active={mpeActive} />
 
         {/* ── Extraction du rendu WAV (mode Navig) ── */}
         <button

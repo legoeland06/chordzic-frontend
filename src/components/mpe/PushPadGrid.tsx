@@ -27,7 +27,7 @@ import {
   padColor,
   padSampleUrl,
   uploadPadSample,
-} from '../lib/padBank';
+} from '../../lib/padBank';
 
 const LS_KEY = 'chordzic_pads';
 
