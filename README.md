@@ -67,7 +67,7 @@ s'adapte toujours à la largeur de l'écran.
   vélocité/durée (slider Dur 2× plus long pour la visée), snap 🧲 + quantiser, transport local ▶, undo/redo
 - **⌨️ Raccourcis clavier** : E/V = outils Édition/Sélection · Ctrl+G/U = grouper/dégrouper ·
   Q = quantiser · * = REC · 0/1/2 = tête au début / locator L / locator R · O = zoom sur la sélection ·
-  G/H = zoom horizontal
+  Ctrl+Espace = lecture audio · Shift+Espace = lecture MIDI · G/H = zoom horizontal
 - **● Rec MIDI** : enregistrement du clavier (Roland) dans la piste agrandie — décompte de
   4 temps au métronome, les notes jouées s'affichent en direct (cyan), insertion à la tête
   de lecture à l'arrêt (événements horodatés côté serveur, ordre d'appui conservé,

@@ -4,8 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { isTypingTarget, pianoRollShortcut, PianoRollAction } from './pianoRollShortcuts';
 
-const act = (key: string, opts: { ctrl?: boolean; meta?: boolean } = {}) =>
-  pianoRollShortcut({ key, ctrl: opts.ctrl, meta: opts.meta });
+const act = (key: string, opts: { ctrl?: boolean; meta?: boolean; shift?: boolean } = {}) =>
+  pianoRollShortcut({ key, ctrl: opts.ctrl, meta: opts.meta, shift: opts.shift });
 
 describe('pianoRollShortcut', () => {
   it('outils : e = édition, v = sélection', () => {
@@ -27,6 +27,13 @@ describe('pianoRollShortcut', () => {
 
   it('quantiser : q', () => {
     expect(act('q')).toBe('quantize');
+  });
+
+  it('lecture : Ctrl+Espace = audio, Shift+Espace = MIDI, Espace seul = null', () => {
+    expect(act(' ', { ctrl: true })).toBe('play-audio');
+    expect(act(' ', { meta: true })).toBe('play-audio');
+    expect(act(' ', { shift: true })).toBe('play-midi');
+    expect(act(' ')).toBeNull(); // Espace seul = lecture locale (gérée à part)
   });
 
   it('REC : *', () => {
@@ -74,9 +81,12 @@ describe('pianoRollShortcut', () => {
       const a = act(key, { ctrl: mod });
       if (a) triggered.add(a);
     }
+    triggered.add(act(' ', { ctrl: true })!);
+    triggered.add(act(' ', { shift: true })!);
     const all: PianoRollAction[] = [
       'tool-edit', 'tool-select', 'group', 'ungroup', 'quantize',
       'rec', 'go-start', 'go-loc-l', 'go-loc-r', 'zoom-selection',
+      'play-audio', 'play-midi',
     ];
     for (const a of all) expect(triggered.has(a), a).toBe(true);
   });

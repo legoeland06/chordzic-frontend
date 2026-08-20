@@ -17,6 +17,8 @@
  * - 1            → tête de lecture au locator L
  * - 2            → tête de lecture au locator R
  * - o            → zoom sur la sélection
+ * - Ctrl+Espace  → lecture AUDIO globale
+ * - Shift+Espace → lecture MIDI (Roland)
  */
 export type PianoRollAction =
   | 'tool-edit'
@@ -28,12 +30,15 @@ export type PianoRollAction =
   | 'go-start'
   | 'go-loc-l'
   | 'go-loc-r'
-  | 'zoom-selection';
+  | 'zoom-selection'
+  | 'play-audio'
+  | 'play-midi';
 
 export interface ShortcutEventLike {
   key: string;
   ctrl?: boolean;
   meta?: boolean;
+  shift?: boolean;
   /** Cible de l'événement (DOM element) — null/absent = pas de garde. */
   target?: unknown;
 }
@@ -54,8 +59,10 @@ export function pianoRollShortcut(e: ShortcutEventLike): PianoRollAction | null 
   if (mod) {
     if (k === 'g') return 'group';
     if (k === 'u') return 'ungroup';
+    if (k === ' ') return 'play-audio'; // Ctrl+Espace = lecture audio globale
     return null;
   }
+  if (e.shift && k === ' ') return 'play-midi'; // Shift+Espace = lecture MIDI
   switch (k) {
     case 'e': return 'tool-edit';
     case 'v': return 'tool-select';

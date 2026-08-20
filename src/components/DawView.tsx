@@ -781,6 +781,14 @@ export default function DawView({
     }, 50);
   }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn, locL, locR]);
 
+  /** Bascule la lecture MIDI globale (bouton ▶ MIDI et raccourci
+   * Shift+Espace du PianoRoll) : démarre à la position courante (respectant
+   * la boucle) ou arrête si elle tourne déjà. */
+  const toggleMidiPlay = useCallback(() => {
+    if (midiPlaying) stopMidi();
+    else startMidi(computeStartBeats(loopOn, locL, locR, getPlayheadPosition()));
+  }, [midiPlaying, stopMidi, startMidi, loopOn, locL, locR]);
+
   const doStop = useCallback(() => {
     stopMidi();
     engine.stop();
@@ -1211,7 +1219,7 @@ export default function DawView({
 
         {/* Lecture MIDI : toutes les pistes sur le port choisi (ex. Roland) */}
         <button
-          onClick={() => (midiPlaying ? stopMidi() : startMidi(computeStartBeats(loopOn, locL, locR, getPlayheadPosition())))}
+          onClick={toggleMidiPlay}
           className={`h-7 px-2 flex items-center gap-1 rounded-md border transition-colors shrink-0 text-[9px] font-bold ${
             midiPlaying
               ? 'bg-[#8f3b3b] text-white border-[#a84a4a] hover:bg-[#a84a4a]'
@@ -1627,6 +1635,8 @@ export default function DawView({
                           locL={locL}
                           locR={locR}
                           onGoToBeats={doScrub}
+                          onPlayAudio={doPlay}
+                          onToggleMidi={toggleMidiPlay}
                         />
                       ) : (
                         <TrackLane
@@ -1774,6 +1784,8 @@ export default function DawView({
                   locL={locL}
                   locR={locR}
                   onGoToBeats={doScrub}
+                  onPlayAudio={doPlay}
+                  onToggleMidi={toggleMidiPlay}
                 />
               </div>
             </div>

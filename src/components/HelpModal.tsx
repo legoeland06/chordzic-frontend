@@ -599,6 +599,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="*" v="REC : démarre / arrête l'enregistrement." />
             <Row k="0 · 1 · 2" v="Tête de lecture : début du morceau [1.1] · locator L · locator R." />
             <Row k="O" v="Zoom sur la sélection." />
+            <Row k="Ctrl+Espace / Shift+Espace" v="Lecture AUDIO globale / lecture MIDI (Roland). Espace seul = écoute de la piste." />
             <Row k="G / H" v="Zoom horizontal (arrière / avant)." />
             <p className="text-xs text-gray-500">
               📱 Tactile : pincer pour zoomer, double-tap sur une note = supprimer, barre de défilement en bas.

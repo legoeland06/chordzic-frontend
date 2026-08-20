@@ -132,6 +132,11 @@ interface PianoRollProps {
   /** Déplace la tête de lecture (raccourcis « 0 » / « 1 » / « 2 ») : le
    * parent gère le scrub complet (store + audio + MIDI). */
   onGoToBeats?: (beats: number) => void;
+  /** Lecture AUDIO globale (Ctrl+Espace) — comme le Play du transport. */
+  onPlayAudio?: () => void;
+  /** Lecture MIDI globale (Shift+Espace) — comme le ▶ MIDI du transport
+   * (démarre / arrête — toggle, comme le bouton). */
+  onToggleMidi?: () => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -159,6 +164,8 @@ function PianoRoll({
   locL,
   locR,
   onGoToBeats,
+  onPlayAudio,
+  onToggleMidi,
   recordingNotes = [],
   tempo,
   engine,
@@ -1536,7 +1543,10 @@ function PianoRoll({
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT')) return;
         e.preventDefault();
-        togglePlay();
+        const action = pianoRollShortcut({ key: ' ', ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey });
+        if (action === 'play-audio') onPlayAudio?.();
+        else if (action === 'play-midi') onToggleMidi?.();
+        else togglePlay();
       }
       else if (e.key === 'Escape') { stopPlayback(); onClose?.(); }
       else {
