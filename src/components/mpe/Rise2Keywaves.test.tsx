@@ -47,6 +47,8 @@ function wheel(el: HTMLElement, deltaY: number) {
 }
 
 const nextFrame = () => new Promise(r => setTimeout(r, 40));
+/** Laisse la file FIFO de sendPianoNote vider ses fetchs (microtasks). */
+const flushNotes = () => new Promise<void>(r => setTimeout(r, 0));
 
 interface Harness {
   zone: HTMLElement;
@@ -102,8 +104,10 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     mockRect(W, H);
     const h = renderZone();
     act(() => pointer(h.zone, 'pointerdown', keyCenter(0), 100));
+    await flushNotes(); // les envois passent par la file FIFO (async)
     expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: true }));
     act(() => pointer(h.zone, 'pointerup', keyCenter(0), 100));
+    await flushNotes();
     expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: false }));
     act(() => h.root.unmount());
   });
@@ -170,13 +174,16 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     mockRect(W, H);
     const h = renderZone();
     act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2)); // keywave 0 = C3
+    await flushNotes();
     expect(h.notes).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 48, on: true }));
     // Traverse vers la keywave 1 (D3 = 49)
     act(() => pointer(h.zone, 'pointermove', PAD + (KW + GAP) + 1, H / 2));
     await nextFrame();
+    await flushNotes();
     expect(notesByPitch(h.notes, 48, false)).toBe(1);
     expect(notesByPitch(h.notes, 49, true)).toBe(1);
     act(() => pointer(h.zone, 'pointerup', PAD + (KW + GAP) + 1, H / 2));
+    await flushNotes();
     expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 49, on: false }));
     act(() => h.root.unmount());
   });
@@ -188,6 +195,7 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     const c12 = keyCenter(12); // keywave 12 (C4 = 60)
     act(() => pointer(h.zone, 'pointerdown', c0, H / 2, 1));
     act(() => pointer(h.zone, 'pointerdown', c12, H / 2, 2));
+    await flushNotes();
     expect(notesByPitch(h.notes, 48, true)).toBe(1);
     expect(notesByPitch(h.notes, 60, true)).toBe(1);
 
@@ -200,11 +208,13 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
 
     // Doigt 2 levé → le doigt 1 reprend la main (bend aigu)
     act(() => pointer(h.zone, 'pointerup', c12, H * 0.75, 2));
+    await flushNotes();
     expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 60, on: false }));
     await nextFrame();
     expect(lastGesture(h.onGesture).bend).toBeGreaterThan(BEND_CENTER); // doigt 1
 
     act(() => pointer(h.zone, 'pointerup', c0, H * 0.25, 1));
+    await flushNotes();
     expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: false }));
     act(() => h.root.unmount());
   });
@@ -215,9 +225,11 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2, 1));
     act(() => pointer(h.zone, 'pointerdown', keyCenter(12), H / 2, 2));
     act(() => pointer(h.zone, 'pointerup', keyCenter(0), H / 2, 1));
+    await flushNotes();
     // La note 60 (doigt 2) tient toujours — pas de note-off
     expect(notesByPitch(h.notes, 60, false)).toBe(0);
     act(() => pointer(h.zone, 'pointerup', keyCenter(12), H / 2, 2));
+    await flushNotes();
     expect(notesByPitch(h.notes, 60, false)).toBe(1);
     act(() => h.root.unmount());
   });
