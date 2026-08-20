@@ -75,6 +75,7 @@ s'adapte toujours à la largeur de l'écran.
   accompagnement (la piste enregistrée est exclue) ; les MUTE du mixeur choisissent ce
   qu'on entend ; le décompte et l'accompagnement sont sur la MÊME horloge serveur (aucun
   décalage) ; la lecture continue après l'arrêt du REC
+- **Snap par défaut : 1 temps (1/1)** (subdivisions 1/32 → 1/1, triolets et sextolets au choix)
 - **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
 - **Molette** : scroll vertical du registre (1 demi-ton/cran « de case en case », le clavier en marge suit) ·
   Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection
