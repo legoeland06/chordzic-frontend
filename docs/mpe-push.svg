@@ -8,6 +8,17 @@
     <linearGradient id="p5" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#312e81"/></linearGradient>
     <linearGradient id="p6" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ca8a04"/><stop offset="1" stop-color="#713f12"/></linearGradient>
     <linearGradient id="p7" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e11d48"/><stop offset="1" stop-color="#881337"/></linearGradient>
+    <!-- Relief convexe : lumière en haut de chaque case, ombre sur les bords -->
+    <radialGradient id="conv" cx="50%" cy="24%" r="75%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="0.38" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="0.62" stop-color="#000000" stop-opacity="0.04"/>
+      <stop offset="0.92" stop-color="#000000" stop-opacity="0.34"/>
+    </radialGradient>
+    <!-- Le pattern s'aligne sur la grille (pitch 80 px, pads 74×74) -->
+    <pattern id="convpat" width="80" height="80" patternUnits="userSpaceOnUse" patternTransform="translate(52 40)">
+      <rect width="74" height="74" rx="10" fill="url(#conv)"/>
+    </pattern>
   </defs>
 
   <!-- Fond sombre -->
@@ -42,11 +53,14 @@
     <rect x="612" y="200" width="74" height="74" rx="10" fill="url(#p5)"/>
   </g>
 
+  <!-- Relief convexe par-dessus les pads (dégradé radial répété par case) -->
+  <rect x="52" y="40" width="634" height="234" rx="10" fill="url(#convpat)"/>
+
   <!-- Pad actif -->
   <rect x="292" y="120" width="74" height="74" rx="10" fill="none" stroke="#22d3ee" stroke-width="3"/>
 
   <!-- Légende -->
   <text x="360" y="308" text-anchor="middle" fill="#9ca3af" font-size="12">
-    64 pads (8×8) échantillonnés — import wav/mp3/ogg/flac/m4a/aiff · retrigger immédiat · couleurs par dégradés
+    64 pads (8×8) échantillonnés — import wav/mp3/ogg/flac/m4a/aiff · retrigger immédiat · relief convexe
   </text>
 </svg>

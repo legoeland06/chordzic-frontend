@@ -147,7 +147,15 @@ Bande tactile plein écran : **X = pitch bend**, **Y = timbre (CC74)**, molette 
 ### 🥁 Push 3 — pads
 
 Grille de **64 pads (8×8)** échantillonnés : import de samples (wav/mp3/ogg/flac/m4a/aiff),
-retrigger immédiat, couleurs par dégradés.
+**retrigger immédiat** (drum machine) et **couleur posable sur chaque pad** :
+
+- **🎨 Mode peinture** : sélectionne une teinte dans la palette puis clique sur les pads pour
+  leur poser **la couleur de ton choix, case par case** (persistée) ;
+- **Dégradé + « Appliquer à tous »** : solide / horizontal / vertical / diagonal — le bouton
+  ramène tous les pads au dégradé global ;
+- **Relief convexe** : dégradé interne qui bombe chaque case (lumière en haut, ombre sur les
+  bords) ;
+- Clic = jouer (retrigger) · clic droit = assigner un sample · volume global.
 
 <img src="docs/mpe-push.svg" alt="Push 3 — 64 pads" width="680">
 

@@ -6,28 +6,33 @@
  *   comportement drum machine).
  * - Import par pad (bouton 🎵 ou clic droit) ou global (bouton « Import »),
  *   uploadé sur le serveur (~/samples/pads/) et joué via Web Audio.
- * - Couleurs : palette + mode de dégradé (solide / horizontal / vertical /
- *   diagonal) — l'utilisateur choisit la teinte, les 64 pads s'échelonnent.
- * - Persistance locale (localStorage `chordzic_pads`) : slots, couleurs,
- *   volume — retrouvés au prochain chargement.
+ * - Couleurs : chaque pad peut recevoir la couleur de son choix (mode
+ *   🎨 Peindre : on sélectionne une teinte puis on clique sur les pads) ;
+ *   « Appliquer à tous » ramène tous les pads au dégradé global (hue +
+ *   mode). Les cases ont un dégradé interne qui leur donne un relief
+ *   légèrement convexe.
+ * - Persistance locale (localStorage `chordzic_pads`) : slots (samples +
+ *   couleurs par pad), couleur globale, volume — retrouvés au chargement.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, Volume2 } from 'lucide-react';
 import {
   EMPTY_PAD_COLOR,
-  PAD_COLS,
   PAD_COUNT,
   PAD_PALETTE,
   PadColorConfig,
   PadPlayer,
   PadSlot,
   GradientMode,
+  clearPadColors,
   emptyPads,
   labelFromFilename,
-  padColor,
   padSampleUrl,
+  paintPad,
+  slotColor,
   uploadPadSample,
 } from '../../lib/padBank';
+import './PushPadGrid.css';
 
 const LS_KEY = 'chordzic_pads';
 
@@ -49,7 +54,12 @@ function loadStored(): StoredPads {
     if (!raw) return DEFAULT_STORED;
     const j = JSON.parse(raw);
     const slots = Array.isArray(j.slots) && j.slots.length === PAD_COUNT
-      ? j.slots.map((s: PadSlot) => ({ file: s.file ?? null, label: s.label ?? '' }))
+      ? j.slots.map((s: PadSlot) => ({
+          file: s.file ?? null,
+          label: s.label ?? '',
+          // Migration : les anciens slots sans couleur suivent le dégradé global
+          hue: typeof s.hue === 'number' ? s.hue : null,
+        }))
       : emptyPads();
     return {
       slots,
@@ -75,6 +85,8 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   const [volume, setVolume] = useState(stored.volume);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
+  /** Mode peinture : le clic sur un pad lui applique la couleur choisie. */
+  const [painting, setPainting] = useState(false);
 
   // Lecteur Web Audio (créé au montage — déclenché par un clic → autoplay OK)
   const playerRef = useRef<PadPlayer | null>(null);
@@ -119,6 +131,16 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     playerRef.current?.trigger(index);
   }, []);
 
+  // ── Clic sur un pad : peinture ou déclenchement ──
+  const onPadClick = useCallback((index: number) => {
+    if (painting) {
+      // Pose la couleur choisie sur CE pad (mode peinture)
+      setSlots(prev => paintPad(prev, index, color.hue));
+      return;
+    }
+    trigger(index);
+  }, [painting, color.hue, trigger]);
+
   // ── Import ──
   const pickFile = useCallback((index: number) => {
     pendingIndexRef.current = index;
@@ -146,7 +168,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     const ok = await playerRef.current?.load(index, padSampleUrl(name));
     setSlots(prev => {
       const next = [...prev];
-      next[index] = { file: name, label: labelFromFilename(file.name) };
+      next[index] = { file: name, label: labelFromFilename(file.name), hue: null }; // nouveau pad → auto
       return next;
     });
     setStatusFlash(ok ? `✅ ${file.name} → pad ${index + 1}` : '⚠️ Sample illisible');
@@ -156,7 +178,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   const clearPad = useCallback((index: number) => {
     setSlots(prev => {
       const next = [...prev];
-      next[index] = { file: null, label: '' };
+      next[index] = { file: null, label: '', hue: null };
       return next;
     });
     playerRef.current?.stopAll();
@@ -216,25 +238,25 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
         {/* ── Grille 8×8 ── */}
         <div className="flex-1 min-h-0 grid grid-cols-8 gap-1 sm:gap-1.5 rounded-xl p-1.5 border border-gray-800 bg-[#0d1420]">
           {slots.map((slot, i) => {
-            const bg = padColor(color.hue, i, color.mode);
+            const bg = slotColor(slot, i, color);
             const has = !!slot.file;
             return (
               <button
                 key={i}
-                onClick={() => trigger(i)}
+                onClick={() => onPadClick(i)}
                 onContextMenu={(e) => onContextMenu(e, i)}
-                className={`relative rounded-lg border transition-transform active:scale-95 hover:brightness-110 select-none ${
+                className={`push-pad relative rounded-lg border transition-transform active:scale-95 hover:brightness-110 select-none ${
                   has ? 'border-black/40' : 'border-gray-700/40'
                 }`}
-                style={{ background: bg, opacity: has ? 1 : 0.28 }}
-                title={`Pad ${i + 1}${has ? ` — ${slot.label} (clic = jouer, clic droit = remplacer)` : ' (clic droit = assigner un sample)'}`}
+                style={{ background: bg, opacity: has ? 1 : 0.3 }}
+                title={`Pad ${i + 1}${has ? ` — ${slot.label} (clic = jouer, clic droit = remplacer)` : ' (clic droit = assigner un sample)'}${painting ? ' — 🎨 clic = peindre cette couleur' : ''}`}
               >
                 {has ? (
-                  <span className="absolute inset-x-0 bottom-0.5 text-center text-[8px] sm:text-[9px] font-bold text-black/70 truncate px-0.5">
+                  <span className="push-pad-label absolute inset-x-0 bottom-0.5 text-center text-[8px] sm:text-[9px] font-bold text-black/70 truncate px-0.5">
                     {slot.label}
                   </span>
                 ) : (
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] text-black/40 font-bold">
+                  <span className="push-pad-label absolute inset-0 flex items-center justify-center text-[10px] text-black/40 font-bold">
                     {i + 1}
                   </span>
                 )}
@@ -278,6 +300,25 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
             ))}
           </div>
           <div className="w-px h-4 bg-gray-700/60 shrink-0" />
+          <button
+            onClick={() => setPainting(p => !p)}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded border transition-colors shrink-0 ${
+              painting
+                ? 'bg-pink-900/50 border-pink-500/60 text-pink-200'
+                : 'bg-gray-800/60 border-gray-700/60 text-gray-500 hover:text-gray-300'
+            }`}
+            title="Mode peinture : clique sur les pads pour leur poser la couleur choisie (le clic ne joue plus le sample)"
+          >
+            🎨 Peindre {painting ? '●' : ''}
+          </button>
+          <button
+            onClick={() => setSlots(prev => clearPadColors(prev))}
+            className="px-2 py-0.5 text-[10px] font-bold rounded border border-gray-700/60 bg-gray-800/60 text-gray-500 hover:text-gray-300 transition-colors shrink-0"
+            title="Tous les pads suivent le dégradé global (hue + mode) — les couleurs posées pad par pad sont effacées"
+          >
+            Appliquer à tous
+          </button>
+          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
           <div className="flex items-center gap-1.5 shrink-0">
             <Volume2 className="w-3 h-3 text-gray-500" />
             <input
@@ -289,7 +330,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
           </div>
           <div className="flex-1" />
           <span className="text-[9px] text-gray-500 shrink-0">
-            Clic = jouer (retrigger) · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
+            Clic = jouer (retrigger) · 🎨 Peindre = poser une couleur par pad · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
           </span>
         </div>
 

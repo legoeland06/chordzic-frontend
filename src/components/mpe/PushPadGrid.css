@@ -1,0 +1,36 @@
+/* PushPadGrid.css — pads du Push 3 : relief « convexe ».
+
+   Chaque case reçoit un dégradé radial interne qui bombe la surface :
+   la lumière accroche le haut de la case (point chaud à ~24 %) et les
+   bords retombent dans l'ombre — comme un bouton de drum machine bombé.
+   L'overlay (::after) est au-dessus de la couleur de fond, les labels
+   passent devant (push-pad-label, z-index 1).
+*/
+
+.push-pad {
+  position: relative;
+  overflow: hidden;
+}
+
+.push-pad::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 24%,
+    rgba(255, 255, 255, 0.36) 0%,
+    rgba(255, 255, 255, 0.08) 38%,
+    rgba(0, 0, 0, 0.04) 62%,
+    rgba(0, 0, 0, 0.34) 92%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.30),
+    inset 0 -2px 5px rgba(0, 0, 0, 0.40);
+}
+
+.push-pad-label {
+  position: relative;
+  z-index: 1;
+}

@@ -155,7 +155,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
     { id: 'livepiano', icon: '🎹', title: 'LivePiano', keys: 'piano live accord détecté illumination insertion grille piste roland midi timer program sustain son' },
     { id: 'mpe', icon: '🎛', title: 'MPE — expression', keys: 'mpe bend pitch aftertouch pression timbre brillance cc74 lfo vibrato seaboard roli osmose enregistrement rec expression jouer sur le son' },
-    { id: 'push3', icon: '🥁', title: 'Push 3 — pads', keys: 'push ableton pads sample échantillon import wav mp3 ogg flac retrigger drum machine couleur dégradé palette déclencher' },
+    { id: 'push3', icon: '🥁', title: 'Push 3 — pads', keys: 'push ableton pads sample échantillon import wav mp3 ogg flac retrigger drum machine couleur dégradé palette peinture peindre déclencher' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
     { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
@@ -328,8 +328,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p className="font-bold text-white mt-3">🧩 Modules disponibles</p>
             <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression." />
-            <Row k="🎛 ROLI Seaboard RISE 2" v="25 keywaves (C3 → C5, 2 octaves) — un clavier qui ressemble à peine à un piano : silicone mat, touches noires juste plus foncées que les blanches (grises). Appui = note · glissé vertical = bend · glissé horizontal (petit) = vibrato · molette = pression · multi-touch. Voir le détail plus bas." />
-            <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger immédiat, couleurs par dégradés) — voir la section dédiée plus bas." />
+            <Row k="🎛 ROLI Seaboard RISE 2" v="25 keywaves (C3 → C5, 2 octaves) — un piano assombri : touches blanches pleine hauteur, noires plus courtes, palette sombre, relief par les lumières. Appui = note · glissé vertical = bend (pose = juste) · glissé horizontal (petit) = vibrato · molette = pression · multi-touch. Voir le détail plus bas." />
+            <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger immédiat, couleur posable sur chaque pad en mode 🎨 Peindre, relief convexe) — voir la section dédiée plus bas." />
             <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
             <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±2 (bend musical)." />
             <Row k="Glisser ▲ ▼ (Y)" v="Timbre / brillance (CC74) : en haut = brillant, en bas = sombre." />
@@ -376,11 +376,13 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="font-bold text-white mt-3">🎹 Déclenchement</p>
             <Row k="Clic = jouer" v="Chaque appui arrête la lecture précédente du pad et redéclenche depuis le début — zéro délai, idéal pour les breaks et les coups." />
             <Row k="Volume" v="Slider global (0-100 %) pour l'ensemble des pads." />
-            <p className="font-bold text-white mt-3">🎨 Couleurs par dégradés</p>
+            <p className="font-bold text-white mt-3">🎨 Couleurs par pad (mode peinture)</p>
+            <Row k="🎨 Peindre" v="Active le mode peinture : sélectionne une teinte dans la palette puis CLIQUE sur les pads pour leur poser LA couleur de ton choix, case par case (le clic ne joue plus le sample tant que le mode est actif)." />
             <Row k="Palette" v="9 teintes de base (rouge, orange, jaune, vert, cyan, bleu, violet, rose, blanc). Le blanc = pads « éteints » (style Push)." />
-            <Row k="Dégradé" v="4 modes : ■ solide (une seule couleur), ▶ horizontal, ▼ vertical, ⤡ diagonal — les 64 pads s'échelonnent en luminosité sur la grille." />
+            <Row k="Dégradé + Appliquer à tous" v="4 modes : ■ solide, ▶ horizontal, ▼ vertical, ⤡ diagonal — les 64 pads s'échelonnent en luminosité sur la grille. « Appliquer à tous » ramène TOUS les pads au dégradé global (efface les couleurs posées pad par pad)." />
+            <Row k="Relief convexe" v="Chaque case a un dégradé interne qui bombe la surface : la lumière accroche le haut de la case, les bords retombent dans l'ombre." />
             <p className="font-bold text-white mt-3">💾 Persistance</p>
-            <Row k="Local" v="Les samples assignés, les couleurs et le volume sont mémorisés dans le navigateur (localStorage) : retrouvés au prochain chargement." />
+            <Row k="Local" v="Les samples assignés, les couleurs par pad, le dégradé global et le volume sont mémorisés dans le navigateur (localStorage) : retrouvés au prochain chargement." />
           </Section>
 
           {/* ── Barre de contrôle ── */}

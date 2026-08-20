@@ -32,12 +32,17 @@ export const PAD_PALETTE: { name: string; hue: number }[] = [
   { name: 'Blanc', hue: -1 },
 ];
 
-/** Contenu d'un pad : sample assigné + couleur (hue + mode de dégradé). */
+/** Contenu d'un pad : sample assigné + couleur (hue par pad). */
 export interface PadSlot {
   /** Nom du fichier côté serveur (pad_*.ext) — null = pad vide. */
   file: string | null;
   /** Nom d'origine du sample (sans extension) — pour l'affichage. */
   label: string;
+  /**
+   * Teinte propre au pad (0-360, -1 = blanc éteint) ou null = « auto » :
+   * le pad suit alors le dégradé global (hue + mode de la barre d'outils).
+   */
+  hue: number | null;
 }
 
 /** Configuration de couleurs des pads. */
@@ -50,9 +55,9 @@ export interface PadColorConfig {
 
 export const EMPTY_PAD_COLOR: PadColorConfig = { hue: 220, mode: 'diag' };
 
-/** Crée les 64 slots vides. */
+/** Crée les 64 slots vides (couleur auto → dégradé global). */
 export function emptyPads(): PadSlot[] {
-  return new Array(PAD_COUNT).fill(null).map(() => ({ file: null, label: '' }));
+  return new Array(PAD_COUNT).fill(null).map(() => ({ file: null, label: '', hue: null }));
 }
 
 /**
@@ -86,6 +91,32 @@ export function padColor(hue: number, index: number, mode: GradientMode): string
 /** Vrai si la couleur est « éteinte » (blanc). */
 export function isPadOff(hue: number): boolean {
   return hue < 0;
+}
+
+/**
+ * Couleur EFFECTIVE d'un pad : sa propre teinte (solide) si elle est posée,
+ * sinon le dégradé global (hue + mode de la barre d'outils).
+ */
+export function slotColor(slot: PadSlot, index: number, global: PadColorConfig): string {
+  if (slot.hue === null) return padColor(global.hue, index, global.mode);
+  return padColor(slot.hue, index, 'solid');
+}
+
+/**
+ * Pose la couleur de son choix sur UN pad (mode peinture) — retourne une
+ * copie des slots (fonction pure).
+ */
+export function paintPad(slots: PadSlot[], index: number, hue: number): PadSlot[] {
+  const next = [...slots];
+  next[index] = { ...next[index], hue };
+  return next;
+}
+
+/**
+ * Remet tous les pads au dégradé global (hue → null) — « Appliquer à tous ».
+ */
+export function clearPadColors(slots: PadSlot[]): PadSlot[] {
+  return slots.map(s => ({ ...s, hue: null }));
 }
 
 // ── API serveur ────────────────────────────────────────────────────────
