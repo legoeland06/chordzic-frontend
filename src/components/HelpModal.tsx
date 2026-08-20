@@ -586,7 +586,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="📋 Copier / ✂ Couper / 📌 Coller" v="Presse-papiers du PROJET : Copier prend la sélection — ou TOUTE la piste si rien n'est sélectionné. Coller dans la même piste se fait à l'endroit du dernier clic ; coller dans une AUTRE piste place les notes aux mêmes emplacements et valeurs (voir la section « Copier / coller entre pistes »)." />
             <Row k="⛓ Grouper / Dégrouper" v="Les notes groupées se sélectionnent et se déplacent ensemble (le bord droit reste individuel)." />
             <Row k="↩ Annuler / ↪ Rétablir" v="Historique de 100 gestes." />
-            <Row k="🔍 Zoom / défilement" v="Ctrl+molette ou G/H = zoom horizontal (bornes : fit-to-width → 400 %) ; molette simple = scroll vertical du registre (~1 quinte par cran) ; Shift+molette = défilement horizontal. Le modal s'ouvre calé sur tout le morceau (fit-to-width)." />
+            <Row k="🔍 Zoom / défilement" v="Ctrl+molette ou G/H = zoom horizontal (bornes : fit-to-width → 400 %) ; molette simple = scroll vertical du registre (1 demi-ton par cran, « de case en case ») ; Shift+molette = défilement horizontal. Le modal s'ouvre calé sur tout le morceau (fit-to-width)." />
             <Row k="📐 Registre vertical" v="S'adapte automatiquement au contenu de la piste à l'ouverture (fit vertical) ; la molette le déplace (les notes hors champ deviennent accessibles — le clavier en marge suit)." />
             <Row k="⛶ Zoom sur la sélection" v="Recentre et zoome la vue (temps + registre) sur les notes sélectionnées." />
             <Row k="🎹 Clavier en marge" v="Le clavier de piano vertical (à droite) se rétracte/réaffiche via le bouton 🎹 posé sur la marge elle-même (préférence mémorisée)." />

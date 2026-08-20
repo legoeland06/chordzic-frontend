@@ -70,7 +70,7 @@ s'adapte toujours à la largeur de l'écran.
   de lecture à l'arrêt (événements horodatés côté serveur, ordre d'appui conservé,
   repiquage ignoré)
 - **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
-- **Molette** : scroll vertical du registre (~quinte/cran, le clavier en marge suit) ·
+- **Molette** : scroll vertical du registre (1 demi-ton/cran « de case en case », le clavier en marge suit) ·
   Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection
 - **Clavier en marge rétractable** (bouton 🎹 sur la marge, préférence mémorisée)
 - **Copier / coller inter-pistes** : collage miroir aux mêmes emplacements, fusion annulable Ctrl+Z

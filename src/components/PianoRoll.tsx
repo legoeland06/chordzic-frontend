@@ -1381,14 +1381,18 @@ function PianoRoll({
   };
 
   /** Défile le REGISTRE vertical (molette simple) : déplace la fenêtre
-   * pitch affichée d'une QUINTE (7 demi-tons) par cran de molette — un pas
-   * musical lisible, ni trop fin ni « d'octave en octave » (feedback Eric).
+   * pitch affichée d'UN DEMI-TON par cran de molette — « de case en case »
+   * (feedback Eric 2026-08-20 : la quinte par cran était trop grossière).
+   * Les deltas fins (trackpad) s'accumulent jusqu'à un cran entier.
    * Le scroll manuel désactive l'auto-fit (comme les sliders Reg).
    * Borné à [0, 127], largeur conservée. */
+  const wheelAccRef = useRef(0);
   const scrollRangeVertically = (deltaY: number) => {
     rangeTouchedRef.current = true;
     const range = userMaxPitch - userMinPitch;
-    const shift = Math.round(-deltaY * 0.07); // ~7 demi-tons par cran (100)
+    wheelAccRef.current += -deltaY * 0.01; // 1 demi-ton par cran (100)
+    const shift = Math.floor(wheelAccRef.current);
+    if (shift !== 0) wheelAccRef.current -= shift;
     if (shift === 0) return;
     const newMin = Math.max(0, Math.min(userMinPitch + shift, 127 - range));
     const newMax = newMin + range;
