@@ -287,6 +287,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               note sort sur le <b className="text-white">canal de la piste cible</b> (elle sonne avec l'instrument de
               la piste) ; en Live, sur le canal par défaut du Roland.
             </>} />
+            <Row k="Tactile" v="Écran tactile : l'appui prolongé = tenue (le menu contextuel du clic droit est désactivé), le double-tap ne zoome plus, pas de sélection de texte au glissé — gestes fluides sur tablette." />
             <Row k="Illustration" v={<>
               <div className="rounded-lg border border-gray-800 bg-gray-900/40 p-3 mt-1">
                 <div className="text-[10px] text-gray-500 mb-2">

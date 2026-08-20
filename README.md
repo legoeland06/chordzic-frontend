@@ -237,6 +237,28 @@ src/
 Le build (`dist/`) est embarqué dans le binaire standalone du backend
 (`chords-server-rs --features standalone`, via `frontend_dist/`).
 
+## 📱 Mode tactile (tablette / écran tactile)
+
+L'appli est pensée pour le jeu au doigt (LivePiano multi-touches, keywaves ROLI,
+Piano Roll…) et **neutralise les réactions parasites du navigateur/OS** sur
+écran tactile :
+
+- **Appui prolongé = menu contextuel** → désactivé (sauf champs de saisie
+  et pads Push où le clic droit sert à assigner un fichier)
+- **Double-tap = zoom** → désactivé (le pinch et le défilement restent possibles)
+- **Sélection de texte au glissé** → désactivée (sauf champs de saisie)
+- **Rebond / pull-to-refresh / halo de fin de page** → supprimé
+- **Surbrillance au tap** → supprimée
+
+Les zones de jeu (LivePiano, keywaves, Piano Roll, lanes) ont `touch-action:
+none` : le doigt ne déclenche ni défilement ni zoom pendant qu'on joue.
+
+> 💡 Windows : pour être 100 % propre, désactiver « Longue pression »
+> (Paramètres → Accessibilité → Interaction → Tactile) — c'est Windows qui
+> traduit l'appui prolongé en clic droit, le navigateur ne peut pas l'en empêcher.
+
+---
+
 ## Standalone — MacBook Air & PC Windows
 
 Le binaire standalone (backend Rust + frontend React dans UN fichier) se compile
@@ -262,4 +284,16 @@ via WASAPI/CoreAudio, rendu WAV via l'exécutable FluidSynth + SoundFont).
 
 **Eric BRUNEAU** — vibe coding Deepseek (legoeland)
 
-*231 tests unitaires (Vitest) — tsc strict à 0 erreur*
+*328 tests unitaires (Vitest) — tsc strict à 0 erreur*
+
+---
+
+## Notes de version
+
+- **v2.7.2 (20/08/2026)** — 📱 Mode tactile : inhibition des réactions
+  navigateur/OS (appui long = clic droit, double-tap = zoom, sélection,
+  rebond, surbrillance).
+- **v2.7.1 (20/08/2026)** — 🐛 Fix notes coincées en jeu rapide : les envois
+  de notes (LivePiano cliquable, clavier ROLI virtuel) passent par une file
+  FIFO → l'ordre note-on/note-off est garanti (plus de note qui sonne
+  indéfiniment en jouant vite).
