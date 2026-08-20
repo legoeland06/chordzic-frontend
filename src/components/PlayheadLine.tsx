@@ -28,6 +28,9 @@ export default function PlayheadLine({ scale, contentWidth, color = '#f87171' }:
   scaleRef.current = scale;
   cwRef.current = contentWidth ?? 0;
 
+  // Ré-exécutable à la demande (changement d'échelle sans notification).
+  const updateRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     const el = lineRef.current;
     if (!el) return;
@@ -40,6 +43,7 @@ export default function PlayheadLine({ scale, contentWidth, color = '#f87171' }:
       const hidden = x < -2 || (cw > 0 && x > cw + 2);
       el.style.visibility = hidden ? 'hidden' : 'visible';
     };
+    updateRef.current = update;
     update();
     const unsub = subscribePlayhead(() => {
       cancelAnimationFrame(raf);
@@ -50,6 +54,14 @@ export default function PlayheadLine({ scale, contentWidth, color = '#f87171' }:
       unsub();
     };
   }, []);
+
+  // L'échelle change (ex. TrackLane remesuré après fermeture du PianoRoll,
+  // zoom) : recalculer la position IMMÉDIATEMENT — sans attendre la
+  // prochaine notification du store (sinon la ligne reste sur l'ancienne
+  // échelle → têtes désalignées entre les pistes, effet d'homothétie).
+  useEffect(() => {
+    updateRef.current();
+  }, [scale, contentWidth]);
 
   return (
     <div

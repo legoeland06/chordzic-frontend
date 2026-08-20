@@ -7,7 +7,7 @@
  * - Les notes (PianoNote) sous forme de rectangles colorés
  *
  * Interactions :
- * - Clic sur vide → créer une note (snap 1/16)
+ * - Clic sur vide → créer une note (snap par défaut : 1 temps)
  * - Drag centre → déplacer une note
  * - Drag bord droit → redimensionner une note
  * - Double-clic → supprimer une note
@@ -219,7 +219,7 @@ function PianoRoll({
   const [pianoPlaying, setPianoPlaying] = useState<'idle' | 'playing' | 'paused'>('idle');
   /** Position de lecture courante en beats (lue par draw). */
   const playPosRef = useRef(0);
-  // ── Subdivision de la grille (snap) : 1/16 par défaut, 1/12 pour les triolets ──
+  // ── Subdivision de la grille (snap) : 1/1 par défaut (1 temps), 1/12 pour les triolets ──
   const [snapUnit, setSnapUnit] = useState(DEFAULT_SNAP_UNIT);
   // ── Snap magnétique ON/OFF : quand OFF, les notes se placent librement ──
   const [snapEnabled, setSnapEnabled] = useState(true);

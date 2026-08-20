@@ -487,8 +487,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (le clip survolé s'illumine en rouge). <b className="text-white">G Main</b> : déplacer.
               <b className="text-white"> T Trimmer</b> : étirer par les bords. <b className="text-white">S</b> : snap
               magnétique ON/OFF. Le <b className="text-white">sélecteur de snap</b> (barre de transport) propose les
-              <b> mêmes subdivisions que le Piano Roll</b> : 1/32 → 1/1, triolets (1/12, 1/6, 1/3) et sextolets
-              (1/24, 1/18). <b className="text-white">↑↓</b> : gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> :
+              <b> mêmes subdivisions que le Piano Roll</b> : 1/32 → 1/1 (défaut : <b className="text-white">1 temps</b>),
+              triolets (1/12, 1/6, 1/3) et sextolets (1/24, 1/18). <b className="text-white">↑↓</b> : gain du clip sélectionné. <b className="text-white">Ctrl+Z</b> :
               annuler. <b className="text-white">Delete</b> : effacer. <b className="text-white"> Espace</b> : lecture.
               Molette : zoom temporel centré curseur.
               <b className="text-white">Dans le Piano Roll</b> (intégré ou modal) : la molette simple fait un

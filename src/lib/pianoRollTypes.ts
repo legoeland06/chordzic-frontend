@@ -36,8 +36,9 @@ export const SNAP_UNITS: number[] = [
   1 / 32, 1 / 24, 1 / 18, 1 / 16, 1 / 12, 1 / 8, 1 / 6, 1 / 4, 1 / 3, 1 / 2, 1 / 1,
 ];
 
-/** Snap par défaut (comportement historique : double croche). */
-export const DEFAULT_SNAP_UNIT = SNAP_UNIT;
+/** Snap par défaut : 1 temps (1/1) — demandé par Eric (2026-08-20) ; les
+ * subdivisions plus fines (1/16, triolets…) restent disponibles au choix. */
+export const DEFAULT_SNAP_UNIT = 1 / 1;
 
 /** Durée minimale d'une note en mode snap libre (en beats).
  * Volontairement fine (1/100 de beat ≈ 3 ticks à 288 PPQ) pour laisser
