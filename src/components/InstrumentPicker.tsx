@@ -215,8 +215,18 @@ export default function InstrumentPicker({
     if (!path) {
       delete next[channel];
     } else {
+      // L'engine est déduit de la provenance : preset Surge → vst3,
+      // SoundFont → sf2, sinon catalogue (sfz/vst3 plugin).
+      const surge = surgePresets.find(p => p.path === path);
+      const sf = soundfonts.find(s => s.path === path);
       const item = catalog.find(i => i.path === path);
-      next[channel] = item ? { engine: item.kind, path } : { engine: 'sfz', path };
+      next[channel] = surge
+        ? { engine: 'vst3', path }
+        : sf
+          ? { engine: 'sf2', path }
+          : item
+            ? { engine: item.kind, path }
+            : { engine: 'sfz', path };
     }
     onChange(next);
   };
