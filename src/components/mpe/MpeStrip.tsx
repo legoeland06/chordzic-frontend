@@ -15,17 +15,12 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import {
   BEND_CENTER,
+  StripGesture,
   TIMBRE_CENTER,
   wheelToPressure,
   xToBend,
   yToTimbre,
-} from '../lib/mpe';
-
-export interface StripGesture {
-  bend: number;
-  timbre: number;
-  pressure: number;
-}
+} from '../../lib/mpe';
 
 interface MpeStripProps {
   /** Retour auto du bend au centre au relâchement (Seaboard) vs maintien. */

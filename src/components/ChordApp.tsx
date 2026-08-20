@@ -26,7 +26,7 @@ import PianoLivePanel from './PianoLivePanel';
 import CollapsiblePanel from './CollapsiblePanel';
 import { sendPianoNote } from '../lib/pianoNote';
 import ChordNowModal from './ChordNowModal';
-import MpeModal from './MpeModal';
+import MpeModules from './mpe/MpeModules';
 import PushPadGrid from './PushPadGrid';
 import ChordDetailModal from './ChordDetailModal';
 import { SaveModal, LoadModal, NewProjectModal } from './SaveLoadModal';
@@ -1525,7 +1525,7 @@ export default function ChordApp() {
 
         {/* Modal 🎛 MPE — simulation de contrôleur MPE (jouer sur le son
             en direct pendant le jeu sur le Roland ou un enregistrement). */}
-        {mpeOpen && <MpeModal onClose={() => setMpeOpen(false)} />}
+        {mpeOpen && <MpeModules onClose={() => setMpeOpen(false)} />}
 
         {/* Modal 🥁 Push 3 — 64 pads échantillonnés (import de samples,
             retrigger immédiat, couleurs par dégradés). */}

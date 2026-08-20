@@ -3,13 +3,12 @@
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
-  BEND_CENTER,
-  TIMBRE_CENTER,
   throttleTrailing,
   wheelToPressure,
   xToBend,
   yToTimbre,
-} from './mpe';
+} from './gestures';
+import { BEND_CENTER, TIMBRE_CENTER } from './types';
 
 describe('mapping des gestes MPE', () => {
   it('xToBend : 0 → 0, 0.5 → centre, 1 → 16383, bornes', () => {

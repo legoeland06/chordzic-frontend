@@ -91,6 +91,26 @@ s'adapte toujours à la largeur de l'écran.
   mesure — sample trop long **coupé**, trop court **complété par du silence**, fade-out anti-clic
 - Extraction WAV : le sample actif est **mixé** au morceau exporté
 
+## 🎛 MPE Modules (expression en direct)
+
+Le bouton **🎛 MPE** ouvre le **module parent** qui regroupe les contrôleurs MPE simulés
+(MIDI Polyphonic Expression) et route les gestes du module actif vers le serveur, qui les
+injecte en direct dans le flux MIDI renvoyé au clavier (Roland / FluidSynth) ou les horodate
+pendant un Rec.
+
+- **Architecture modulaire** : chaque contrôleur est un module (`components/mpe/registry.ts`)
+  qui respecte `MpeModuleProps` (returnMode + onGesture/onGestureEnd) — le parent
+  (`MpeModules.tsx`) affiche le sélecteur et rend le module actif. Pour ajouter un
+  contrôleur : créer son composant puis l'ajouter à `MPE_MODULES`.
+- **Modules actuels** : Seaboard (strip tactile — X = bend, Y = timbre, molette = pression).
+  À venir : ROLI Seaboard RISE 2 (keywaves 5D), LinnStrument, Expressive E Osmose.
+- **Cadre commun à tous les modules** : sliders bend/pression/timbre, range ±2..±48 (RPN 0),
+  LFO vibrato (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM
+  (mode PC), retour auto ou maintien, état temps réel (notes tenues, canal, REC).
+- **Performance** : le module actif est isolé (aucun state React — curseur en transform CSS,
+  valeurs en textContent, gestes échantillonnés à ~60 Hz en rAF) → zéro re-render pendant
+  le glissé. La lib partagée vit dans `lib/mpe/` (types, api, gestures).
+
 ## Performances (lecture temps réel)
 
 - **Lignes de lecture en overlay** : les têtes de lecture (pistes + piano roll) sont des
@@ -140,9 +160,12 @@ src/
 │                 # LivePiano, LiveSettingsBar, ControlBar, ChordNowModal,
 │                 # LoopControl, ClickControl, PostProdView, PlayheadLine,
 │                 # TransportReadout, HelpModal…
+│                 # mpe/         # MPE Modules : MpeModules (parent), registry
+│                 #              # (modules de contrôleurs), MpeStrip (Seaboard)
 ├── lib/          # audioEngine, browserSynth, livePiano, pitchesToNotes,
 │                 # chordRecognition, pianoRollEngine, playGuard, navPosition,
 │                 # sampleLoop, projectClipboard, postProdEngine, playhead…
+│                 # mpe/         # types, api (/mpe*), gestures (mapping pur)
 └── types/
 ```
 

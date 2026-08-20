@@ -1,19 +1,20 @@
 /**
- * 🎛 MpeModal — modal de simulation de contrôleur MPE (MIDI Polyphonic
- * Expression).
+ * 🎛 MpeModules — MODULE PARENT du système MPE (MIDI Polyphonic Expression).
  *
- * Reproduit les gestes des contrôleurs populaires (ROLI Seaboard :
- * strip tactile X = pitch bend / Y = timbre ; Osmose : pression =
- * aftertouch) pour « jouer sur le son » EN DIRECT pendant que l'utilisateur
- * joue sur le Roland (Local Control OFF → le serveur relaie les notes et
- * injecte les modulations) ou pendant un enregistrement (Rec MIDI : les
- * gestes sont horodatés et réappliqués au rendu).
+ * Regroupe tous les contrôleurs simulés (ROLI Seaboard, LinnStrument,
+ * Osmose…) derrière un point d'entrée unique : l'utilisateur choisit le
+ * module qu'il veut utiliser EN DIRECT, et le parent route les gestes du
+ * module actif vers le serveur, qui les injecte dans le flux MIDI renvoyé
+ * au clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
  *
- * PERFORMANCE : le strip (MpeStrip) est un composant isolé SANS state —
- * pendant le glissé, seul le curseur bouge (transform CSS), la modal ne
- * re-render pas. Les gestes sont échantillonnés à ~60 Hz (rAF) et envoyés
- * immédiatement (aucune valeur perdue → bend fluide, pas de sauts). Les
- * sliders se synchronisent en fin de geste.
+ * Le cadre est COMMUN à tous les modules :
+ *  - la zone de manipulation (le composant du module — plein écran) ;
+ *  - les réglages fins (sliders bend/pression/timbre, range ±, LFO,
+ *    cible du son, retour auto) ;
+ *  - l'état temps réel (notes tenues, canal résolu, bend effectif, REC).
+ *
+ * PERFORMANCE : le composant du module est isolé (zéro re-render pendant
+ * le glissé — voir MpeStrip) ; les gestes sont échantillonnés à ~60 Hz.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
@@ -24,12 +25,13 @@ import {
   LfoShapeName,
   MpeState,
   MpeTargetName,
+  StripGesture,
   TIMBRE_CENTER,
   fetchMpeState,
   resetMpe,
   sendMpe,
-} from '../lib/mpe';
-import MpeStrip, { StripGesture } from './MpeStrip';
+} from '../../lib/mpe';
+import { MPE_MODULES, getMpeModule, MpeModule } from './registry';
 
 /** Nom de note MIDI (pour l'affichage des notes tenues). */
 function noteName(pitch: number): string {
@@ -54,11 +56,23 @@ const RANGES = [2, 7, 12, 24, 48];
 const labelCls = 'text-[9px] font-bold uppercase tracking-wider text-gray-500 shrink-0 w-14';
 const valueCls = 'text-[10px] font-mono text-cyan-300 w-9 text-right shrink-0';
 
-interface MpeModalProps {
+/** Clé localStorage du dernier module choisi. */
+const LS_MODULE = 'chordzic_mpe_module';
+
+interface MpeModulesProps {
   onClose: () => void;
 }
 
-function MpeModal({ onClose }: MpeModalProps) {
+function MpeModules({ onClose }: MpeModulesProps) {
+  const [module, setModule] = useState<MpeModule>(() => {
+    try {
+      const saved = localStorage.getItem(LS_MODULE);
+      return saved ? getMpeModule(saved) : MPE_MODULES[0];
+    } catch {
+      return MPE_MODULES[0];
+    }
+  });
+
   const [bend, setBend] = useState(BEND_CENTER);
   const [pressure, setPressure] = useState(0);
   const [timbre, setTimbre] = useState(TIMBRE_CENTER);
@@ -67,7 +81,6 @@ function MpeModal({ onClose }: MpeModalProps) {
   const [lfoDepth, setLfoDepth] = useState(0);
   const [lfoShape, setLfoShape] = useState<LfoShapeName>('sin');
   const [target, setTarget] = useState<MpeTargetName>('auto');
-  /** Instrument GM courant (mode PC). */
   const [program, setProgram] = useState(0);
   /** Retour auto au centre au relâchement (style Seaboard) vs maintien. */
   const [returnMode, setReturnMode] = useState<'center' | 'hold'>('center');
@@ -91,9 +104,16 @@ function MpeModal({ onClose }: MpeModalProps) {
     return () => clearInterval(id);
   }, []);
 
-  // Geste du strip : envoi IMMÉDIAT (échantillonné à ~60 Hz par MpeStrip —
-  // aucune valeur perdue, le bend évolue par pas fins). Aucun setState ici :
-  // la modal ne re-render pas pendant le glissé.
+  // Persistance du module choisi
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_MODULE, module.id);
+    } catch { /* ignoré */ }
+  }, [module.id]);
+
+  // Geste du module actif : envoi IMMÉDIAT (échantillonné à ~60 Hz par le
+  // module — aucune valeur perdue). Aucun setState ici : le parent ne
+  // re-render pas pendant le glissé.
   const handleGesture = useCallback((g: StripGesture) => {
     void sendMpe({ bend: g.bend, timbre: g.timbre, pressure: g.pressure });
   }, []);
@@ -128,31 +148,52 @@ function MpeModal({ onClose }: MpeModalProps) {
   const isPcRoute = server.route === 'fluid' || (server.route === 'main' && server.main_is_fluid);
   const routeLabel = isPcRoute ? 'PC' : server.route === 'main' ? (server.echo_active ? '✨ piste' : 'Roland') : '—';
 
+  const ActiveModule = module.component;
+
   return (
     <div className="fixed inset-1 sm:inset-2 z-50 flex items-stretch bg-black/70 backdrop-blur-sm p-1 sm:p-2">
       <div className="w-full max-w-[1400px] mx-auto bg-[#141a24] border border-gray-700 rounded-2xl shadow-2xl p-2 sm:p-3 flex flex-col gap-2 max-h-full">
-        {/* ── Titre (compact) ── */}
-        <div className="flex items-center justify-between shrink-0">
-          <h2 className="text-sm font-bold text-gray-200 tracking-wide">
-            🎛 MPE — Expression{' '}
-            <span className="text-gray-500 font-normal">
+        {/* ── Titre + sélecteur de module ── */}
+        <div className="flex items-center justify-between gap-2 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-sm font-bold text-gray-200 tracking-wide shrink-0">🎛 MPE Modules</h2>
+            {/* Sélecteur : un onglet par contrôleur simulé */}
+            <div className="flex items-center gap-1">
+              {MPE_MODULES.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setModule(m)}
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition-colors ${
+                    module.id === m.id
+                      ? 'bg-cyan-900/50 border-cyan-500/60 text-cyan-200'
+                      : 'bg-gray-800/60 border-gray-700/60 text-gray-400 hover:text-gray-200'
+                  }`}
+                  title={m.description}
+                >
+                  {m.icon} {m.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-gray-500 hidden sm:inline">
               · son : <b className={server.route === 'fluid' ? 'text-green-400' : 'text-cyan-300'}>{routeLabel}</b>
               {server.fluid_ok === false && <span className="text-amber-400"> · FluidSynth indisponible</span>}
             </span>
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            title="Fermer (remet l'expression à zéro)"
-          >
-            <X className="w-4 h-4" />
-          </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              title="Fermer (remet l'expression à zéro)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* ── Strip tactile type Seaboard — plein écran, zéro re-render ── */}
-        <MpeStrip returnMode={returnMode} onGesture={handleGesture} onGestureEnd={handleGestureEnd} />
+        {/* ── Zone de manipulation du module actif (plein écran) ── */}
+        <ActiveModule returnMode={returnMode} onGesture={handleGesture} onGestureEnd={handleGestureEnd} />
 
-        {/* ── Réglages fins (barres compactes, jamais de scroll) ── */}
+        {/* ── Réglages fins (barres compactes, communes à tous les modules) ── */}
         <div className="shrink-0 space-y-1">
           {/* Rangée 1 : sliders bend / pression / timbre */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -196,7 +237,7 @@ function MpeModal({ onClose }: MpeModalProps) {
             </div>
           </div>
 
-          {/* Rangée 2 : LFO + cible + retour auto + état + boutons */}
+          {/* Rangée 2 : LFO + cible + instrument + retour auto + état + boutons */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 shrink-0">LFO</span>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -250,9 +291,7 @@ function MpeModal({ onClose }: MpeModalProps) {
               </select>
             </div>
 
-            {/* Instrument GM (mode PC : les modulations s'entendent sur
-                n'importe quel instrument, et le bend est expressif sur les
-                leads / pads / guitares) */}
+            {/* Instrument GM (mode PC) */}
             {isPcRoute && (
               <div className="flex items-center gap-1 shrink-0" title="Instrument joué par le PC (program GM)">
                 <span className="text-[9px] text-gray-500">Inst</span>
@@ -310,4 +349,4 @@ function MpeModal({ onClose }: MpeModalProps) {
   );
 }
 
-export default memo(MpeModal);
+export default memo(MpeModules);

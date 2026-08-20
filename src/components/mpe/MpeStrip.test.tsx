@@ -6,7 +6,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import MpeStrip, { StripGesture } from './MpeStrip';
+import MpeStrip from './MpeStrip';
+import type { StripGesture } from '../../lib/mpe';
 
 // jsdom : ni ResizeObserver ni pointer capture ni getBoundingClientRect
 // réaliste — no-op / mocks globaux.
