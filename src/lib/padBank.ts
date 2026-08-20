@@ -226,6 +226,33 @@ export function padSampleUrl(name: string): string {
   return `${backendUrl()}/pad-sample/${encodeURIComponent(name)}`;
 }
 
+/**
+ * POST /pad-trigger — joue un sample côté SERVEUR (ffplay, retrigger).
+ * Retourne true si le serveur a accepté (200).
+ */
+export async function triggerPadServer(file: string, volume: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${backendUrl()}/pad-trigger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file, volume: Math.max(0, Math.min(100, Math.round(volume))) }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** POST /pad-stop — coupe toutes les lectures serveur en cours. */
+export async function stopPadServer(): Promise<boolean> {
+  try {
+    const res = await fetch(`${backendUrl()}/pad-stop`, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Nom d'origine affiché : « kick.wav » → « kick ». */
 export function labelFromFilename(filename: string): string {
   const base = filename.split('/').pop() ?? filename;
@@ -331,6 +358,17 @@ export class PadPlayer {
 
   setMetroAudible(audible: boolean): void {
     this.metroAudible = audible;
+  }
+
+  /** Temps audio courant (pour l'anticipation des déclenchements serveur). */
+  currentTime(): number {
+    return this.ctx.currentTime;
+  }
+
+  /** Temps audio du PROCHAIN battement à venir (jamais dans le passé). */
+  nextBeatTime(): number {
+    if (!this.running) return this.ctx.currentTime;
+    return Math.max(this.ctx.currentTime, this.nextBeat);
   }
 
   /** Change le tempo du métronome en cours de route (borne 40-240). */

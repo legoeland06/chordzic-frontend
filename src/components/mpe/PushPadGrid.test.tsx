@@ -110,4 +110,34 @@ describe('PushPadGrid — couleurs par pad', () => {
     expect(badge()).toBeDefined(); // toujours éteint (pad vide → rien)
     act(() => root.unmount());
   });
+
+  it('mode 🖧 Serveur : le clic envoie /pad-trigger (fichier + volume), pas de lecture locale', () => {
+    // Précharge un slot avec sample + mode serveur (persistés)
+    const slots: { file: string | null; label: string; hue: number | null; tempo: number | null }[] =
+      Array(64).fill(null).map(() => ({ file: null, label: '', hue: null, tempo: null }));
+    slots[0] = { file: 'pad_1.wav', label: 'kick', hue: null, tempo: 120 };
+    localStorage.setItem('chordzic_pads', JSON.stringify({
+      slots, color: { hue: 220, mode: 'diag' }, volume: 0.9, playMode: 'server',
+    }));
+    const triggers: { url: string; body: unknown }[] = [];
+    global.fetch = vi.fn((url: unknown, init?: RequestInit) => {
+      if (String(url).includes('/pad-trigger')) {
+        triggers.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : null });
+      }
+      return Promise.resolve({ ok: true });
+    }) as unknown as typeof fetch;
+
+    const { root } = renderGrid();
+    act(() => pad(0).click());
+    expect(triggers.length).toBe(1);
+    expect(triggers[0].body).toEqual({ file: 'pad_1.wav', volume: 90 });
+    // Le métronome local tourne (maître du timing) — badge actif
+    expect(playerIsRunning()).toBe(true);
+    act(() => root.unmount());
+  });
 });
+
+/** Vrai si le métronome du player tourne (le badge ● BPM est affiché). */
+function playerIsRunning(): boolean {
+  return [...document.querySelectorAll('span')].some(s => (s.textContent ?? '').startsWith('● '));
+}

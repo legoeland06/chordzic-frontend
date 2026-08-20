@@ -160,7 +160,10 @@ Grille de **64 pads (8×8)** échantillonnés : import de samples (wav/mp3/ogg/f
 - **🎵 Métronome synchronisé** : le premier appui démarre un métronome au tempo du pad ; tous
   les appuis suivants sont **quantifiés sur le prochain battement** (le pad s'arme en cyan et
   joue calé) ; 🔉 Son/Muet pour l'entendre ou non ;
-- **■ Stop** : arrête les pads et le métronome ;
+- **🖥 / 🖧 Chemin de lecture au choix** : 🖥 Navigateur (Web Audio — synchro exacte) ou
+  🖧 Serveur (ffplay côté backend, sortie audio du PC — métronome local, déclenchements
+  anticipés de la latence) ; persistant ;
+- **■ Stop** : arrête les pads, le métronome et les lectures serveur ;
 - Clic = jouer (retrigger) · clic droit = assigner un sample · volume global.
 
 <img src="docs/mpe-push.svg" alt="Push 3 — 64 pads" width="680">

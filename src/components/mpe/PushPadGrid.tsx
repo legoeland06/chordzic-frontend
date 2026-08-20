@@ -37,22 +37,34 @@ import {
   paintPad,
   setPadTempo,
   slotColor,
+  stopPadServer,
+  triggerPadServer,
   uploadPadSample,
 } from '../../lib/padBank';
 import './PushPadGrid.css';
 
 const LS_KEY = 'chordzic_pads';
 
+/** Anticipation (s) des déclenchements serveur : la commande part AVANT le
+ *  battement pour compenser la latence réseau + démarrage ffplay. */
+const SERVER_PLAY_LEAD_S = 0.06;
+
+/** Chemin de lecture des samples. */
+type PlayMode = 'browser' | 'server';
+
 interface StoredPads {
   slots: PadSlot[];
   color: PadColorConfig;
   volume: number;
+  /** Lecture des samples : navigateur (Web Audio) ou serveur (ffplay). */
+  playMode: PlayMode;
 }
 
 const DEFAULT_STORED: StoredPads = {
   slots: emptyPads(),
   color: { ...EMPTY_PAD_COLOR },
   volume: 0.9,
+  playMode: 'browser',
 };
 
 function loadStored(): StoredPads {
@@ -76,6 +88,7 @@ function loadStored(): StoredPads {
         mode: (['solid', 'h', 'v', 'diag'] as const).includes(j.color?.mode) ? j.color.mode : EMPTY_PAD_COLOR.mode,
       },
       volume: typeof j.volume === 'number' ? Math.max(0, Math.min(1, j.volume)) : 0.9,
+      playMode: j.playMode === 'server' ? 'server' : 'browser',
     };
   } catch {
     return DEFAULT_STORED;
@@ -103,6 +116,10 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   const [hoverPad, setHoverPad] = useState<number | null>(null);
   /** Le clic du métronome est-il audible ? */
   const [metroAudible, setMetroAudible] = useState(false);
+  /** Chemin de lecture : navigateur (Web Audio) ou serveur (ffplay). */
+  const [playMode, setPlayModeState] = useState<PlayMode>(stored.playMode);
+  /** Timers serveur en attente (quantification) — annulés au Stop. */
+  const serverTimersRef = useRef(new Map<number, number>());
 
   // Lecteur Web Audio (créé au montage — déclenché par un clic → autoplay OK)
   const playerRef = useRef<PadPlayer | null>(null);
@@ -127,8 +144,11 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
       if (s.file) void player.load(i, padSampleUrl(s.file));
     });
     return () => {
+      for (const [, t] of serverTimersRef.current) window.clearTimeout(t);
+      serverTimersRef.current.clear();
       player.stopMetronome();
       player.stopAll();
+      void stopPadServer();
       void ctx.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,11 +157,11 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   // Persistance à chaque changement
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ slots, color, volume }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ slots, color, volume, playMode }));
     } catch {
       /* stockage plein — ignoré */
     }
-  }, [slots, color, volume]);
+  }, [slots, color, volume, playMode]);
 
   const setStatusFlash = useCallback((msg: string) => {
     setStatus(msg);
@@ -149,23 +169,47 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   }, []);
 
   // ── Déclenchement (retrigger) ──
-  const trigger = useCallback((index: number) => {
-    playerRef.current?.trigger(index);
+
+  /** Change le chemin de lecture (annule les armements serveur en attente). */
+  const setPlayMode = useCallback((m: PlayMode) => {
+    setPlayModeState(m);
+    if (m === 'browser') {
+      for (const [, t] of serverTimersRef.current) window.clearTimeout(t);
+      serverTimersRef.current.clear();
+      setArmed(new Set());
+    }
   }, []);
 
-  // ── Clic sur un pad : peinture, tempo ou déclenchement ──
-  const onPadClick = useCallback((index: number) => {
-    if (painting) {
-      // Pose la couleur choisie sur CE pad (mode peinture)
-      setSlots(prev => paintPad(prev, index, color.hue));
+  /**
+   * Déclenche un pad selon le chemin de lecture :
+   * - navigateur : Web Audio local (métronome + quantification exacte) ;
+   * - serveur : ffplay côté backend — le métronome local reste le maestro,
+   *   la commande part ANTICIPÉE (SERVER_PLAY_LEAD_S) pour arriver au beat.
+   */
+  const playPad = useCallback((index: number) => {
+    const player = playerRef.current;
+    const slot = slots[index];
+    if (!player || !slot?.file) return;
+    const tempo = slot.tempo ?? 120;
+    if (playMode === 'server') {
+      if (!player.isMetronomeRunning()) {
+        player.startMetronome(tempo);
+        void triggerPadServer(slot.file, volume * 100); // coup d'ancre
+        return;
+      }
+      setArmed(prev => {
+        const n = new Set(prev);
+        n.add(index);
+        return n;
+      });
+      const delayMs = Math.max(0, (player.nextBeatTime() - player.currentTime() - SERVER_PLAY_LEAD_S) * 1000);
+      const timer = window.setTimeout(() => {
+        serverTimersRef.current.delete(index);
+        void triggerPadServer(slot.file!, volume * 100);
+      }, delayMs);
+      serverTimersRef.current.set(index, timer);
       return;
     }
-    // Déclenchement métronomiquement synchronisé : le premier appui démarre
-    // le métronome au tempo importé du pad ; les suivants sont quantifiés
-    // sur le prochain battement. Un pad SANS sample ne déclenche rien.
-    const player = playerRef.current;
-    if (!player || !slots[index]?.file) return;
-    const tempo = slots[index]?.tempo ?? 120;
     const res = player.playQuantized(index, tempo);
     if (res === 'armed') {
       setArmed(prev => {
@@ -174,7 +218,17 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
         return n;
       });
     }
-  }, [painting, color.hue, slots]);
+  }, [playMode, slots, volume]);
+
+  // ── Clic sur un pad : peinture, tempo ou déclenchement ──
+  const onPadClick = useCallback((index: number) => {
+    if (painting) {
+      // Pose la couleur choisie sur CE pad (mode peinture)
+      setSlots(prev => paintPad(prev, index, color.hue));
+      return;
+    }
+    playPad(index);
+  }, [painting, color.hue, playPad]);
 
   // ── Import ──
   const pickFile = useCallback((index: number) => {
@@ -244,10 +298,13 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     }
   };
 
-  /** ■ Stop : arrête tous les pads + le métronome. */
+  /** ■ Stop : arrête tous les pads + le métronome + les lectures serveur. */
   const onStop = useCallback(() => {
+    for (const [, t] of serverTimersRef.current) window.clearTimeout(t);
+    serverTimersRef.current.clear();
     playerRef.current?.stopAll();
     playerRef.current?.stopMetronome();
+    void stopPadServer();
     setArmed(new Set());
     setMetro(m => ({ ...m, running: false }));
   }, []);
@@ -432,6 +489,30 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
             ■ Stop
           </button>
           <div className="w-px h-4 bg-gray-700/60 shrink-0" />
+          <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 shrink-0">Lecture</span>
+          <button
+            onClick={() => setPlayMode('browser')}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded border transition-colors shrink-0 ${
+              playMode === 'browser'
+                ? 'bg-cyan-900/40 border-cyan-500/50 text-cyan-300'
+                : 'bg-gray-800/60 border-gray-700/60 text-gray-500 hover:text-gray-300'
+            }`}
+            title="Les samples sont joués par le NAVIGATEUR (Web Audio) — synchronisation exacte avec le métronome"
+          >
+            🖥 Navig.
+          </button>
+          <button
+            onClick={() => setPlayMode('server')}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded border transition-colors shrink-0 ${
+              playMode === 'server'
+                ? 'bg-cyan-900/40 border-cyan-500/50 text-cyan-300'
+                : 'bg-gray-800/60 border-gray-700/60 text-gray-500 hover:text-gray-300'
+            }`}
+            title="Les samples sont joués par le SERVEUR (ffplay — sortie audio du PC). Le métronome reste local ; les déclenchements sont anticipés pour arriver sur le battement"
+          >
+            🖧 Serveur
+          </button>
+          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
           <div className="flex items-center gap-1.5 shrink-0">
             <Volume2 className="w-3 h-3 text-gray-500" />
             <input
@@ -443,7 +524,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
           </div>
           <div className="flex-1" />
           <span className="text-[9px] text-gray-500 shrink-0">
-            Clic = jouer (calé métronome) · 🎨 Peindre = couleur par pad · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
+            Clic = jouer (calé métronome) · 🖥/🖧 = lecture navigateur ou serveur · 🎨 Peindre = couleur par pad · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
           </span>
         </div>
 
