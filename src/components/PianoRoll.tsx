@@ -21,6 +21,7 @@
 import React, { memo, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import PlayheadLine from './PlayheadLine';
+import { pianoRollShortcut } from '../lib/pianoRollShortcuts';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
   Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Maximize2, Piano, Scan,
@@ -124,6 +125,13 @@ interface PianoRollProps {
   recState?: 'off' | 'countdown' | 'on';
   onToggleRec?: (channel: number) => void;
   recordingNotes?: PianoNote[];
+  /** Locator gauche (raccourci « 1 ») — en beats. */
+  locL?: number;
+  /** Locator droit (raccourci « 2 ») — en beats. */
+  locR?: number;
+  /** Déplace la tête de lecture (raccourcis « 0 » / « 1 » / « 2 ») : le
+   * parent gère le scrub complet (store + audio + MIDI). */
+  onGoToBeats?: (beats: number) => void;
 }
 
 // ─── Composant ──────────────────────────────────────────────────────────
@@ -148,6 +156,9 @@ function PianoRoll({
   onToggleKeys,
   recState = 'off',
   onToggleRec,
+  locL,
+  locR,
+  onGoToBeats,
   recordingNotes = [],
   tempo,
   engine,
@@ -1527,15 +1538,32 @@ function PianoRoll({
         e.preventDefault();
         togglePlay();
       }
-      else if (k === 'g' || k === 'h') {
-        // Zoom horizontal : G = arrière, H = avant (hors saisie)
-        const t = e.target as HTMLElement | null;
-        if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
-        e.preventDefault();
-        // Zoom horizontal : G = arrière, H = avant (hors saisie), centré viewport
-        applyZoom(zoomRef.current * (k === 'g' ? 1 / 1.25 : 1.25));
-      }
       else if (e.key === 'Escape') { stopPlayback(); onClose?.(); }
+      else {
+        // Raccourcis dédiés (mapping pur, garde saisie incluse) :
+        // e/v outils, Ctrl+G/U groupes, q quantiser, * REC, 0/1/2 tête de
+        // lecture, o zoom sélection — puis G/H zoom horizontal (historique).
+        const action = pianoRollShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, target: e.target });
+        if (action) {
+          e.preventDefault();
+          switch (action) {
+            case 'tool-edit': setTool('edit'); break;
+            case 'tool-select': setTool('select'); break;
+            case 'group': groupSelection(); break;
+            case 'ungroup': ungroupSelection(); break;
+            case 'quantize': quantizeNotes(); break;
+            case 'rec': if (onToggleRec) onToggleRec(channel); break;
+            case 'go-start': onGoToBeats?.(0); break;
+            case 'go-loc-l': onGoToBeats?.(locL ?? 0); break;
+            case 'go-loc-r': onGoToBeats?.(locR ?? (totalBeats ?? 0)); break;
+            case 'zoom-selection': fitZoomToSelection(); break;
+          }
+        } else if (k === 'g' || k === 'h') {
+          // Zoom horizontal : G = arrière, H = avant, centré viewport
+          e.preventDefault();
+          applyZoom(zoomRef.current * (k === 'g' ? 1 / 1.25 : 1.25));
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1686,10 +1714,10 @@ function PianoRoll({
               disabled={selectedIds.size === 0} className="accent-amber-400" title="Vélocité des notes sélectionnées" />
             <span className="pr-val">{velValue}</span>
             <span className="pr-lbl">Dur</span>
-            <input type="range" min={1} max={64} value={durSnaps}
+            <input type="range" min={1} max={128} value={durSnaps}
               onChange={(e) => applyDuration(parseInt(e.target.value))}
               onPointerDown={() => { durGestureActiveRef.current = true; durGestureRef.current = snapshotNotes(localNotesRef.current); }}
-              disabled={selectedIds.size === 0} className="accent-sky-400" title="Durée des notes sélectionnées (subdivisions de grille)" />
+              disabled={selectedIds.size === 0} className="accent-sky-400" title="Durée des notes sélectionnées (subdivisions de grille — jusqu'à 128)" />
             <span className="pr-val">{durSnaps}</span>
           </div>
           <div className="pr-sep" />

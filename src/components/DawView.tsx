@@ -1624,6 +1624,9 @@ export default function DawView({
                           recState={recState}
                           onToggleRec={toggleRec}
                           recordingNotes={recNotes}
+                          locL={locL}
+                          locR={locR}
+                          onGoToBeats={doScrub}
                         />
                       ) : (
                         <TrackLane
@@ -1768,6 +1771,9 @@ export default function DawView({
                   recState={recState}
                   onToggleRec={toggleRec}
                   recordingNotes={recNotes}
+                  locL={locL}
+                  locR={locR}
+                  onGoToBeats={doScrub}
                 />
               </div>
             </div>
