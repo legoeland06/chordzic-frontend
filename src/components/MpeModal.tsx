@@ -9,18 +9,11 @@
  * injecte les modulations) ou pendant un enregistrement (Rec MIDI : les
  * gestes sont horodatés et réappliqués au rendu).
  *
- * Le strip tactile occupe la quasi-totalité de l'écran (l'espace de
- * manipulation du curseur est la priorité) ; les réglages fins tiennent en
- * barres compactes sous le strip (jamais de scroll — 2ᵉ ligne plutôt).
- *
- * - Strip : glisser X = pitch bend (range réglable via RPN 0), glisser
- *   Y = timbre CC74, molette = aftertouch. Retour auto (Seaboard) ou
- *   maintien (Osmose).
- * - Cible du son : Auto (écho ✨ de la piste sinon Roland) / Roland /
- *   PC (FluidSynth — les modulations y sont TOUJOURS audibles, certains
- *   pianos numériques ignorent le bend sur les sons acoustiques).
- *
- * Communication : POST /mpe throttlé ~30 ms ; poll /mpe-state ~250 ms.
+ * PERFORMANCE : le strip (MpeStrip) est un composant isolé SANS state —
+ * pendant le glissé, seul le curseur bouge (transform CSS), la modal ne
+ * re-render pas. Les gestes sont échantillonnés à ~60 Hz (rAF) et envoyés
+ * immédiatement (aucune valeur perdue → bend fluide, pas de sauts). Les
+ * sliders se synchronisent en fin de geste.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
@@ -34,11 +27,8 @@ import {
   fetchMpeState,
   resetMpe,
   sendMpe,
-  throttleTrailing,
-  wheelToPressure,
-  xToBend,
-  yToTimbre,
 } from '../lib/mpe';
+import MpeStrip, { StripGesture } from './MpeStrip';
 
 /** Nom de note MIDI (pour l'affichage des notes tenues). */
 function noteName(pitch: number): string {
@@ -81,23 +71,11 @@ function MpeModal({ onClose }: MpeModalProps) {
   /** État serveur (notes tenues, canal cible, rec…) — poll temps réel. */
   const [server, setServer] = useState<MpeState>({ ...EMPTY_MPE_STATE });
 
-  const stripRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-  const rafRef = useRef(0);
-  const bendRef = useRef(bend);
-  useEffect(() => { bendRef.current = bend; }, [bend]);
-
-  /** Envoi throttlé des gestes (~30 ms) — le dernier de la fenêtre part. */
-  const sendThrottled = useRef(
-    throttleTrailing((patch: Parameters<typeof sendMpe>[0]) => { void sendMpe(patch); }, 30),
-  ).current;
-
   // Activation au montage, désactivation + reset au démontage.
   useEffect(() => {
     void sendMpe({ enabled: true });
     void fetchMpeState().then(setServer);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       void sendMpe({ enabled: false }); // le serveur remet l'expression à zéro
     };
   }, []);
@@ -110,65 +88,20 @@ function MpeModal({ onClose }: MpeModalProps) {
     return () => clearInterval(id);
   }, []);
 
-  // ── Strip tactile type Seaboard (plein écran) ────────────────────
-  const applyPointer = useCallback((e: React.PointerEvent) => {
-    const el = stripRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    const b = xToBend(x);
-    const t = yToTimbre(y);
-    setBend(b);
-    setTimbre(t);
-    sendThrottled({ bend: b, timbre: t });
-  }, [sendThrottled]);
+  // Geste du strip : envoi IMMÉDIAT (échantillonné à ~60 Hz par MpeStrip —
+  // aucune valeur perdue, le bend évolue par pas fins). Aucun setState ici :
+  // la modal ne re-render pas pendant le glissé.
+  const handleGesture = useCallback((g: StripGesture) => {
+    void sendMpe({ bend: g.bend, timbre: g.timbre, pressure: g.pressure });
+  }, []);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    applyPointer(e);
-  }, [applyPointer]);
+  // Fin de geste : synchronise les sliders avec les valeurs finales.
+  const handleGestureEnd = useCallback((g: StripGesture) => {
+    setBend(g.bend);
+    setTimbre(g.timbre);
+    setPressure(g.pressure);
+  }, []);
 
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (draggingRef.current) applyPointer(e);
-  }, [applyPointer]);
-
-  const returnToCenter = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const step = () => {
-      const prev = bendRef.current;
-      const diff = prev - BEND_CENTER;
-      if (Math.abs(diff) <= 90) {
-        setBend(BEND_CENTER);
-        sendThrottled({ bend: BEND_CENTER });
-        return;
-      }
-      const next = prev - Math.sign(diff) * Math.max(90, Math.abs(diff) / 9);
-      setBend(next);
-      sendThrottled({ bend: next });
-      rafRef.current = requestAnimationFrame(step);
-    };
-    rafRef.current = requestAnimationFrame(step);
-  }, [sendThrottled]);
-
-  const onPointerUp = useCallback(() => {
-    draggingRef.current = false;
-    if (returnMode === 'center') returnToCenter();
-  }, [returnMode, returnToCenter]);
-
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    // Molette sur le strip = enfoncement (aftertouch) — « presser » le son.
-    setPressure(prev => {
-      const next = wheelToPressure(prev, e.deltaY);
-      sendThrottled({ pressure: next });
-      return next;
-    });
-  }, [sendThrottled]);
-
-  // Position du curseur visuel sur le strip (bend → X, timbre → Y).
-  const cursorX = (bend / 16383) * 100;
-  const cursorY = (1 - timbre / 127) * 100;
   const effBend = server.effective_bend ?? bend;
 
   const sendRange = (r: number) => { setPitchRange(r); void sendMpe({ pitch_range_st: r }); };
@@ -176,7 +109,7 @@ function MpeModal({ onClose }: MpeModalProps) {
     if (patch.lfo_freq !== undefined) setLfoFreq(patch.lfo_freq);
     if (patch.lfo_depth_st !== undefined) setLfoDepth(patch.lfo_depth_st);
     if (patch.lfo_shape !== undefined) setLfoShape(patch.lfo_shape);
-    sendThrottled(patch);
+    void sendMpe(patch);
   };
   const doReset = () => {
     setBend(BEND_CENTER);
@@ -209,38 +142,8 @@ function MpeModal({ onClose }: MpeModalProps) {
           </button>
         </div>
 
-        {/* ── Strip tactile type Seaboard — presque tout l'écran ── */}
-        <div
-          ref={stripRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onWheel={onWheel}
-          className="relative flex-1 min-h-[45vh] rounded-xl border border-gray-700/80 bg-gradient-to-b from-[#0d1420] via-[#16202f] to-[#0d1420] select-none touch-none cursor-crosshair overflow-hidden"
-          title="Glisser : X = pitch bend, Y = timbre · molette = pression"
-        >
-          {/* Repère central (bend neutre) */}
-          <div className="absolute top-0 bottom-0 left-1/2 w-px border-l border-dashed border-gray-600/40" />
-          {/* Repère mi-hauteur (timbre neutre) */}
-          <div className="absolute left-0 right-0 top-1/2 h-px border-t border-dashed border-gray-600/30" />
-
-          {/* Légendes */}
-          <span className="absolute top-2 left-3 text-[10px] font-bold text-gray-500 select-none">◀ Bend ▶</span>
-          <span className="absolute bottom-2 left-3 text-[10px] font-bold text-gray-500 select-none">▼ Timbre ▲</span>
-          <span className="absolute top-2 right-3 text-[10px] font-bold text-gray-500 select-none">Pression : molette 🖱</span>
-
-          {/* Valeurs en direct (coins) */}
-          <span className="absolute bottom-2 right-3 text-[10px] font-mono text-cyan-300/80 select-none">
-            bend {bend} · timbre {timbre} · at {pressure}
-          </span>
-
-          {/* Curseur */}
-          <div
-            className="absolute w-9 h-9 -ml-[18px] -mt-[18px] rounded-full border-2 border-cyan-300 bg-cyan-400/30 shadow-[0_0_18px_rgba(34,211,238,0.7)] pointer-events-none"
-            style={{ left: `${cursorX}%`, top: `${cursorY}%` }}
-          />
-        </div>
+        {/* ── Strip tactile type Seaboard — plein écran, zéro re-render ── */}
+        <MpeStrip returnMode={returnMode} onGesture={handleGesture} onGestureEnd={handleGestureEnd} />
 
         {/* ── Réglages fins (barres compactes, jamais de scroll) ── */}
         <div className="shrink-0 space-y-1">
@@ -250,7 +153,7 @@ function MpeModal({ onClose }: MpeModalProps) {
               <span className={labelCls}>Bend</span>
               <input
                 type="range" min={0} max={16383} value={bend}
-                onChange={(e) => { const v = parseInt(e.target.value); setBend(v); sendThrottled({ bend: v }); }}
+                onChange={(e) => { const v = parseInt(e.target.value); setBend(v); void sendMpe({ bend: v }); }}
                 className="flex-1 accent-cyan-500 h-1.5 cursor-pointer"
                 title="Pitch bend (0-16383, centre 8192)"
               />
@@ -268,7 +171,7 @@ function MpeModal({ onClose }: MpeModalProps) {
               <span className={labelCls}>Pression</span>
               <input
                 type="range" min={0} max={127} value={pressure}
-                onChange={(e) => { const v = parseInt(e.target.value); setPressure(v); sendThrottled({ pressure: v }); }}
+                onChange={(e) => { const v = parseInt(e.target.value); setPressure(v); void sendMpe({ pressure: v }); }}
                 className="flex-1 accent-cyan-500 h-1.5 cursor-pointer"
                 title="Aftertouch (channel pressure)"
               />
@@ -278,7 +181,7 @@ function MpeModal({ onClose }: MpeModalProps) {
               <span className={labelCls}>Timbre</span>
               <input
                 type="range" min={0} max={127} value={timbre}
-                onChange={(e) => { const v = parseInt(e.target.value); setTimbre(v); sendThrottled({ timbre: v }); }}
+                onChange={(e) => { const v = parseInt(e.target.value); setTimbre(v); void sendMpe({ timbre: v }); }}
                 className="flex-1 accent-cyan-500 h-1.5 cursor-pointer"
                 title="Timbre / brightness (CC74)"
               />
