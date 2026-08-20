@@ -9,11 +9,13 @@ import {
   PadPlayer,
   PadSlot,
   clearPadColors,
+  detectTempo,
   emptyPads,
   isPadOff,
   labelFromFilename,
   padColor,
   paintPad,
+  setPadTempo,
   slotColor,
 } from './padBank';
 
@@ -66,9 +68,9 @@ describe('couleur par pad (mode peinture)', () => {
   const global = { hue: 220, mode: 'diag' as const };
 
   it('slotColor : hue null = dégradé global, hue posé = couleur solide du pad', () => {
-    const auto = { file: null, label: '', hue: null };
-    const blue = { file: null, label: '', hue: 220 };
-    const red = { file: null, label: '', hue: 0 };
+    const auto = { file: null, label: '', hue: null, tempo: null };
+    const blue = { file: null, label: '', hue: 220, tempo: null };
+    const red = { file: null, label: '', hue: 0, tempo: null };
     // Auto : suit le dégradé global (diag) — varie selon l'index
     expect(slotColor(auto, 0, global)).toBe(padColor(220, 0, 'diag'));
     expect(slotColor(auto, 63, global)).toBe(padColor(220, 63, 'diag'));
@@ -78,13 +80,13 @@ describe('couleur par pad (mode peinture)', () => {
     expect(slotColor(blue, 63, global)).toBe(slotColor(blue, 0, global));
     expect(slotColor(red, 5, global)).toContain('hsl(0, 85%');
     // Blanc éteint
-    const off = { file: null, label: '', hue: -1 };
+    const off = { file: null, label: '', hue: -1, tempo: null };
     expect(slotColor(off, 12, global)).toBe('#e9e9e9');
   });
 
   it('paintPad pose la couleur sur UN pad sans muter les autres (copie)', () => {
     const slots = emptyPads();
-    slots[0] = { file: 'pad_1.wav', label: 'kick', hue: null };
+    slots[0] = { file: 'pad_1.wav', label: 'kick', hue: null, tempo: null };
     const painted = paintPad(slots, 0, 0); // rouge sur le pad 1
     expect(painted[0].hue).toBe(0);
     expect(painted[0].file).toBe('pad_1.wav'); // le sample est conservé
@@ -114,8 +116,128 @@ describe('couleur par pad (mode peinture)', () => {
     expect(old.hue).toBeUndefined();
     expect(EMPTY_PAD_COLOR.hue).toBe(220);
     // Le composant fait : typeof s.hue === 'number' ? s.hue : null
-    const migrated = { file: old.file, label: old.label, hue: typeof old.hue === 'number' ? old.hue : null };
+    const migrated = { file: old.file, label: old.label, hue: typeof old.hue === 'number' ? old.hue : null, tempo: typeof old.tempo === 'number' ? old.tempo : null };
     expect(migrated.hue).toBeNull();
+    expect(migrated.tempo).toBeNull(); // pas de tempo importé non plus
+  });
+});
+
+describe('tempo importé (tempo_imported)', () => {
+  it('setPadTempo pose le tempo d un pad (copie, borné 40-240)', () => {
+    const slots = emptyPads();
+    const s = setPadTempo(slots, 5, 128);
+    expect(s[5].tempo).toBe(128);
+    expect(slots[5].tempo).toBeNull(); // original non muté
+    expect(setPadTempo(slots, 0, 12)[0].tempo).toBe(40); // borne basse
+    expect(setPadTempo(slots, 0, 999)[0].tempo).toBe(240); // borne haute
+  });
+
+  it('detectTempo : impulsions à 120 BPM → 120', () => {
+    const sr = 8000;
+    const dur = 6; // 6 s → 12 battements
+    const samples = new Float32Array(sr * dur);
+    // Une impulsion (64 échantillons) toutes les 0.5 s (120 BPM)
+    for (let beat = 0; beat < dur * 2; beat++) {
+      const at = Math.floor(beat * sr * 0.5);
+      for (let i = 0; i < 64; i++) samples[at + i] = 0.9;
+    }
+    expect(detectTempo(samples, sr)).toBe(120);
+  });
+
+  it('detectTempo : silence / signal plat → null', () => {
+    const sr = 8000;
+    expect(detectTempo(new Float32Array(sr * 2), sr)).toBeNull();
+    const flat = new Float32Array(sr * 2);
+    flat.fill(0.01);
+    expect(detectTempo(flat, sr)).toBeNull();
+  });
+});
+
+describe('PadPlayer — métronome & quantification', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function makeCtx() {
+    const sources: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] = [];
+    const ctx = {
+      destination: {},
+      currentTime: 0,
+      sampleRate: 8000,
+      createGain: () => ({ gain: { value: 0 }, connect: vi.fn() }),
+      createBuffer: (_ch: number, len: number, _sr: number) => ({ getChannelData: () => new Float32Array(len) }),
+      createBufferSource: () => {
+        const s = { buffer: null, connect: vi.fn(), start: vi.fn(), stop: vi.fn(), disconnect: vi.fn(), onended: null };
+        sources.push(s);
+        return s;
+      },
+      decodeAudioData: vi.fn(),
+    } as unknown as AudioContext & { currentTime: number };
+    return { ctx, sources };
+  }
+
+  it('premier appui : démarre le métronome au tempo du pad et joue IMMÉDIATEMENT', () => {
+    vi.useFakeTimers();
+    const { ctx, sources } = makeCtx();
+    const player = new PadPlayer(ctx);
+    player.buffers[0] = {} as AudioBuffer;
+    const res = player.playQuantized(0, 132);
+    expect(res).toBe('immediate');
+    expect(player.isMetronomeRunning()).toBe(true);
+    expect(player.bpm).toBe(132); // tempo importé du pad
+    expect(sources[0].start).toHaveBeenCalledWith(0); // coup d'ancre immédiat
+    player.stopMetronome();
+  });
+
+  it('appuis suivants : ARMÉS, joués au prochain battement (quantification)', () => {
+    vi.useFakeTimers();
+    const { ctx, sources } = makeCtx();
+    const player = new PadPlayer(ctx);
+    player.buffers[0] = {} as AudioBuffer;
+    player.buffers[1] = {} as AudioBuffer;
+    const beats: number[] = [];
+    player.onBeat = (b) => { beats.push(b); };
+    player.playQuantized(0, 120); // ancre, métronome démarré (nextBeat = 0.04)
+    const res = player.playQuantized(1, 120);
+    expect(res).toBe('armed');
+    expect(player.isArmed(1)).toBe(true);
+    // Le prochain battement arrive à 0.04 + 0.5 = 0.54 s
+    ctx.currentTime = 0.6;
+    vi.advanceTimersByTime(30); // un tick du scheduler
+    expect(player.isArmed(1)).toBe(false); // le pad a joué
+    const armedStart = sources.find(s => (s.start.mock.calls[0] ?? [])[0] === 0.54);
+    expect(armedStart).toBeDefined(); // joué au battement, pas avant
+    expect(player.isMetronomeRunning()).toBe(true);
+    player.stopMetronome();
+  });
+
+  it('stopMetronome arrête le métronome et désarme', () => {
+    vi.useFakeTimers();
+    const { ctx } = makeCtx();
+    const player = new PadPlayer(ctx);
+    player.buffers[0] = {} as AudioBuffer;
+    player.playQuantized(0, 120);
+    player.playQuantized(0, 120); // armé
+    expect(player.isArmed(0)).toBe(true);
+    player.stopMetronome();
+    expect(player.isMetronomeRunning()).toBe(false);
+    expect(player.isArmed(0)).toBe(false);
+  });
+
+  it('métronome audible : un clic est programmé à chaque battement (accent au temps 1)', () => {
+    vi.useFakeTimers();
+    const { ctx, sources } = makeCtx();
+    const player = new PadPlayer(ctx);
+    player.setMetroAudible(true);
+    player.startMetronome(120);
+    // Beat 0 (accent) programmé immédiatement à 0.04 ; beat 1 à 0.54
+    expect(sources.length).toBe(1);
+    expect(sources[0].start).toHaveBeenCalledWith(0.04);
+    ctx.currentTime = 0.6;
+    vi.advanceTimersByTime(30);
+    expect(sources.length).toBeGreaterThanOrEqual(2);
+    player.stopMetronome();
   });
 });
 

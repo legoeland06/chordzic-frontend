@@ -34,3 +34,17 @@
   position: relative;
   z-index: 1;
 }
+
+/* Pad ARMÉ : déclenché mais en attente du prochain battement du
+   métronome (quantification) — pulsation cyan visible. */
+.push-pad.push-pad-armed {
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.95),
+    0 0 14px rgba(34, 211, 238, 0.60);
+  animation: push-armed-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes push-armed-pulse {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.4); }
+}

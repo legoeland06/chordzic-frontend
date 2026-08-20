@@ -43,6 +43,12 @@ export interface PadSlot {
    * le pad suit alors le dégradé global (hue + mode de la barre d'outils).
    */
   hue: number | null;
+  /**
+   * Tempo importé du sample (BPM 40-240) — initialisé à l'import par
+   * détection automatique, ajustable. Utilisé par le métronome quand ce
+   * pad est déclenché (null = 120 par défaut).
+   */
+  tempo: number | null;
 }
 
 /** Configuration de couleurs des pads. */
@@ -57,7 +63,7 @@ export const EMPTY_PAD_COLOR: PadColorConfig = { hue: 220, mode: 'diag' };
 
 /** Crée les 64 slots vides (couleur auto → dégradé global). */
 export function emptyPads(): PadSlot[] {
-  return new Array(PAD_COUNT).fill(null).map(() => ({ file: null, label: '', hue: null }));
+  return new Array(PAD_COUNT).fill(null).map(() => ({ file: null, label: '', hue: null, tempo: null }));
 }
 
 /**
@@ -119,6 +125,71 @@ export function clearPadColors(slots: PadSlot[]): PadSlot[] {
   return slots.map(s => ({ ...s, hue: null }));
 }
 
+/**
+ * Pose le tempo (BPM) d'un pad (fonction pure — copie des slots).
+ */
+export function setPadTempo(slots: PadSlot[], index: number, tempo: number): PadSlot[] {
+  const next = [...slots];
+  next[index] = { ...next[index], tempo: Math.max(40, Math.min(240, Math.round(tempo))) };
+  return next;
+}
+
+/**
+ * Détecte le tempo (BPM) d'un échantillon audio par autocorrélation de son
+ * enveloppe d'énergie (fenêtres de 10 ms, 8 s max). Retourne un entier
+ * 40-240 (le tempo importé du pad), ou null si aucune périodicité claire
+ * (bruit, drone, silence…).
+ */
+export function detectTempo(samples: Float32Array, sampleRate: number): number | null {
+  const hop = Math.max(1, Math.floor(sampleRate * 0.01));
+  const maxFrames = Math.min(samples.length, Math.floor(sampleRate * 8));
+  const env: number[] = [];
+  for (let i = 0; i < maxFrames; i += hop) {
+    const end = Math.min(i + hop, maxFrames);
+    let sum = 0;
+    for (let j = i; j < end; j++) sum += samples[j] * samples[j];
+    env.push(Math.sqrt(sum / (end - i)));
+  }
+  if (env.length < 32) return null;
+  const minBpm = 40;
+  const maxBpm = 240;
+  const minLag = Math.max(2, Math.floor(((60 / maxBpm) * sampleRate) / hop));
+  const maxLag = Math.min(env.length - 2, Math.ceil(((60 / minBpm) * sampleRate) / hop));
+  let bestLag = -1;
+  let bestScore = -Infinity;
+  let scoreSum = 0;
+  let scoreCount = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let num = 0;
+    let e1 = 0;
+    let e2 = 0;
+    const n = env.length - lag;
+    for (let i = 0; i < n; i++) {
+      const a = env[i];
+      const b = env[i + lag];
+      num += a * b;
+      e1 += a * a;
+      e2 += b * b;
+    }
+    const den = Math.sqrt(e1 * e2);
+    const score = den > 1e-9 ? num / den : 0;
+    scoreSum += score;
+    scoreCount++;
+    if (score > bestScore) {
+      bestScore = score;
+      bestLag = lag;
+    }
+  }
+  if (bestLag < 0 || bestScore < 0.25) return null;
+  // Le pic doit être PROÉMINENT : un signal plat (drone, souffle constant)
+  // corrèle partout (score ≈ 1 sur tous les lags) sans périodicité réelle.
+  const mean = scoreCount > 0 ? scoreSum / scoreCount : 0;
+  if (bestScore < mean * 1.2 + 0.05) return null;
+  const bpm = 60 / ((bestLag * hop) / sampleRate);
+  const rounded = Math.round(bpm);
+  return rounded >= minBpm && rounded <= maxBpm ? rounded : null;
+}
+
 // ── API serveur ────────────────────────────────────────────────────────
 
 /** POST /pad-sample — import brut d'un sample (wav/mp3/ogg/flac/m4a/aiff).
@@ -178,11 +249,31 @@ export class PadPlayer {
   /** Volume global 0-1 (défaut 0.9). */
   volume = 0.9;
 
+  // ── Métronome (scheduler lookahead, tourne en parallèle des pads) ──
+  private metroGain: GainNode;
+  private clickBuf: AudioBuffer | null = null;
+  private accentBuf: AudioBuffer | null = null;
+  private metroTimer: ReturnType<typeof setInterval> | null = null;
+  private nextBeat = 0;
+  private beatIdx = 0;
+  private running = false;
+  /** Tempo courant du métronome (BPM, 40-240). */
+  bpm = 120;
+  /** Le clic du métronome est-il audible ? (toggle utilisateur) */
+  metroAudible = false;
+  /** Pads armés : joueront au prochain beat (quantification). */
+  private armed = new Set<number>();
+  /** Appelé à chaque beat planifié (1-4 Hz) : (beatIdx, bpm). */
+  onBeat: ((beat: number, bpm: number) => void) | null = null;
+
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
     this.gain = ctx.createGain();
     this.gain.gain.value = this.volume;
     this.gain.connect(ctx.destination);
+    this.metroGain = ctx.createGain();
+    this.metroGain.gain.value = 0.55;
+    this.metroGain.connect(ctx.destination);
   }
 
   /** Charge le sample d'un pad (fetch + décodage). True si OK. */
@@ -200,8 +291,8 @@ export class PadPlayer {
     }
   }
 
-  /** Déclenche un pad : stop + redéclenchement immédiat (retrigger). */
-  trigger(index: number): void {
+  /** Joue un pad à un temps audio donné (0 = maintenant). */
+  playAt(index: number, when: number): void {
     const buf = this.buffers[index];
     if (!buf) return;
     const old = this.sources[index];
@@ -216,11 +307,115 @@ export class PadPlayer {
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     src.connect(this.gain);
-    src.start();
+    src.start(when);
     this.sources[index] = src;
     src.onended = () => {
       if (this.sources[index] === src) this.sources[index] = null;
     };
+  }
+
+  /** Déclenche un pad : stop + redéclenchement immédiat (retrigger). */
+  trigger(index: number): void {
+    this.playAt(index, 0);
+  }
+
+  // ── Métronome ───────────────────────────────────────────────────────
+
+  isMetronomeRunning(): boolean {
+    return this.running;
+  }
+
+  isArmed(index: number): boolean {
+    return this.armed.has(index);
+  }
+
+  setMetroAudible(audible: boolean): void {
+    this.metroAudible = audible;
+  }
+
+  /** Change le tempo du métronome en cours de route (borne 40-240). */
+  setBpm(bpm: number): void {
+    this.bpm = Math.max(40, Math.min(240, bpm));
+  }
+
+  /**
+   * Démarre le métronome (ancre = maintenant, premier clic immédiat).
+   * Un battement toutes les noires ; l'accent tombe sur le temps 1 (4/4).
+   */
+  startMetronome(bpm: number): void {
+    if (this.running) {
+      this.setBpm(bpm);
+      return;
+    }
+    this.setBpm(bpm);
+    this.running = true;
+    this.nextBeat = this.ctx.currentTime + 0.04;
+    this.beatIdx = 0;
+    this.scheduleBeat();
+    this.metroTimer = setInterval(() => {
+      const horizon = this.ctx.currentTime + 0.12;
+      while (this.nextBeat < horizon) this.scheduleBeat();
+    }, 25);
+  }
+
+  /** Arrête le métronome (et désarme les pads en attente). */
+  stopMetronome(): void {
+    if (this.metroTimer !== null) {
+      clearInterval(this.metroTimer);
+      this.metroTimer = null;
+    }
+    this.running = false;
+    this.armed.clear();
+  }
+
+  /**
+   * Déclenchement métronomiquement synchronisé d'un pad :
+   * - métronome à l'arrêt → il démarre au tempo du pad et le sample joue
+   *   IMMÉDIATEMENT (coup d'ancre) ; retour 'immediate' ;
+   * - métronome en route → le pad est ARMÉ et jouera au prochain beat
+   *   (quantification) ; retour 'armed'.
+   */
+  playQuantized(index: number, tempo: number): 'immediate' | 'armed' {
+    if (!this.running) {
+      this.startMetronome(tempo);
+      this.playAt(index, 0);
+      return 'immediate';
+    }
+    this.armed.add(index);
+    return 'armed';
+  }
+
+  /** Programme le prochain beat : clic métronome + pads armés. */
+  private scheduleBeat(): void {
+    const when = this.nextBeat;
+    if (this.metroAudible) this.playClick(when, this.beatIdx % 4 === 0);
+    for (const i of this.armed) this.playAt(i, when);
+    this.armed.clear();
+    this.nextBeat += 60 / this.bpm;
+    this.beatIdx++;
+    this.onBeat?.(this.beatIdx, this.bpm);
+  }
+
+  /** Clic du métronome (aigu 2 kHz accentué sur le temps 1, sinon 1 kHz). */
+  private playClick(when: number, accent: boolean): void {
+    if (!this.clickBuf) {
+      const sr = this.ctx.sampleRate;
+      const make = (freq: number) => {
+        const buf = this.ctx.createBuffer(1, Math.floor(sr * 0.06), sr);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          const t = i / sr;
+          d[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 55);
+        }
+        return buf;
+      };
+      this.clickBuf = make(1000);
+      this.accentBuf = make(2000);
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = accent ? this.accentBuf : this.clickBuf;
+    src.connect(this.metroGain);
+    src.start(when);
   }
 
   /** Arrête tous les pads (silence immédiat). */

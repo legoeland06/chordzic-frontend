@@ -11,10 +11,13 @@ import PushPadGrid from './PushPadGrid';
 /** AudioContext factice (jsdom n'en a pas). */
 class MockAudioContext {
   destination = {};
+  currentTime = 0;
+  sampleRate = 44100;
   createGain() { return { gain: { value: 0 }, connect: () => {} }; }
   createBufferSource() {
     return { buffer: null, connect: () => {}, start: () => {}, stop: () => {}, disconnect: () => {}, onended: null };
   }
+  createBuffer(_ch: number, len: number) { return { getChannelData: () => new Float32Array(len) }; }
   decodeAudioData() { return Promise.resolve({} as AudioBuffer); }
   resume() { return Promise.resolve(); }
   close() { return Promise.resolve(); }
@@ -96,6 +99,15 @@ describe('PushPadGrid — couleurs par pad', () => {
     const painted = pad(0).getAttribute('style');
     act(() => pad(0).click());
     expect(pad(0).getAttribute('style')).toBe(painted);
+    act(() => root.unmount());
+  });
+
+  it('métronome : un clic sur un pad SANS sample ne démarre pas le métronome', () => {
+    const { root } = renderGrid();
+    const badge = () => [...document.querySelectorAll('span')].find(s => s.textContent === '● —');
+    expect(badge()).toBeDefined(); // badge éteint
+    act(() => pad(0).click());
+    expect(badge()).toBeDefined(); // toujours éteint (pad vide → rien)
     act(() => root.unmount());
   });
 });

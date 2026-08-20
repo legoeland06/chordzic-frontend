@@ -11,8 +11,13 @@
  *   « Appliquer à tous » ramène tous les pads au dégradé global (hue +
  *   mode). Les cases ont un dégradé interne qui leur donne un relief
  *   légèrement convexe.
+ * - Tempo & métronome : l'audio importé initialise le tempo du pad
+ *   (détection automatique, ajustable). Le premier déclenchement démarre
+ *   un MÉTRONOME qui tourne en parallèle (audible si désiré 🔉) ; tous les
+ *   appuis suivants sont quantifiés sur le prochain battement (synchronisés
+ *   métronomiquement). Le bouton ■ Stop arrête pads + métronome.
  * - Persistance locale (localStorage `chordzic_pads`) : slots (samples +
- *   couleurs par pad), couleur globale, volume — retrouvés au chargement.
+ *   couleurs + tempos par pad), couleur globale, volume — au chargement.
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, Volume2 } from 'lucide-react';
@@ -25,10 +30,12 @@ import {
   PadSlot,
   GradientMode,
   clearPadColors,
+  detectTempo,
   emptyPads,
   labelFromFilename,
   padSampleUrl,
   paintPad,
+  setPadTempo,
   slotColor,
   uploadPadSample,
 } from '../../lib/padBank';
@@ -59,6 +66,7 @@ function loadStored(): StoredPads {
           label: s.label ?? '',
           // Migration : les anciens slots sans couleur suivent le dégradé global
           hue: typeof s.hue === 'number' ? s.hue : null,
+          tempo: typeof s.tempo === 'number' ? s.tempo : null,
         }))
       : emptyPads();
     return {
@@ -87,6 +95,14 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
   const [status, setStatus] = useState('');
   /** Mode peinture : le clic sur un pad lui applique la couleur choisie. */
   const [painting, setPainting] = useState(false);
+  /** État du métronome (badge temps réel). */
+  const [metro, setMetro] = useState({ running: false, beat: 0, bpm: 120 });
+  /** Pads ARMÉS (en attente du prochain battement — quantification). */
+  const [armed, setArmed] = useState<ReadonlySet<number>>(new Set());
+  /** Pad survolé (cible de l'édition du tempo). */
+  const [hoverPad, setHoverPad] = useState<number | null>(null);
+  /** Le clic du métronome est-il audible ? */
+  const [metroAudible, setMetroAudible] = useState(false);
 
   // Lecteur Web Audio (créé au montage — déclenché par un clic → autoplay OK)
   const playerRef = useRef<PadPlayer | null>(null);
@@ -99,6 +115,11 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     void ctx.resume();
     const player = new PadPlayer(ctx);
     player.setVolume(stored.volume);
+    // Le métronome prévient l'UI à chaque battement (badge + désarmement)
+    player.onBeat = (beat, bpm) => {
+      setMetro({ running: true, beat: beat % 4, bpm });
+      setArmed(new Set()); // le beat est passé : les pads armés ont joué
+    };
     playerRef.current = player;
     setPlayerReady(true);
     // Recharge les buffers des pads déjà assignés
@@ -106,6 +127,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
       if (s.file) void player.load(i, padSampleUrl(s.file));
     });
     return () => {
+      player.stopMetronome();
       player.stopAll();
       void ctx.close();
     };
@@ -131,15 +153,28 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     playerRef.current?.trigger(index);
   }, []);
 
-  // ── Clic sur un pad : peinture ou déclenchement ──
+  // ── Clic sur un pad : peinture, tempo ou déclenchement ──
   const onPadClick = useCallback((index: number) => {
     if (painting) {
       // Pose la couleur choisie sur CE pad (mode peinture)
       setSlots(prev => paintPad(prev, index, color.hue));
       return;
     }
-    trigger(index);
-  }, [painting, color.hue, trigger]);
+    // Déclenchement métronomiquement synchronisé : le premier appui démarre
+    // le métronome au tempo importé du pad ; les suivants sont quantifiés
+    // sur le prochain battement. Un pad SANS sample ne déclenche rien.
+    const player = playerRef.current;
+    if (!player || !slots[index]?.file) return;
+    const tempo = slots[index]?.tempo ?? 120;
+    const res = player.playQuantized(index, tempo);
+    if (res === 'armed') {
+      setArmed(prev => {
+        const n = new Set(prev);
+        n.add(index);
+        return n;
+      });
+    }
+  }, [painting, color.hue, slots]);
 
   // ── Import ──
   const pickFile = useCallback((index: number) => {
@@ -166,19 +201,25 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
       return;
     }
     const ok = await playerRef.current?.load(index, padSampleUrl(name));
+    // tempo_imported : détection automatique sur l'échantillon décodé
+    let tempo: number | null = null;
+    if (ok) {
+      const buf = playerRef.current?.buffers[index];
+      if (buf) tempo = detectTempo(buf.getChannelData(0), buf.sampleRate);
+    }
     setSlots(prev => {
       const next = [...prev];
-      next[index] = { file: name, label: labelFromFilename(file.name), hue: null }; // nouveau pad → auto
+      next[index] = { file: name, label: labelFromFilename(file.name), hue: null, tempo }; // nouveau pad → auto
       return next;
     });
-    setStatusFlash(ok ? `✅ ${file.name} → pad ${index + 1}` : '⚠️ Sample illisible');
+    setStatusFlash(ok ? `✅ ${file.name} → pad ${index + 1}${tempo ? ` · ${tempo} BPM` : ''}` : '⚠️ Sample illisible');
     pendingIndexRef.current = null;
   }, [slots, setStatusFlash]);
 
   const clearPad = useCallback((index: number) => {
     setSlots(prev => {
       const next = [...prev];
-      next[index] = { file: null, label: '', hue: null };
+      next[index] = { file: null, label: '', hue: null, tempo: null };
       return next;
     });
     playerRef.current?.stopAll();
@@ -188,6 +229,28 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
     e.preventDefault();
     pickFile(index); // clic droit = assigner
   }, [pickFile]);
+
+  /** Tempo affiché/éditable : pad survolé (tempo importé) sinon métronome. */
+  const tempoTarget = hoverPad !== null && slots[hoverPad]?.tempo !== null
+    ? { pad: hoverPad, bpm: slots[hoverPad]?.tempo ?? 120 }
+    : { pad: null, bpm: metro.bpm };
+
+  const onTempoChange = (v: number) => {
+    if (tempoTarget.pad !== null) {
+      setSlots(prev => setPadTempo(prev, tempoTarget.pad!, v));
+    } else {
+      playerRef.current?.setBpm(v);
+      setMetro(m => ({ ...m, bpm: v }));
+    }
+  };
+
+  /** ■ Stop : arrête tous les pads + le métronome. */
+  const onStop = useCallback(() => {
+    playerRef.current?.stopAll();
+    playerRef.current?.stopMetronome();
+    setArmed(new Set());
+    setMetro(m => ({ ...m, running: false }));
+  }, []);
 
   const setHue = (hue: number) => setColor(prev => ({ ...prev, hue }));
   const setMode = (mode: GradientMode) => setColor(prev => ({ ...prev, mode }));
@@ -240,21 +303,31 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
           {slots.map((slot, i) => {
             const bg = slotColor(slot, i, color);
             const has = !!slot.file;
+            const isArmed = armed.has(i);
             return (
               <button
                 key={i}
                 onClick={() => onPadClick(i)}
                 onContextMenu={(e) => onContextMenu(e, i)}
-                className={`push-pad relative rounded-lg border transition-transform active:scale-95 hover:brightness-110 select-none ${
+                onMouseEnter={() => setHoverPad(i)}
+                onMouseLeave={() => setHoverPad(h => (h === i ? null : h))}
+                className={`push-pad relative rounded-lg border transition-transform active:scale-95 hover:brightness-110 select-none ${isArmed ? 'push-pad-armed' : ''} ${
                   has ? 'border-black/40' : 'border-gray-700/40'
                 }`}
                 style={{ background: bg, opacity: has ? 1 : 0.3 }}
-                title={`Pad ${i + 1}${has ? ` — ${slot.label} (clic = jouer, clic droit = remplacer)` : ' (clic droit = assigner un sample)'}${painting ? ' — 🎨 clic = peindre cette couleur' : ''}`}
+                title={`Pad ${i + 1}${has ? ` — ${slot.label}${slot.tempo ? ` · ${slot.tempo} BPM` : ''}` : ''} (clic = jouer calé, clic droit = remplacer)${painting ? ' — 🎨 clic = peindre' : ''}${isArmed ? ' — ⏳ en attente du prochain temps' : ''}`}
               >
                 {has ? (
-                  <span className="push-pad-label absolute inset-x-0 bottom-0.5 text-center text-[8px] sm:text-[9px] font-bold text-black/70 truncate px-0.5">
-                    {slot.label}
-                  </span>
+                  <>
+                    <span className="push-pad-label absolute inset-x-0 bottom-0.5 text-center text-[8px] sm:text-[9px] font-bold text-black/70 truncate px-0.5">
+                      {slot.label}
+                    </span>
+                    {slot.tempo !== null && (
+                      <span className="push-pad-label absolute top-0.5 right-1 text-[7px] font-mono font-bold text-black/60">
+                        ⚡{slot.tempo}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <span className="push-pad-label absolute inset-0 flex items-center justify-center text-[10px] text-black/40 font-bold">
                     {i + 1}
@@ -318,6 +391,46 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
           >
             Appliquer à tous
           </button>
+
+          <div className="w-px h-4 bg-gray-700/60 shrink-0" />
+          <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500 shrink-0">Tempo</span>
+          <input
+            type="range" min={40} max={240} value={tempoTarget.bpm}
+            onChange={(e) => onTempoChange(parseInt(e.target.value))}
+            className="w-20 accent-cyan-500"
+            title={tempoTarget.pad !== null
+              ? `Tempo importé du pad ${tempoTarget.pad + 1} (métronome au déclenchement de ce pad)`
+              : 'Tempo du métronome (survole un pad pour régler SON tempo)'}
+          />
+          <span className="text-[10px] font-mono text-cyan-300 w-9 text-right shrink-0">{tempoTarget.bpm} BPM</span>
+          {tempoTarget.pad !== null && (
+            <span className="text-[9px] text-gray-500 shrink-0">pad {tempoTarget.pad + 1}</span>
+          )}
+          <button
+            onClick={() => {
+              const a = !metroAudible;
+              setMetroAudible(a);
+              playerRef.current?.setMetroAudible(a);
+            }}
+            className={`px-2 py-0.5 text-[10px] font-bold rounded border transition-colors shrink-0 ${
+              metroAudible
+                ? 'bg-green-900/40 border-green-500/50 text-green-300'
+                : 'bg-gray-800/60 border-gray-700/60 text-gray-500 hover:text-gray-300'
+            }`}
+            title="Métronome audible / muet (il tourne dès le premier appui sur un pad ; tu peux l'écouter ou non)"
+          >
+            🔉 {metroAudible ? 'Son' : 'Muet'}
+          </button>
+          <span className={`text-[10px] font-mono shrink-0 ${metro.running ? 'text-green-400' : 'text-gray-600'}`}>
+            {metro.running ? `● ${metro.bpm} BPM · ${metro.beat + 1}` : '● —'}
+          </span>
+          <button
+            onClick={onStop}
+            className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-red-900/60 border border-red-500/60 text-red-200 hover:bg-red-800/70 transition-colors shrink-0"
+            title="■ Stop : arrête tous les pads et le métronome"
+          >
+            ■ Stop
+          </button>
           <div className="w-px h-4 bg-gray-700/60 shrink-0" />
           <div className="flex items-center gap-1.5 shrink-0">
             <Volume2 className="w-3 h-3 text-gray-500" />
@@ -330,7 +443,7 @@ function PushPadGrid({ onClose }: PushPadGridProps) {
           </div>
           <div className="flex-1" />
           <span className="text-[9px] text-gray-500 shrink-0">
-            Clic = jouer (retrigger) · 🎨 Peindre = poser une couleur par pad · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
+            Clic = jouer (calé métronome) · 🎨 Peindre = couleur par pad · Clic droit / 🎵 = assigner · {PAD_COUNT} pads
           </span>
         </div>
 
