@@ -1714,10 +1714,10 @@ function PianoRoll({
               disabled={selectedIds.size === 0} className="accent-amber-400" title="Vélocité des notes sélectionnées" />
             <span className="pr-val">{velValue}</span>
             <span className="pr-lbl">Dur</span>
-            <input type="range" min={1} max={128} value={durSnaps}
+            <input type="range" min={1} max={64} value={durSnaps}
               onChange={(e) => applyDuration(parseInt(e.target.value))}
               onPointerDown={() => { durGestureActiveRef.current = true; durGestureRef.current = snapshotNotes(localNotesRef.current); }}
-              disabled={selectedIds.size === 0} className="accent-sky-400" title="Durée des notes sélectionnées (subdivisions de grille — jusqu'à 128)" />
+              disabled={selectedIds.size === 0} className="accent-sky-400 pr-dur-slider" title="Durée des notes sélectionnées (subdivisions de grille)" />
             <span className="pr-val">{durSnaps}</span>
           </div>
           <div className="pr-sep" />

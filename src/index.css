@@ -74,6 +74,11 @@
   height: 12px;
   margin: 0 2px;
 }
+/* Slider DURÉE : deux fois plus long que Vel (42 → 84 px) — plus de place
+   pour viser une subdivision (demande Eric 2026-08-20). */
+.pianoroll-toolbar-embedded .pr-sliders input[type='range'].pr-dur-slider {
+  width: 84px;
+}
 .pianoroll-toolbar-embedded select {
   background: #131a24;
   color: #9aa4b5;

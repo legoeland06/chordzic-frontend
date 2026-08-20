@@ -64,7 +64,7 @@ s'adapte toujours à la largeur de l'écran.
 
 - **Barre d'outils « studio » unique** (intégré et modal ⛶, parfaitement synchronisés) :
   édition/sélection, copier/couper/coller (presse-papiers global + badge), grouper ⛓,
-  vélocité/durée (jusqu'à 128 subdivisions), snap 🧲 + quantiser, transport local ▶, undo/redo
+  vélocité/durée (slider Dur 2× plus long pour la visée), snap 🧲 + quantiser, transport local ▶, undo/redo
 - **⌨️ Raccourcis clavier** : E/V = outils Édition/Sélection · Ctrl+G/U = grouper/dégrouper ·
   Q = quantiser · * = REC · 0/1/2 = tête au début / locator L / locator R · O = zoom sur la sélection ·
   G/H = zoom horizontal
