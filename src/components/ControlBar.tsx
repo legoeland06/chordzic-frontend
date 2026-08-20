@@ -26,6 +26,10 @@ interface ControlBarProps {
   onExtractWav: () => void;
   /** Vrai si un WAV a déjà été rendu (bouton Extract actif). */
   hasWav: boolean;
+  /** Ouvre la modal 🎛 MPE (simulation de contrôleur MPE). */
+  onOpenMpe: () => void;
+  /** Vrai si la modal MPE est ouverte (style du bouton). */
+  mpeActive: boolean;
 }
 
 /** Bouton neutre (fonds sombre, texte gris clair — style Navig). */
@@ -35,7 +39,7 @@ function ControlBar({
   chords, playing,
   onAnalyse, onPlay, onStop, onClear,
   onSave, onLoad, onExport, onImport, onNewProject,
-  onExtractWav, hasWav,
+  onExtractWav, hasWav, onOpenMpe, mpeActive,
 }: ControlBarProps) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 mb-2 overflow-x-auto">
@@ -62,6 +66,19 @@ function ControlBar({
           className={`${btn} bg-[#141a24] border-[#242c3a] text-[#e8a0b0] hover:bg-[#2a1a24]`}
         >
           <Square className="w-3 h-3" /> Stop
+        </button>
+
+        {/* ── Modal MPE (simulation de contrôleur d'expression) ── */}
+        <button
+          onClick={onOpenMpe}
+          className={`${btn} ${
+            mpeActive
+              ? 'bg-cyan-900/60 border-cyan-500/60 text-cyan-200 hover:bg-cyan-800/60'
+              : 'bg-[#141a24] border-[#242c3a] text-[#7fd4e0] hover:bg-[#1a2230]'
+          }`}
+          title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant que tu joues sur le Roland ou pendant un enregistrement"
+        >
+          🎛 MPE {mpeActive ? '●' : ''}
         </button>
 
         {/* ── Extraction du rendu WAV (mode Navig) ── */}

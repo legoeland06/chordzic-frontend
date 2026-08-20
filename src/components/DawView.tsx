@@ -124,6 +124,8 @@ interface DawViewProps {
   /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
   onPlayMidiAll: (startAtBeats?: number, excludeChannel?: number, recAfterBeats?: number) => Promise<boolean>;
   onHelp: () => void;
+  /** Ouvre la modal 🎛 MPE (simulation de contrôleur MPE). */
+  onOpenMpe: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
   /** Vrai pendant le bounce (le bouton est désactivé). */
@@ -484,6 +486,7 @@ export default function DawView({
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
+  onOpenMpe,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -1339,6 +1342,15 @@ const REC_COUNTDOWN_BEATS = 4;
         </button>
 
         <div className={tSep} />
+
+        {/* Modal MPE (jouer sur le son en direct) */}
+        <button
+          onClick={onOpenMpe}
+          className={`${tBtn} text-[#7fd4e0] hover:bg-[#12303a] hover:border-[#2a6a7a]`}
+          title="🎛 MPE — jouer sur le son en direct (bend / pression / timbre) pendant le jeu ou l'enregistrement"
+        >
+          🎛
+        </button>
 
         </div>
         {/* Rangée 2b — réglages musicaux (volume master, 432Hz, WB, pattern,

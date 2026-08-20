@@ -137,6 +137,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     { id: 'demarrage', icon: '🚀', title: 'Démarrage rapide', keys: 'démarrer jouer premier accord grille' },
     { id: 'accords', icon: '🎼', title: 'Saisie des accords', keys: 'format durée qualité basse silence autocomplétion éditer' },
     { id: 'livepiano', icon: '🎹', title: 'LivePiano', keys: 'piano live accord détecté illumination insertion grille piste roland midi timer program sustain son' },
+    { id: 'mpe', icon: '🎛', title: 'MPE — expression', keys: 'mpe bend pitch aftertouch pression timbre brillance cc74 lfo vibrato seaboard roli osmose enregistrement rec expression jouer sur le son' },
     { id: 'controles', icon: '🎛️', title: 'Barre de contrôle', keys: 'analyser jouer stop effacer tempo extract wav' },
     { id: 'clic', icon: '🥁', title: 'Clic & sortie dédiée', keys: 'clic métronome metronome sortie device casque hub usb latence accent synchro' },
     { id: 'pistes', icon: '🎚️', title: 'Pistes & réglages', keys: 'piste canal instrument mute volume 432hz navig loop walking pattern mesure reggae' },
@@ -291,6 +292,35 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <Row k="Program change" v="Avec une piste sélectionnée et ✨ ON, le Roland reçoit le program change de la piste : tes notes sont renvoyées au clavier sur son canal → tu entends l'instrument de la piste en jouant. La pédale de sustain est relayée (les notes renvoyées durent avec la pédale)." />
             <p className="font-bold text-white mt-3">🔀 Boutons charnières</p>
             <Row k="📱 Navig. / 🖥 Live" v="En haut du cadre (alignés à la mention « Accord détecté ») : bascule entre les deux modes." />
+          </Section>
+
+          {/* ── MPE — expression ── */}
+          <Section id="mpe" icon="🎛" title="MPE — expression" onSpeak={speakSection} speaking={speakingId === 'mpe'}>
+            <p>
+              Le bouton <b className="text-white">🎛 MPE</b> (barre de contrôle en mode Live, transport en mode
+              Navig) ouvre une modal qui <b className="text-white">simule un contrôleur MPE</b> (MIDI Polyphonic
+              Expression, style ROLI Seaboard / Osmose / LinnStrument) : elle permet de{' '}
+              <b className="text-white">jouer sur le son en direct</b> — bend, pression et timbre — pendant que tu
+              joues sur le Roland <b className="text-white">ou pendant un enregistrement</b> (les gestes sont alors
+              horodatés avec les notes et réappliqués au rendu). Le serveur relaie tes notes
+              (Local Control OFF) et y injecte les modulations : ce que tu entends est modulé en
+              temps réel.
+            </p>
+            <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
+            <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±48 (spec MPE)." />
+            <Row k="Glisser ▲ ▼ (Y)" v="Timbre / brillance (CC74) : en haut = brillant, en bas = sombre." />
+            <Row k="Molette 🖱" v="Pression (aftertouch, channel pressure 0-127) : molette vers le haut = plus de pression, vers le bas = moins — comme si tu enfonçais la touche." />
+            <Row k="Retour auto / Maintien" v="Au relâchement : 🔄 retour auto ramène le bend au centre (style Seaboard — le silicone revient) ; 📌 maintien garde la valeur (style Osmose)." />
+            <p className="font-bold text-white mt-3">🎚 Sliders & LFO</p>
+            <Row k="Bend / Pression / Timbre" v="Réglages fins indépendants du strip, avec valeurs affichées." />
+            <Row k="LFO (vibrato auto)" v="Fréquence (0-10 Hz), profondeur (0-24 demi-tons) et forme (sinus / triangle / carré) : le bend oscille tout seul — idéal pour un vibrato pendant une tenue ou un enregistrement." />
+            <p className="font-bold text-white mt-3">📊 Affichage temps réel</p>
+            <Row k="Notes tenues / Canal / Bend eff." v="Les notes que tu joues sur le Roland (avec leur nom), le canal cible résolu (écho ✨ de la piste si actif, sinon le canal 1), et le bend effectif LFO inclus." />
+            <Row k="● REC" v="Rouge quand une session d'enregistrement MIDI tourne : tes gestes MPE sont enregistrés avec les notes et réappliqués au rendu WAV." />
+            <Row k="↺ Reset" v="Remet l'expression à zéro (bend centre, pression 0, timbre neutre) — à utiliser si une note semble « bloquée » en bend." />
+            <p className="font-bold text-white mt-3">ℹ️ Notes</p>
+            <Row k="Fermeture" v="Fermer la modal remet automatiquement l'expression à zéro (jamais de note qui reste bendée)." />
+            <Row k="Canal cible" v="Le canal 1 par défaut (ton canal de jeu). Si l'écho ✨ d'une piste est actif (mode Navig), les modulations suivent le canal de la piste." />
           </Section>
 
           {/* ── Barre de contrôle ── */}
