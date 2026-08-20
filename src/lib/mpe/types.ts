@@ -88,9 +88,24 @@ export interface MpePatch {
   channel?: number | null;
 }
 
-/** Échantillon de geste émis par un module (1×/frame pendant un glissé). */
+/**
+ * Échantillon de geste émis par un module (1×/frame pendant un glissé).
+ *
+ * Chaque champ est OPTIONNEL : un module n'envoie que les dimensions qu'il
+ * pilote (ex. le RISE 2 pilote bend + vibrato ; le strip pilote bend, timbre
+ * et pression). Les champs absents laissent la valeur courante du cadre
+ * inchangée. `lfoFreq` / `lfoDepth` pilotent le vibrato (LFO du serveur) :
+ * le glissé horizontal du RISE 2 envoie l'intensité du vibrato.
+ */
 export interface StripGesture {
-  bend: number;
-  timbre: number;
-  pressure: number;
+  /** Pitch bend 14-bit (0-16383, centre 8192). */
+  bend?: number;
+  /** Timbre CC74 (0-127). */
+  timbre?: number;
+  /** Pression / aftertouch (0-127). */
+  pressure?: number;
+  /** Fréquence du vibrato en Hz (LFO). */
+  lfoFreq?: number;
+  /** Profondeur du vibrato en demi-tons (LFO). */
+  lfoDepth?: number;
 }

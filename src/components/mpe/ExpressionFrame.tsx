@@ -104,16 +104,26 @@ function ExpressionFrame({ title, icon, onClose, pad: Pad }: ExpressionFrameProp
 
   // Geste du module : envoi IMMÉDIAT (échantillonné à ~60 Hz par le module —
   // aucune valeur perdue). Aucun setState ici : le cadre ne re-render pas
-  // pendant le glissé.
+  // pendant le glissé. Seuls les champs présents dans le geste partent (un
+  // module ne pilote que ses propres dimensions).
   const handleGesture = useCallback((g: StripGesture) => {
-    void sendMpe({ bend: g.bend, timbre: g.timbre, pressure: g.pressure });
+    const patch: Parameters<typeof sendMpe>[0] = {};
+    if (g.bend !== undefined) patch.bend = g.bend;
+    if (g.timbre !== undefined) patch.timbre = g.timbre;
+    if (g.pressure !== undefined) patch.pressure = g.pressure;
+    if (g.lfoFreq !== undefined) patch.lfo_freq = g.lfoFreq;
+    if (g.lfoDepth !== undefined) patch.lfo_depth_st = g.lfoDepth;
+    void sendMpe(patch);
   }, []);
 
-  // Fin de geste : synchronise les sliders avec les valeurs finales.
+  // Fin de geste : synchronise les sliders avec les valeurs finales
+  // (uniquement les dimensions pilotées par le module).
   const handleGestureEnd = useCallback((g: StripGesture) => {
-    setBend(g.bend);
-    setTimbre(g.timbre);
-    setPressure(g.pressure);
+    if (g.bend !== undefined) setBend(g.bend);
+    if (g.timbre !== undefined) setTimbre(g.timbre);
+    if (g.pressure !== undefined) setPressure(g.pressure);
+    if (g.lfoFreq !== undefined) setLfoFreq(g.lfoFreq);
+    if (g.lfoDepth !== undefined) setLfoDepth(g.lfoDepth);
   }, []);
 
   const effBend = server.effective_bend ?? bend;

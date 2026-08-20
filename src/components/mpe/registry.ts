@@ -42,7 +42,7 @@ export const MPE_MODULES: MpeModule[] = [
     id: 'rise2',
     name: 'ROLI Seaboard RISE 2',
     icon: '🎛',
-    description: '49 keywaves 5D : Strike (note) · Glide (bend) · Slide (timbre) · Press · Lift — glissando en traversant',
+    description: '25 keywaves 2 octaves (C3→C5) : glissé vertical = bend · glissé horizontal (petit) = vibrato · molette = pression — multi-touch',
     modal: Rise2Modal,
   },
   {

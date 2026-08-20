@@ -3,9 +3,12 @@
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
+  locateKeywave,
   throttleTrailing,
   wheelToPressure,
   xToBend,
+  xToVibrato,
+  yToBend,
   yToTimbre,
 } from './gestures';
 import { BEND_CENTER, TIMBRE_CENTER } from './types';
@@ -40,6 +43,37 @@ describe('mapping des gestes MPE', () => {
     // Pas de dépassement
     expect(wheelToPressure(126, -100)).toBe(127);
     expect(wheelToPressure(1, 100)).toBe(0);
+  });
+
+  it('yToBend (RISE 2) : centre vertical = neutre, haut = aigu, bas = grave', () => {
+    expect(yToBend(0.5)).toBe(BEND_CENTER);
+    expect(yToBend(0)).toBe(16383); // tout en haut → +8192 (borné)
+    expect(yToBend(1)).toBe(0); // tout en bas → -8192
+    expect(yToBend(0.25)).toBe(BEND_CENTER + 4096); // 8192 + (0.25 × 16384)
+    expect(yToBend(0.75)).toBe(BEND_CENTER - 4096);
+    expect(yToBend(-0.3)).toBe(16383); // bornes
+    expect(yToBend(2)).toBe(0);
+  });
+
+  it('xToVibrato : centre = 0, bords = profondeur max, symétrique, borné', () => {
+    expect(xToVibrato(0, 2)).toBe(0);
+    expect(xToVibrato(0.5, 2)).toBe(2);
+    expect(xToVibrato(-0.5, 2)).toBe(2); // symétrique
+    expect(xToVibrato(0.25, 2)).toBe(1); // linéaire |xRel| / 0.5 × max
+    expect(xToVibrato(0.3, 2)).toBe(1.2);
+    expect(xToVibrato(0.7, 2)).toBe(2); // hors bornes → max
+    expect(xToVibrato(0.3, 30)).toBe(14.4); // maxDepth borné à 24
+    expect(xToVibrato(0.3, 0)).toBe(0);
+  });
+
+  it('locateKeywave : index 0..count-1 et xRel [-0.5, +0.5] centré', () => {
+    expect(locateKeywave(0, 25)).toEqual({ index: 0, xRel: -0.5 });
+    expect(locateKeywave(1, 25)).toEqual({ index: 24, xRel: 0.5 });
+    expect(locateKeywave(0.5, 25)).toEqual({ index: 12, xRel: 0 }); // centre exact
+    expect(locateKeywave(0.04, 25)).toEqual({ index: 1, xRel: -0.5 }); // 0.04×25 = 1.0 → bord gauche
+    expect(locateKeywave(0.039, 25)).toEqual({ index: 0, xRel: 0.475 }); // 0.039×25 = 0.975
+    expect(locateKeywave(-0.2, 25)).toEqual({ index: 0, xRel: -0.5 }); // bornes
+    expect(locateKeywave(1.5, 25)).toEqual({ index: 24, xRel: 0.5 });
   });
 });
 

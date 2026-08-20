@@ -102,7 +102,8 @@ clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
   qui fournit une MODAL complète (`{ onClose }`) — le menu (`MpeMenu.tsx`) les liste. Pour
   ajouter un contrôleur : créer sa modal puis l'ajouter à `MPE_MODULES`.
 - **Modules actuels** : 🎹 Seaboard (strip tactile — X = bend, Y = timbre, molette = pression),
-  🎛 ROLI Seaboard RISE 2 (49 keywaves 5D — Strike/Glide/Slide/Press/Lift, glissando) et 🥁 Push 3 —
+  🎛 ROLI Seaboard RISE 2 (25 keywaves, 2 octaves C3→C5 — glissé vertical = bend, glissé
+  horizontal petit = vibrato, multi-touch, couleurs d'instrument) et 🥁 Push 3 —
   pads (64 pads échantillonnés, retrigger). À venir : LinnStrument, Expressive E Osmose.
 - **Seaboard** : cadre commun sliders bend/pression/timbre, range ±2..±48 (RPN 0), LFO vibrato
   (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM (mode PC),

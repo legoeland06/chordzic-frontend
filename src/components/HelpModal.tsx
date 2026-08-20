@@ -301,8 +301,8 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               Le bouton <b className="text-white">🎛 MPE</b> (barre de contrôle en mode Live, transport en mode
               Navig) est <b className="text-white">unique</b> : il ouvre un <b className="text-white">menu</b> listant{' '}
               <b className="text-white">tous les contrôleurs MPE simulés</b> (MIDI Polyphonic Expression) —
-              ceux déjà développés (🎹 Seaboard, 🥁 Push 3 — pads) et ceux à venir (ROLI Seaboard
-              RISE 2, LinnStrument, Osmose…). Le choix ouvre la modal du module, qui permet de{' '}
+              ceux déjà développés (🎹 Seaboard, 🎛 ROLI Seaboard RISE 2, 🥁 Push 3 — pads) et ceux à venir
+              (LinnStrument, Osmose…). Le choix ouvre la modal du module, qui permet de{' '}
               <b className="text-white">jouer sur le son en direct</b> — bend, pression et timbre — pendant que tu
               joues sur le Roland <b className="text-white">ou pendant un enregistrement</b> (les gestes sont alors
               horodatés avec les notes et réappliqués au rendu). Le serveur relaie tes notes
@@ -311,13 +311,20 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </p>
             <p className="font-bold text-white mt-3">🧩 Modules disponibles</p>
             <Row k="🎹 Seaboard (strip)" v="Bande tactile plein écran — glisser ◀ ▶ = pitch bend, ▲ ▼ = timbre (CC74), molette = pression." />
-            <Row k="🎛 ROLI Seaboard RISE 2" v="49 keywaves (C2 → C6) en 5D : appui = Strike (la note joue), glisser horizontalement DANS la keywave = Glide (pitch bend — le centre de la keywave = neutre), traverser une keywave voisine = glissando (la note change), glisser verticalement = Slide (timbre), molette = Press (aftertouch), relâchement = Lift. Repères des notes C sur les keywaves." />
+            <Row k="🎛 ROLI Seaboard RISE 2" v="25 keywaves (C3 → C5, 2 octaves) — un clavier qui ressemble à peine à un piano : silicone mat, touches noires juste plus foncées que les blanches (grises). Appui = note · glissé vertical = bend · glissé horizontal (petit) = vibrato · molette = pression · multi-touch. Voir le détail plus bas." />
             <Row k="🥁 Push 3 — pads" v="64 pads échantillonnés (import de samples, retrigger immédiat, couleurs par dégradés) — voir la section dédiée plus bas." />
             <p className="font-bold text-white mt-3">🖐 Le strip tactile (type Seaboard)</p>
             <Row k="Glisser ◀ ▶ (X)" v="Pitch bend : glisse à gauche = grave, à droite = aigu. Le range est réglable (±2 à ±48 demi-tons, RPN 0 posé automatiquement) — défaut ±2 (bend musical)." />
             <Row k="Glisser ▲ ▼ (Y)" v="Timbre / brillance (CC74) : en haut = brillant, en bas = sombre." />
             <Row k="Molette 🖱" v="Pression (aftertouch, channel pressure 0-127) : molette vers le haut = plus de pression, vers le bas = moins — comme si tu enfonçais la touche." />
             <Row k="Retour auto / Maintien" v="Au relâchement : 🔄 retour auto ramène le bend au centre (style Seaboard — le silicone revient) ; 📌 maintien garde la valeur (style Osmose)." />
+            <p className="font-bold text-white mt-3">🎛 Le ROLI Seaboard RISE 2</p>
+            <Row k="2 octaves · C3 → C5" v="25 keywaves (C3, D3… C4… C5) — comme le vrai RISE 2, un clavier qui ressemble à peine à un piano : surface de silicone mat, les touches noires sont juste plus foncées que les blanches (grises). Le repère lumineux marque les notes C." />
+            <Row k="🎨 Couleurs de l'instrument" v="Pastilles en haut à droite : un choix de couleurs appliqué globalement à toutes les keywaves (Gris matte, Bleu glacier, Vert forêt, Ambre, Rose poudré) — persistant." />
+            <Row k="Glissé ▲ ▼ (vertical)" v="Pitch bend : le centre vertical de la touche = neutre, glisser vers le HAUT = aigu, vers le BAS = grave (comme le vrai Seaboard). Range réglable ±2..±48 demi-tons." />
+            <Row k="Glissé ◀ ▶ (horizontal, petit)" v="VIBRATO : l'intensité suit le décalage autour du centre de la touche (au centre = rien, vers les bords = vibrato maximal). Fréquence (Hz) et profondeur max (st) réglables dans le bandeau — persistants. Traverser une keywave voisine = glissando (la note change, comme sur le vrai Seaboard)." />
+            <Row k="Molette 🖱" v="Pression (aftertouch, channel pressure 0-127)." />
+            <Row k="🖐 Multi-touch" v="Plusieurs doigts = plusieurs notes en même temps (chacun garde sa note et son glissando). Le bend / vibrato suivent le dernier doigt bougé ; quand un doigt se lève, le doigt restant reprend la main." />
             <p className="font-bold text-white mt-3">🎚 Sliders & LFO</p>
             <Row k="Bend / Pression / Timbre" v="Réglages fins indépendants du strip, avec valeurs affichées." />
             <Row k="LFO (vibrato auto)" v="Fréquence (0-10 Hz), profondeur (0-24 demi-tons) et forme (sinus / triangle / carré) : le bend oscille tout seul — idéal pour un vibrato pendant une tenue ou un enregistrement." />

@@ -1,13 +1,13 @@
 /**
- * Tests des keywaves ROLI Seaboard RISE 2 (5D Touch) :
- * Strike (note-on), Glide (bend), glissando (changement de keywave),
- * Slide (timbre), Press (molette), Lift (note-off).
+ * Tests des keywaves ROLI Seaboard RISE 2 (2 octaves, multi-touch) :
+ * Strike (note-on), Bend vertical, Vibrato horizontal (LFO), glissando,
+ * multitouch (« dernier geste gagne »), Press (molette), Lift, thèmes.
  */
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { BEND_CENTER, TIMBRE_CENTER, StripGesture } from '../../lib/mpe';
+import { BEND_CENTER, StripGesture } from '../../lib/mpe';
 import Rise2Keywaves, { RISE2_KEYWAVES, RISE2_START_PITCH } from './Rise2Keywaves';
 
 class MockResizeObserver {
@@ -16,6 +16,14 @@ class MockResizeObserver {
   disconnect() {}
 }
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = MockResizeObserver;
+
+// Géométrie du rendu (identique au composant : px-[3px] + gap-[3px]).
+const PAD = 3;
+const GAP = 3;
+const W = 1000;
+const H = 200;
+const KW = (W - PAD * 2 - GAP * (RISE2_KEYWAVES - 1)) / RISE2_KEYWAVES;
+const keyCenter = (i: number) => PAD + i * (KW + GAP) + KW / 2;
 
 function mockRect(w: number, h: number) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -30,8 +38,8 @@ function stubPointerCapture(el: HTMLElement) {
   el.hasPointerCapture = () => true;
 }
 
-function pointer(el: HTMLElement, type: string, x: number, y: number) {
-  el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: x, clientY: y }));
+function pointer(el: HTMLElement, type: string, x: number, y: number, pointerId = 1) {
+  el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId, clientX: x, clientY: y }));
 }
 
 function wheel(el: HTMLElement, deltaY: number) {
@@ -48,7 +56,7 @@ interface Harness {
   notes: ReturnType<typeof vi.fn>;
 }
 
-function renderZone(): Harness {
+function renderZone(returnMode: 'center' | 'hold' = 'center'): Harness {
   const onGesture = vi.fn();
   const onGestureEnd = vi.fn();
   const notes = vi.fn().mockResolvedValue(true);
@@ -60,7 +68,7 @@ function renderZone(): Harness {
 
   const root = createRoot(document.body);
   act(() => {
-    root.render(<Rise2Keywaves returnMode="center" onGesture={onGesture} onGestureEnd={onGestureEnd} />);
+    root.render(<Rise2Keywaves returnMode={returnMode} onGesture={onGesture} onGestureEnd={onGestureEnd} />);
   });
   const zone = document.querySelector('[title^="Keywaves"]') as HTMLElement;
   stubPointerCapture(zone);
@@ -72,72 +80,135 @@ function lastGesture(fn: ReturnType<typeof vi.fn>): StripGesture {
   return calls[calls.length - 1][0];
 }
 
+function notesByPitch(fn: ReturnType<typeof vi.fn>, pitch: number, on: boolean): number {
+  return fn.mock.calls.filter(c => (c[0] as { pitch?: number; on?: boolean }).pitch === pitch
+    && (c[0] as { pitch?: number; on?: boolean }).on === on).length;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   document.body.innerHTML = '';
+  localStorage.clear();
 });
 
-describe('Rise2Keywaves (5D Touch)', () => {
-  it('STRIKE : l appui sur une keywave joue la note (C2 = 36)', async () => {
-    mockRect(980, 200); // 49 keywaves × 20 px
+describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
+  it('constantes : 25 keywaves de C3 (48) à C5 (72) — 2 octaves', () => {
+    expect(RISE2_KEYWAVES).toBe(25);
+    expect(RISE2_START_PITCH).toBe(48);
+    expect(RISE2_START_PITCH + RISE2_KEYWAVES - 1).toBe(72);
+  });
+
+  it('STRIKE : l appui sur une keywave joue la note (C3 = 48), lift = note-off', async () => {
+    mockRect(W, H);
     const h = renderZone();
-    // Keywave 0 (C2) : x = 10 px
-    act(() => pointer(h.zone, 'pointerdown', 10, 100));
-    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: RISE2_START_PITCH, on: true }));
-    act(() => pointer(h.zone, 'pointerup', 10, 100));
-    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: RISE2_START_PITCH, on: false }));
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), 100));
+    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: true }));
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), 100));
+    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: false }));
     act(() => h.root.unmount());
   });
 
-  it('GLIDE : glisser dans la keywave émet un bend (centre = neutre)', async () => {
-    mockRect(980, 200);
+  it('BEND : glissé VERTICAL — centre = neutre, haut = aigu, bas = grave', async () => {
+    mockRect(W, H);
     const h = renderZone();
-    // Keywave 24 (E4) : centre = x = 24*20 + 10 = 490
-    act(() => pointer(h.zone, 'pointerdown', 490, 100)); // centre exact
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2));
     await nextFrame();
     expect(lastGesture(h.onGesture).bend).toBe(BEND_CENTER);
-    // Glisse vers la gauche de la keywave (x=484, pos 0.2) → bend grave
-    act(() => pointer(h.zone, 'pointermove', 484, 100));
-    await nextFrame();
-    expect(lastGesture(h.onGesture).bend).toBeLessThan(BEND_CENTER);
-    // Glisse vers la droite (x=496, pos 0.8) → bend aigu
-    act(() => pointer(h.zone, 'pointermove', 496, 100));
+    // Vers le haut → bend aigu
+    act(() => pointer(h.zone, 'pointermove', keyCenter(0), H * 0.25));
     await nextFrame();
     expect(lastGesture(h.onGesture).bend).toBeGreaterThan(BEND_CENTER);
-    act(() => pointer(h.zone, 'pointerup', 496, 100));
+    // Vers le bas → bend grave
+    act(() => pointer(h.zone, 'pointermove', keyCenter(0), H * 0.75));
+    await nextFrame();
+    expect(lastGesture(h.onGesture).bend).toBeLessThan(BEND_CENTER);
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.75));
+    act(() => h.root.unmount());
+  });
+
+  it('VIBRATO : glissé HORIZONTAL — centre = 0, décalé = profondeur LFO, fréquence 5 Hz', async () => {
+    mockRect(W, H);
+    const h = renderZone();
+    // Point neutre MATHÉMATIQUE (xRel = 0) : le centre visuel de la keywave
+    // 0 (21.4 px) est décalé de ~1.4 px par le padding → 0.03 st de vibrato.
+    const cx = (0.5 * W) / RISE2_KEYWAVES;
+    act(() => pointer(h.zone, 'pointerdown', cx, H / 2));
+    await nextFrame();
+    expect(lastGesture(h.onGesture).lfoDepth).toBe(0); // centre = pas de vibrato
+    expect(lastGesture(h.onGesture).lfoFreq).toBe(5);
+    // Petit décalé à droite → vibrato actif
+    act(() => pointer(h.zone, 'pointermove', cx + KW * 0.3, H / 2));
+    await nextFrame();
+    const d = lastGesture(h.onGesture).lfoDepth!;
+    expect(d).toBeGreaterThan(0);
+    // Retour au centre → vibrato off
+    act(() => pointer(h.zone, 'pointermove', cx, H / 2));
+    await nextFrame();
+    expect(lastGesture(h.onGesture).lfoDepth).toBe(0);
+    // Le bend, lui, reste neutre (le glissé horizontal ne bend pas)
+    expect(lastGesture(h.onGesture).bend).toBe(BEND_CENTER);
+    act(() => pointer(h.zone, 'pointerup', cx, H / 2));
     act(() => h.root.unmount());
   });
 
   it('glissando : traverser une keywave coupe la note et joue la suivante', async () => {
-    mockRect(980, 200);
+    mockRect(W, H);
     const h = renderZone();
-    act(() => pointer(h.zone, 'pointerdown', 10, 100)); // keywave 0
-    expect(h.notes).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 36, on: true }));
-    // Traverse vers la keywave 2 (x = 50 px)
-    act(() => pointer(h.zone, 'pointermove', 50, 100));
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2)); // keywave 0 = C3
+    expect(h.notes).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 48, on: true }));
+    // Traverse vers la keywave 1 (D3 = 49)
+    act(() => pointer(h.zone, 'pointermove', PAD + (KW + GAP) + 1, H / 2));
     await nextFrame();
-    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 36, on: false }));
-    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 38, on: true }));
-    act(() => pointer(h.zone, 'pointerup', 50, 100));
-    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 38, on: false }));
+    expect(notesByPitch(h.notes, 48, false)).toBe(1);
+    expect(notesByPitch(h.notes, 49, true)).toBe(1);
+    act(() => pointer(h.zone, 'pointerup', PAD + (KW + GAP) + 1, H / 2));
+    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 49, on: false }));
     act(() => h.root.unmount());
   });
 
-  it('SLIDE : la position verticale pilote le timbre (haut = brillant)', async () => {
-    mockRect(980, 200);
+  it('MULTI-TOUCH : 2 doigts jouent 2 notes, « dernier geste gagne », un doigt levé rend la main', async () => {
+    mockRect(W, H);
     const h = renderZone();
-    act(() => pointer(h.zone, 'pointerdown', 10, 100)); // milieu → timbre neutre
+    const c0 = keyCenter(0); // keywave 0 (C3 = 48)
+    const c12 = keyCenter(12); // keywave 12 (C4 = 60)
+    act(() => pointer(h.zone, 'pointerdown', c0, H / 2, 1));
+    act(() => pointer(h.zone, 'pointerdown', c12, H / 2, 2));
+    expect(notesByPitch(h.notes, 48, true)).toBe(1);
+    expect(notesByPitch(h.notes, 60, true)).toBe(1);
+
+    // Doigt 1 vers le haut (aigu), puis doigt 2 vers le bas (grave) → le
+    // doigt 2 est le maître (dernier geste)
+    act(() => pointer(h.zone, 'pointermove', c0, H * 0.25, 1));
+    act(() => pointer(h.zone, 'pointermove', c12, H * 0.75, 2));
     await nextFrame();
-    expect(lastGesture(h.onGesture).timbre).toBe(TIMBRE_CENTER);
-    act(() => pointer(h.zone, 'pointermove', 10, 30)); // haut
+    expect(lastGesture(h.onGesture).bend).toBeLessThan(BEND_CENTER); // doigt 2
+
+    // Doigt 2 levé → le doigt 1 reprend la main (bend aigu)
+    act(() => pointer(h.zone, 'pointerup', c12, H * 0.75, 2));
+    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 60, on: false }));
     await nextFrame();
-    expect(lastGesture(h.onGesture).timbre).toBeGreaterThan(TIMBRE_CENTER);
-    act(() => pointer(h.zone, 'pointerup', 10, 30));
+    expect(lastGesture(h.onGesture).bend).toBeGreaterThan(BEND_CENTER); // doigt 1
+
+    act(() => pointer(h.zone, 'pointerup', c0, H * 0.25, 1));
+    expect(h.notes).toHaveBeenCalledWith(expect.objectContaining({ pitch: 48, on: false }));
+    act(() => h.root.unmount());
+  });
+
+  it('MULTI-TOUCH : deux doigts simultanés — le lift de l un ne coupe pas l autre', async () => {
+    mockRect(W, H);
+    const h = renderZone();
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2, 1));
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(12), H / 2, 2));
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H / 2, 1));
+    // La note 60 (doigt 2) tient toujours — pas de note-off
+    expect(notesByPitch(h.notes, 60, false)).toBe(0);
+    act(() => pointer(h.zone, 'pointerup', keyCenter(12), H / 2, 2));
+    expect(notesByPitch(h.notes, 60, false)).toBe(1);
     act(() => h.root.unmount());
   });
 
   it('PRESS : la molette ajuste la pression (aftertouch)', async () => {
-    mockRect(980, 200);
+    mockRect(W, H);
     const h = renderZone();
     act(() => wheel(h.zone, -100));
     await nextFrame();
@@ -145,8 +216,42 @@ describe('Rise2Keywaves (5D Touch)', () => {
     act(() => h.root.unmount());
   });
 
-  it('49 keywaves de C2 à C6 (36..84)', () => {
-    expect(RISE2_KEYWAVES).toBe(49);
-    expect(RISE2_START_PITCH).toBe(36);
+  it('retour auto : au lift du dernier doigt, le bend revient au centre (animation)', async () => {
+    mockRect(W, H);
+    const h = renderZone('center');
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H * 0.2)); // bend aigu
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.2));
+    await vi.waitFor(() => {
+      expect(h.onGestureEnd).toHaveBeenCalledWith(expect.objectContaining({ bend: BEND_CENTER }));
+    }, { timeout: 2000 });
+    act(() => h.root.unmount());
+  });
+
+  it('retour auto OFF (maintien) : le bend final est conservé au lift', async () => {
+    mockRect(W, H);
+    const h = renderZone('hold');
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H * 0.2));
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.2));
+    await nextFrame();
+    expect(h.onGestureEnd).toHaveBeenCalledWith(expect.objectContaining({
+      bend: expect.any(Number),
+      lfoDepth: 0,
+    }));
+    const g = (h.onGestureEnd.mock.calls[0][0] as StripGesture);
+    expect(g.bend!).toBeGreaterThan(BEND_CENTER); // conservé (aigu)
+    act(() => h.root.unmount());
+  });
+
+  it('couleurs : un thème s applique globalement à toutes les keywaves', async () => {
+    mockRect(W, H);
+    const h = renderZone();
+    const styleOf = () => (document.querySelector('.rise2-keywave') as HTMLElement).getAttribute('style') ?? '';
+    expect(styleOf()).toContain('rgb(163, 169, 177)'); // #a3a9b1 — Gris matte par défaut
+    // Sélectionne le thème Bleu glacier
+    const swatch = document.querySelector('[title="Couleur de l\'instrument : Bleu glacier"]') as HTMLButtonElement;
+    act(() => swatch.click());
+    expect(styleOf()).toContain('rgb(138, 168, 196)'); // #8aa8c4
+    expect(localStorage.getItem('chordzic_rise2_theme')).toBe('ocean');
+    act(() => h.root.unmount());
   });
 });
