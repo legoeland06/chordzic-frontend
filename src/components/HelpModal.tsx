@@ -539,6 +539,16 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               (localStorage) et s'applique au <b>Play audio</b> comme à l'<b>export ✂ L–R</b> et à
               l'<b>Extract Wav</b>. Le bouton 🎛️ est surligné quand des instruments sont actifs.
             </>} />
+            <Row k="🎸 Moteur live" v={<>
+              En haut du sélecteur 🎛️ : le <b className="text-white">moteur live Surge XT</b> — les
+              <b className="text-emerald-300"> 637 presets</b> d'usine (Leads, Pads, Basses, Plucks, Polysynths…)
+              classés par catégorie, avec recherche. Quand le moteur est <b className="text-emerald-300">ON</b>,
+              les notes que tu joues au piano ne reviennent plus en <b>thru MIDI</b> (son GM du Roland) : elles
+              passent par <b>Surge XT</b> → audio USB → <b>haut-parleurs du Roland</b>. Choisir un preset démarre
+              le moteur ; le bouton ON/OFF l'arrête (retour thru MIDI). La préférence est mémorisée et réactivée
+              au chargement. ⚠️ Le Roland doit être branché en USB (device « roland ») ; pendant que le moteur
+              live tourne, le thru MIDI est coupé (pas de double son).
+            </>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Réglable dans les deux modes (rangée de réglages du mode Live, transport en Navig)." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Réglable dans les deux modes." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />

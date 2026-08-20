@@ -36,6 +36,13 @@ import PostProdView from './PostProdView';
 import { PostProdEngine } from '../lib/postProdEngine';
 import { PostProdSession, PostProdTrack, createFullClip, trackColorForChannel } from '../lib/postProdTypes';
 import { backendUrl, chordToNoteNames } from '../lib/chordUtils';
+import {
+  fetchLiveVst3 as fetchLiveVst3Api,
+  loadSavedLiveVst3,
+  saveLiveVst3,
+  setLiveVst3 as setLiveVst3Api,
+  LiveVst3State,
+} from '../lib/vst3Live';
 
 const API_BASE = backendUrl();
 
@@ -120,6 +127,50 @@ export default function ChordApp() {
     },
     [],
   );
+
+  /** Moteur VST3 live (Surge XT → haut-parleurs du Roland) : état serveur +
+   * préférence persistée (réactivée au chargement si le serveur a redémarré). */
+  const [liveVst3, setLiveVst3] = useState<LiveVst3State>({
+    enabled: false,
+    preset: null,
+    error: null,
+  });
+
+  const handleLiveVst3Change = useCallback(async (enabled: boolean, preset?: string | null) => {
+    const state = await setLiveVst3Api(enabled, preset ?? undefined);
+    setLiveVst3(state);
+    saveLiveVst3({ enabled: state.enabled, preset: state.preset?.path ?? null });
+  }, []);
+
+  // Synchronisation au chargement : l'état serveur fait foi ; si une
+  // préférence persistée dit ON mais que le serveur a redémarré (moteur
+  // coupé), on réactive le moteur avec le preset sauvegardé.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const server = await fetchLiveVst3Api();
+        if (cancelled) return;
+        if (server.enabled) {
+          setLiveVst3(server);
+          saveLiveVst3({ enabled: true, preset: server.preset?.path ?? null });
+          return;
+        }
+        const saved = loadSavedLiveVst3();
+        if (saved.enabled && saved.preset) {
+          try {
+            const state = await setLiveVst3Api(true, saved.preset);
+            if (!cancelled) setLiveVst3(state);
+          } catch {
+            /* moteur indisponible (Roland débranché…) — silencieux */
+          }
+        }
+      } catch {
+        /* serveur injoignable — l'état reste désactivé */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
     setLocalTracks(prev => {
@@ -1358,6 +1409,8 @@ export default function ChordApp() {
             onPostProd={bounceToPostProd}
             renderInstruments={renderInstruments}
             onRenderInstrumentsChange={handleRenderInstrumentsChange}
+            liveVst3={liveVst3}
+            onLiveVst3Change={handleLiveVst3Change}
             bouncing={bouncing}
             onSelectMpe={setActiveMpe}
             mpeActive={activeMpe !== null}
