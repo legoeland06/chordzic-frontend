@@ -859,11 +859,11 @@ export default function ChordApp() {
   /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
    * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
    * `startAtBeats` : position de départ (0 = début). */
-  const playMidiAll = useCallback(async (startAtBeats = 0, excludeChannel?: number) => {
+  const playMidiAll = useCallback(async (startAtBeats = 0, excludeChannel?: number, recAfterBeats?: number) => {
     const hasNotes = Object.values(pianoNotes).some(notes => notes.length > 0);
     if (!hasPlayableContent(chords.length, hasNotes ? 1 : 0)) {
       setStatus('❌ Rien à jouer — entre des accords (Live) ou des notes (Navig)'); setStatusColor('text-red-400');
-      return;
+      return false;
     }
     const sequence = chords.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time }));
     const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
@@ -887,6 +887,10 @@ export default function ChordApp() {
       // Play-along REC : le canal en cours d'enregistrement est exclu
       // (l'utilisateur joue cette piste lui-même — les autres accompagnent).
       ...(excludeChannel !== undefined ? { exclude_channel: excludeChannel } : {}),
+      // Décompte REC intégré : le serveur joue le clic (décompte) puis
+      // active l'enregistrement après N beats — MÊME horloge que le
+      // play-along (aucun décalage Web Audio vs MIDI).
+      ...(recAfterBeats !== undefined ? { rec_after_beats: recAfterBeats } : {}),
       // Locators [L, R[ : le repeat boucle l'intervalle au lieu du morceau
       // complet (le backend ne les utilise que si loop_enabled).
       ...(locR > locL ? { loop_start: locL, loop_end: locR } : {}),
@@ -899,13 +903,15 @@ export default function ChordApp() {
       if (!resp.ok) {
         const msg = await resp.text();
         setStatus(`❌ MIDI : ${msg.slice(0, 120)}`); setStatusColor('text-red-400');
-        return;
+        return false;
       }
       const data = await resp.json();
       setStatus(`🎹 MIDI : ${data.notes} notes sur le port choisi (${data.duration_sec}s)`);
       setStatusColor('text-green-400');
+      return true;
     } catch (e) {
       setStatus('❌ MIDI : backend injoignable'); setStatusColor('text-red-400');
+      return false;
     }
   }, [chords, pianoNotes, tempo, drumPattern, walkingBass, sig, tracks, volume, loopOn, locL, locR]);
 

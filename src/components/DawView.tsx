@@ -122,7 +122,7 @@ interface DawViewProps {
   /** Met à jour les notes d'une piste (édition directe dans le PianoRoll intégré). */
   onNotesChange: (channel: number, notes: PianoNote[]) => void;
   /** Lecture MIDI globale (mode Navig) : toutes les pistes sur le port MIDI choisi. */
-  onPlayMidiAll: (startAtBeats?: number, excludeChannel?: number) => void;
+  onPlayMidiAll: (startAtBeats?: number, excludeChannel?: number, recAfterBeats?: number) => Promise<boolean>;
   onHelp: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
@@ -744,7 +744,7 @@ export default function DawView({
     try { await fetch(`${API_BASE}/navig-stop-midi`, { method: 'POST' }); } catch { /* ignore */ }
   }, []);
 
-  const startMidi = useCallback((fromBeats = 0, excludeChannel?: number) => {
+  const startMidi = useCallback((fromBeats = 0, excludeChannel?: number, recAfterBeats?: number): Promise<boolean> => {
     // Toggle exclusif : la lecture MIDI remplace la lecture WAV (sinon le
     // WAV — et son clic mixé — continue de tourner par-dessus le MIDI).
     if (playState === 'playing') {
@@ -752,7 +752,7 @@ export default function DawView({
       setPlayState('idle');
       setLevels({});
     }
-    onPlayMidiAll(fromBeats, excludeChannel);
+    const result = onPlayMidiAll(fromBeats, excludeChannel, recAfterBeats);
     setMidiPlaying(true);
     midiStartRef.current = performance.now();
     midiFromRef.current = fromBeats;
@@ -779,6 +779,7 @@ export default function DawView({
       }
       setPlayheadPosition(beats);
     }, 50);
+    return result;
   }, [onPlayMidiAll, tempo, totalBeats, stopMidi, engine, playState, loopOn, locL, locR]);
 
   /** Bascule la lecture MIDI globale (bouton ▶ MIDI et raccourci
@@ -970,6 +971,9 @@ export default function DawView({
    * → les autres pistes ne démarraient jamais (bug signalé 03:00). */
   const recTargetRef = useRef<number | null>(null);
   recTargetRef.current = recTarget;
+  /** Vrai si le décompte + le play-along sont portés par le SERVEUR (rec_after_beats)
+   * : le métronome Web Audio est alors inutile (le clic serveur continue). */
+  const recServerModeRef = useRef(false);
   /** Position de la tête de lecture au début de l'enregistrement. */
   const [recStartPos, setRecStartPos] = useState(0);
   /** Notes en cours (affichage direct, cyan). */
@@ -1031,27 +1035,19 @@ export default function DawView({
     }).catch(() => { /* backend injoignable */ });
     setRecStartPos(getPlayheadPosition());
     setRecState('on');
-    // PLAY-ALONG : si aucune lecture MIDI ne tourne, lance l'accompagnement
-    // (toutes les pistes SAUF celle enregistrée — l'utilisateur contrôle ce
-    // qu'il entend avec les MUTE du mixeur ; la lecture continue après le
-    // REC, on l'arrête avec ▶ MIDI / Stop).
-    // PLAY-ALONG : midiTimerRef = lecture MIDI en cours (stable dans la
-    // closure du setTimeout) ; recTargetRef = piste cible (le state recTarget
-    // n'était pas à jour dans la closure du décompte → les autres pistes ne
-    // démarraient jamais — bug signalé 03:00).
-    if (midiTimerRef.current === null && recTargetRef.current !== null) {
-      startMidi(getPlayheadPosition(), recTargetRef.current);
+    // Métronome continu : UNIQUEMENT en mode secours (pas de play-along
+    // serveur) — le clic du serveur prend le relais sinon (même horloge que
+    // le décompte et le play-along, aucun décalage).
+    if (!recServerModeRef.current) {
+      const ctx = recAudioRef.current;
+      if (ctx) {
+        playClick(ctx, 800);
+        const intervalMs = 60000 / Math.max(40, tempo);
+        if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
+        recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
+      }
     }
-    // Métronome continu : clic immédiat puis à chaque temps (le ctx du
-    // décompte reste ouvert — les notes jouées suivent le rythme).
-    const ctx = recAudioRef.current;
-    if (ctx) {
-      playClick(ctx, 800);
-      const intervalMs = 60000 / Math.max(40, tempo);
-      if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
-      recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
-    }
-  }, [tempo, playClick, startMidi]);
+  }, [tempo, playClick]);
 
   /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
   const playCountdown = useCallback((bpm: number) => {
@@ -1075,19 +1071,36 @@ export default function DawView({
     } catch { /* audio indisponible */ }
   }, []);
 
-  /** Bascule Rec : off → décompte (4 temps) puis enregistrement ; sinon arrêt. */
+  /** Décompte REC en beats (voie serveur : clic + activation intégrés). */
+const REC_COUNTDOWN_BEATS = 4;
+
+/** Bascule Rec : off → décompte (4 temps) puis enregistrement ; sinon arrêt. */
   const toggleRec = useCallback((channel: number) => {
     if (recState === 'off') {
       setRecTarget(channel);
       setRecState('countdown');
-      playCountdown(tempo);
-      const clicks = countdownClicks(tempo, 4);
-      const afterLast = clicks[clicks.length - 1] + 60000 / tempo;
-      recTimerRef.current = setTimeout(() => startRecSession(), afterLast);
+      recServerModeRef.current = false;
+      // VOIE SERVEUR (par défaut) : le play-along démarre immédiatement avec
+      // le DÉCOMPTE intégré (rec_after_beats = 4) — le serveur joue le clic
+      // puis active l'enregistrement sur la MÊME horloge (aucun décalage
+      // entre le décompte et les notes d'accompagnement).
+      void startMidi(getPlayheadPosition(), channel, REC_COUNTDOWN_BEATS).then(ok => {
+        if (!ok) {
+          // SECOURS : rien à jouer (pas d'accompagnement possible) → décompte
+          // Web Audio classique + enregistrement simple.
+          stopMidi();
+          playCountdown(tempo);
+        } else {
+          recServerModeRef.current = true;
+        }
+        const clicks = countdownClicks(tempo, 4);
+        const afterLast = clicks[clicks.length - 1] + 60000 / tempo;
+        recTimerRef.current = setTimeout(() => startRecSession(), afterLast);
+      });
     } else {
       void stopRecSession();
     }
-  }, [recState, tempo, playCountdown, startRecSession, stopRecSession]);
+  }, [recState, tempo, playCountdown, startRecSession, stopRecSession, startMidi, stopMidi]);
 
   /** Polling : notes jouées en direct → affichage temps réel (cyan). */
   useEffect(() => {
