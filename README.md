@@ -237,6 +237,25 @@ src/
 Le build (`dist/`) est embarqué dans le binaire standalone du backend
 (`chords-server-rs --features standalone`, via `frontend_dist/`).
 
+## Standalone — MacBook Air & PC Windows
+
+Le binaire standalone (backend Rust + frontend React dans UN fichier) se compile
+sur la machine cible :
+
+- **🍎 macOS (MacBook Air)** : `~/Dev/zic_dev/dev/play_chords/install_mac.sh` —
+  installe Homebrew, FluidSynth, la SoundFont, Rust, compile le frontend (Node ≥ 20)
+  puis le backend (`--features standalone`) et crée le lanceur `chordzic-midi`.
+- **🪟 Windows 10/11 (tablette HP)** : `install_windows.ps1` (à la racine du dépôt
+  `chordzic-server`) — installe Git, Rust (+ Build Tools C++), FluidSynth (exe + DLL,
+  release officielle v2.6.0), la SoundFont MuseScore General Full, clone le dépôt
+  (le frontend est DÉJÀ embarqué dans `frontend_dist/` → pas besoin de Node) puis
+  compile. Crée `chordzic.bat` (lancement + ouverture de http://localhost:4000) et
+  `chordzic-stop.bat`. Usage :
+  `powershell -ExecutionPolicy Bypass -File install_windows.ps1`.
+
+Le serveur écoute sur **http://localhost:4000** (MIDI via WinMM/CoreMIDI, sortie audio
+via WASAPI/CoreAudio, rendu WAV via l'exécutable FluidSynth + SoundFont).
+
 ---
 
 ## Développement
