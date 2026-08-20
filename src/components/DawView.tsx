@@ -964,6 +964,12 @@ export default function DawView({
   const [recState, setRecState] = useState<'off' | 'countdown' | 'on'>('off');
   /** Canal cible (la piste du piano roll où le bouton REC a été cliqué). */
   const [recTarget, setRecTarget] = useState<number | null>(null);
+  /** Ref synchronisée : le setTimeout du décompte capture la startRecSession
+   * du render du CLIC (recTarget pas encore à jour — setState asynchrone).
+   * Sans ref, la garde `recTarget !== null` du play-along échouait TOUJOURS
+   * → les autres pistes ne démarraient jamais (bug signalé 03:00). */
+  const recTargetRef = useRef<number | null>(null);
+  recTargetRef.current = recTarget;
   /** Position de la tête de lecture au début de l'enregistrement. */
   const [recStartPos, setRecStartPos] = useState(0);
   /** Notes en cours (affichage direct, cyan). */
@@ -1029,8 +1035,12 @@ export default function DawView({
     // (toutes les pistes SAUF celle enregistrée — l'utilisateur contrôle ce
     // qu'il entend avec les MUTE du mixeur ; la lecture continue après le
     // REC, on l'arrête avec ▶ MIDI / Stop).
-    if (!midiPlaying && recTarget !== null) {
-      startMidi(getPlayheadPosition(), recTarget);
+    // PLAY-ALONG : midiTimerRef = lecture MIDI en cours (stable dans la
+    // closure du setTimeout) ; recTargetRef = piste cible (le state recTarget
+    // n'était pas à jour dans la closure du décompte → les autres pistes ne
+    // démarraient jamais — bug signalé 03:00).
+    if (midiTimerRef.current === null && recTargetRef.current !== null) {
+      startMidi(getPlayheadPosition(), recTargetRef.current);
     }
     // Métronome continu : clic immédiat puis à chaque temps (le ctx du
     // décompte reste ouvert — les notes jouées suivent le rythme).
@@ -1041,7 +1051,7 @@ export default function DawView({
       if (recMetronomeRef.current) clearInterval(recMetronomeRef.current);
       recMetronomeRef.current = setInterval(() => playClick(ctx, 800), intervalMs);
     }
-  }, [tempo, playClick, midiPlaying, recTarget, startMidi]);
+  }, [tempo, playClick, startMidi]);
 
   /** Métronome de pré-roll : 4 clics (1er accentué) au tempo courant. */
   const playCountdown = useCallback((bpm: number) => {
