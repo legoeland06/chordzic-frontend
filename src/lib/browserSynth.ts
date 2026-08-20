@@ -20,6 +20,25 @@ export interface TrackCfg {
   mute?: boolean;
 }
 
+/** Instrument affecté à un canal pour le rendu WAV (SFZ/VST3). */
+export interface RenderInstrument {
+  engine: 'sfz' | 'vst3' | 'fluidsynth';
+  path: string;
+}
+
+/** Moteur global dérivé de la sélection : "sfz" ou "vst3" si au moins un
+ * instrument non-FluidSynth est choisi (SFZ prioritaire si mélangé), sinon
+ * undefined → chemin FluidSynth (GM) historique. Chaque canal garde son
+ * propre moteur dans `instruments` (le backend accepte {engine, path}). */
+export function deriveRenderEngine(
+  instruments: Record<number, RenderInstrument>,
+): 'sfz' | 'vst3' | undefined {
+  const entries = Object.values(instruments);
+  if (entries.some(e => e.engine === 'sfz')) return 'sfz';
+  if (entries.some(e => e.engine === 'vst3')) return 'vst3';
+  return undefined;
+}
+
 export interface RenderOptions {
   tempo: number;
   pattern?: string;
@@ -48,6 +67,12 @@ export interface RenderOptions {
   /** Moteur de rendu WAV : Interne (FluidSynth) ou Externe (périphérique
    * MIDI branché, enregistré via sa sortie audio — temps réel). */
   renderer?: Renderer;
+  /** Moteur de rendu instruments libres : "fluidsynth" (défaut) | "sfz" | "vst3".
+   * Actif seulement si au moins un canal a un instrument non-FluidSynth. */
+  engine?: 'fluidsynth' | 'sfz' | 'vst3';
+  /** Instruments par canal : { canal: { engine, path } } — le chemin est un
+   * fichier .sfz ou un bundle .vst3. Canal absent → FluidSynth (GM). */
+  instruments?: Record<number, { engine: 'sfz' | 'vst3' | 'fluidsynth'; path: string }>;
 }
 
 /** Configuration de la boucle sample (mode Navig) : un sample audio de
@@ -348,6 +373,12 @@ export class BrowserSynth {
       }
       // Moteur de rendu (Interne FluidSynth / Externe périphérique MIDI)
       if (opts.renderer) body.renderer = opts.renderer;
+      // Moteur instruments libres (SFZ/VST3) : engine global + instruments
+      // par canal ({canal: {engine, path}}).
+      if (opts.engine) body.engine = opts.engine;
+      if (opts.instruments && Object.keys(opts.instruments).length > 0) {
+        body.instruments = opts.instruments;
+      }
     }
     // Config du clic (source de vérité : le serveur) — mode Navig
     await this._applyClickConfig(body);

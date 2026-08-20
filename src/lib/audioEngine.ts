@@ -12,7 +12,7 @@
  * lib/chordUtils.ts (évite la duplication avec browserSynth.ts).
  */
 import { ChordData, GrilleData } from '../types/chord';
-import { BrowserSynth, RenderOptions, SampleLoopCfg } from './browserSynth';
+import { BrowserSynth, RenderOptions, SampleLoopCfg, deriveRenderEngine } from './browserSynth';
 import type { Renderer } from './renderMode';
 import { backendUrl, chordToNoteNames } from './chordUtils';
 import { hasPlayableContent } from './playGuard';
@@ -79,6 +79,22 @@ export class AudioEngine {
   private browserSynth = new BrowserSynth();
   private _browserAudio = false;
   private masterVol = 127;
+  /** Config instruments libres pour le rendu WAV : {canal: {engine, path}}.
+   * Vide → rendu FluidSynth (GM) classique. */
+  private renderInstruments: Record<number, { engine: 'sfz' | 'vst3' | 'fluidsynth'; path: string }> = {};
+
+  /** Fixe les instruments par canal pour le rendu WAV (SFZ/VST3). */
+  setRenderInstruments(
+    instr: Record<number, { engine: 'sfz' | 'vst3' | 'fluidsynth'; path: string }>,
+  ) {
+    this.renderInstruments = instr;
+  }
+
+  /** Moteur global dérivé : "sfz" ou "vst3" si un instrument non-FluidSynth
+   * est choisi, sinon undefined (chemin FluidSynth historique). */
+  private renderEngine(): 'sfz' | 'vst3' | undefined {
+    return deriveRenderEngine(this.renderInstruments);
+  }
 
   get browserAudio() { return this._browserAudio; }
   set browserAudio(v: boolean) { this._browserAudio = v; }
@@ -295,6 +311,10 @@ export class AudioEngine {
         ...(loopInterval ? { loopStart: loopInterval.start, loopEnd: loopInterval.end } : {}),
         ...(startAtBeats && startAtBeats > 0 ? { startAtBeats } : {}),
         ...(renderer ? { renderer } : {}),
+        // Instruments libres (SFZ/VST3) par canal — activés si au moins un
+        // instrument non-FluidSynth est choisi.
+        ...(this.renderEngine() ? { engine: this.renderEngine() } : {}),
+        ...(Object.keys(this.renderInstruments).length > 0 ? { instruments: this.renderInstruments } : {}),
       });
     } else {
       const sequence = grille.chords.map(c => ({

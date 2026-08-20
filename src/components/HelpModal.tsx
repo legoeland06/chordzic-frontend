@@ -530,6 +530,15 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             </>} />
             <Row k="✂ Export L–R" v={<>Le bouton <b className="text-white">✂</b> (transport Navig, à côté de l'extraction WAV, actif quand R &gt; L) exporte en fichier WAV la musique <b className="text-white">exactement entre les locators [L, R[</b> : le serveur re-rend la portion (les notes avant L et après R ne sont pas jouées) et télécharge <code>grille_L…-R…_.wav</code>. La section exportée est la musique pure (sans le clic métronome), au tempo et avec les instruments courants (pistes, notes du Piano Roll incluses).</>} />
             <Row k="▶ Play (audio)" v={<><b>Rendu WAV interne</b> (FluidSynth, rapide et silencieux) : le Play joue TOUJOURS l'audio rendu par le PC — il ne déclenche jamais le synthé externe. Pour entendre le morceau avec le son du Roland (ou du synthé choisi), utilise le bouton <b>▶ MIDI</b> du transport : seul le MIDI joue alors.</>} />
+            <Row k="🎛️ Instruments" v={<>
+              Le bouton <b className="text-white">🎛️</b> de la barre du transport (mode 📱 Navig.) ouvre le sélecteur
+              d'<b className="text-white">instruments du rendu</b> : chaque piste peut jouer avec une banque
+              <b className="text-cyan-300"> SFZ</b> libre (piano Salamander, kit de batterie, orchestral VSCO2…)
+              ou un plugin <b className="text-emerald-300">VST3</b> natif (Surge XT…) au lieu du FluidSynth GM.
+              Piste sans instrument → <b>FluidSynth (GM)</b> comme avant. La sélection est mémorisée
+              (localStorage) et s'applique au <b>Play audio</b> comme à l'<b>export ✂ L–R</b> et à
+              l'<b>Extract Wav</b>. Le bouton 🎛️ est surligné quand des instruments sont actifs.
+            </>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Réglable dans les deux modes (rangée de réglages du mode Live, transport en Navig)." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Réglable dans les deux modes." />
             <Row k="Mesure:" v="Signature rythmique : 4/4 (défaut), 3/4, 6/8." />

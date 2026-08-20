@@ -15,6 +15,7 @@
 import React, { memo, useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano, Scissors } from 'lucide-react';
 import MpeMenu from './mpe/MpeMenu';
+import InstrumentPicker from './InstrumentPicker';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -133,6 +134,9 @@ interface DawViewProps {
   onExportSection: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
+  /** Instruments du rendu par canal (SFZ/VST3) — vide = FluidSynth. */
+  renderInstruments: Record<number, import('./InstrumentPicker').RenderInstrument>;
+  onRenderInstrumentsChange: (v: Record<number, import('./InstrumentPicker').RenderInstrument>) => void;
   /** Vrai pendant le bounce (le bouton est désactivé). */
   bouncing: boolean;
 }
@@ -493,6 +497,7 @@ export default function DawView({
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
   onSelectMpe, mpeActive, onExportSection,
   onPostProd, bouncing,
+  renderInstruments, onRenderInstrumentsChange,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
   type PlayState = 'idle' | 'playing' | 'paused';
@@ -522,6 +527,8 @@ export default function DawView({
    * place de la table de mixage) ou 🎚 Mixer. */
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<'piano' | 'mixer'>('piano');
+  /** Modal 🎛️ Instruments du rendu (SFZ/VST3 par piste). */
+  const [showInstruments, setShowInstruments] = useState(false);
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -1395,6 +1402,13 @@ const REC_COUNTDOWN_BEATS = 4;
             {bouncing ? '⏳ Bounce…' : '🎚 PostProd'}
           </button>
           <button onClick={() => setShowPorts(true)} title="Ports MIDI & Audio — choisir vers quoi brancher l'application" className={tBtn}><Settings className="w-3.5 h-3.5" /></button>
+          <button
+            onClick={() => setShowInstruments(true)}
+            title="Instruments du rendu — choisir un instrument SFZ/VST3 par piste (au lieu de FluidSynth GM)"
+            className={`${tBtn} ${Object.keys(renderInstruments).length > 0 ? 'text-cyan-300 border-cyan-500/50' : ''}`}
+          >
+            🎛️
+          </button>
           <button onClick={onHelp} title="Aide" className={tBtn}><HelpCircle className="w-3.5 h-3.5" /></button>
         </div>
         </div>
@@ -1843,6 +1857,16 @@ const REC_COUNTDOWN_BEATS = 4;
           </div>
         );
       })()}
+
+      {/* Modal 🎛️ Instruments du rendu (SFZ/VST3 par piste) */}
+      {showInstruments && (
+        <InstrumentPicker
+          channels={tracks.map(t => ({ channel: t.channel, label: t.label ?? `Piste ${t.channel}` }))}
+          value={renderInstruments}
+          onChange={onRenderInstrumentsChange}
+          onClose={() => setShowInstruments(false)}
+        />
+      )}
     </div>
   );
 }

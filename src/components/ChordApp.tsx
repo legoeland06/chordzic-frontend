@@ -16,6 +16,7 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 import { AudioEngine, TrackConfig, createTrack, FX_ZERO } from '../lib/audioEngine';
 import type { Renderer } from '../lib/renderMode';
 import type { SampleLoopCfg } from '../lib/browserSynth';
+import { deriveRenderEngine } from '../lib/browserSynth';
 import { DEFAULT_SAMPLE_VOLUME } from '../lib/sampleLoop';
 import ChordInput from './ChordInput';
 import ControlBar from './ControlBar';
@@ -101,6 +102,24 @@ export default function ChordApp() {
   ];
 
   const [tracks, setLocalTracks] = useState<TrackConfig[]>(DEFAULT_TRACKS);
+  /** Instruments du rendu par canal (SFZ/VST3) — vide = FluidSynth (GM).
+   * Persisté en localStorage (préférence de session, comme le piano ✨). */
+  const [renderInstruments, setRenderInstruments] = useState<
+    Record<number, import('./InstrumentPicker').RenderInstrument>
+  >(() => {
+    try {
+      const raw = localStorage.getItem('chordzic_render_instruments');
+      if (raw) return JSON.parse(raw);
+    } catch { /* stockage indisponible */ }
+    return {};
+  });
+  const handleRenderInstrumentsChange = useCallback(
+    (v: Record<number, import('./InstrumentPicker').RenderInstrument>) => {
+      setRenderInstruments(v);
+      try { localStorage.setItem('chordzic_render_instruments', JSON.stringify(v)); } catch { /* ignore */ }
+    },
+    [],
+  );
 
   const updateTrack = (channel: number, cfg: Partial<TrackConfig>) => {
     setLocalTracks(prev => {
@@ -904,6 +923,9 @@ export default function ChordApp() {
       return;
     }
     const customChannels = Object.keys(pianoNotes).map(Number);
+    // Moteur instruments libres : dérivé de la sélection (SFZ prioritaire
+    // si les deux types sont mélangés — chaque canal porte son propre moteur).
+    const renderEngine = deriveRenderEngine(renderInstruments);
     const body = {
       sequence: chordsToExport.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time })),
       tempo, sig,
@@ -917,6 +939,8 @@ export default function ChordApp() {
       ...(customChannels.length > 0 ? { custom_channels: customChannels } : {}),
       section_start: locL,
       section_end: locR,
+      ...(renderEngine ? { engine: renderEngine } : {}),
+      ...(Object.keys(renderInstruments).length > 0 ? { instruments: renderInstruments } : {}),
     };
     setStatus(`⏳ Rendu de la section [${locL} – ${locR}[ (beats)...`); setStatusColor('text-yellow-400');
     try {
@@ -942,7 +966,7 @@ export default function ChordApp() {
     } catch {
       setStatus('❌ Rendu de section échoué (serveur injoignable)'); setStatusColor('text-red-400');
     }
-  }, [locL, locR, chords, input, tempo, sig, drumPattern, walkingBass, volume, tracks, pianoNotes]);
+  }, [locL, locR, chords, input, tempo, sig, drumPattern, walkingBass, volume, tracks, pianoNotes, renderInstruments]);
 
   /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
    * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
@@ -1161,6 +1185,10 @@ export default function ChordApp() {
     engineRef.current?.setPattern(drumPattern);
   }, [drumPattern]);
   useEffect(() => { engineRef.current?.setWalking(walkingBass); }, [walkingBass]);
+  // Instruments du rendu (SFZ/VST3) → moteur audio (injectés dans le body /render-wav)
+  useEffect(() => {
+    engineRef.current?.setRenderInstruments(renderInstruments);
+  }, [renderInstruments]);
 
   useEffect(() => {
     if (!playing) { setCurrentBeat(0); return; }
@@ -1328,6 +1356,8 @@ export default function ChordApp() {
             onSetDrumPattern={setDrumPattern}
             onSetSig={setSig}
             onPostProd={bounceToPostProd}
+            renderInstruments={renderInstruments}
+            onRenderInstrumentsChange={handleRenderInstrumentsChange}
             bouncing={bouncing}
             onSelectMpe={setActiveMpe}
             mpeActive={activeMpe !== null}
