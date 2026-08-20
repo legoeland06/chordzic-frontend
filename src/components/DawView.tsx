@@ -13,7 +13,7 @@
  *   pause, et se déplace au clic.
  */
 import React, { memo, useRef, useEffect, useMemo, useState, useCallback } from 'react';
-import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Download, Upload, Save, FolderOpen, Repeat, HelpCircle, FilePlus2, ChevronUp, ChevronDown, Settings, Cable, Piano, Scissors } from 'lucide-react';
 import ClickControl from './ClickControl';
 import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
@@ -128,6 +128,8 @@ interface DawViewProps {
   onOpenMpe: () => void;
   /** Ouvre la modal 🥁 Push 3 (pads échantillonnés). */
   onOpenPush: () => void;
+  /** Exporte la section [L, R[ (locators) en WAV. */
+  onExportSection: () => void;
   /** Bounce multitrack → ouvre le mode PostProd. */
   onPostProd: () => void;
   /** Vrai pendant le bounce (le bouton est désactivé). */
@@ -488,7 +490,7 @@ export default function DawView({
   onSave, onLoad, onExport, onImport, onNewProject,
   sampleLoop, onSampleLoopChange,
   onAddTrack, onRemoveTrack, onUpdateTrack, onReorderTracks, onNotesChange, onPlayMidiAll, onHelp,
-  onOpenMpe, onOpenPush,
+  onOpenMpe, onOpenPush, onExportSection,
   onPostProd, bouncing,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
@@ -1341,6 +1343,16 @@ const REC_COUNTDOWN_BEATS = 4;
         </button>
         <button onClick={onExtractWav} disabled={!hasWav} title="Extraire le dernier rendu WAV" className={tBtn}>
           <Download className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Export de la section entre les locators [L, R[ */}
+        <button
+          onClick={onExportSection}
+          disabled={!(locR > locL)}
+          className={`${tBtn} text-[#c9a45c] hover:bg-[#3a2e12] hover:border-[#6a552a]`}
+          title={`Exporter la section entre les locators [${locL} – ${locR}[ en WAV (re-rendu de la portion exacte)`}
+        >
+          <Scissors className="w-3.5 h-3.5" />
         </button>
 
         <div className={tSep} />

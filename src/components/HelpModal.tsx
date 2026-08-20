@@ -483,6 +483,7 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               cohérent avec la signature), flèches ▲▼ = ±1 temps. Par défaut L=0 et R=fin du morceau (boucle complète). Le clic sur une piste
               (déplacement de la tête) reste libre : au wrap, la lecture revient à L.
             </>} />
+            <Row k="✂ Export L–R" v={<>Le bouton <b className="text-white">✂</b> (transport Navig, à côté de l'extraction WAV, actif quand R &gt; L) exporte en fichier WAV la musique <b className="text-white">exactement entre les locators [L, R[</b> : le serveur re-rend la portion (les notes avant L et après R ne sont pas jouées) et télécharge <code>grille_L…-R…_.wav</code>. La section exportée est la musique pure (sans le clic métronome), au tempo et avec les instruments courants (pistes, notes du Piano Roll incluses).</>} />
             <Row k="▶ Play (audio)" v={<><b>Rendu WAV interne</b> (FluidSynth, rapide et silencieux) : le Play joue TOUJOURS l'audio rendu par le PC — il ne déclenche jamais le synthé externe. Pour entendre le morceau avec le son du Roland (ou du synthé choisi), utilise le bouton <b>▶ MIDI</b> du transport : seul le MIDI joue alors.</>} />
             <Row k="🎵 WB" v="Walking bass : la basse joue 4 notes par mesure au lieu d'une tenue. Réglable dans les deux modes (rangée de réglages du mode Live, transport en Navig)." />
             <Row k="Pattern:" v="Style de batterie : 🎸 Rock (défaut), 🎤 Pop, 🌴 Reggae, ⏬ OneDrop, 🌊 Bossa, 🎷 Jazz. Réglable dans les deux modes." />

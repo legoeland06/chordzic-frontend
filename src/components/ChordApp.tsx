@@ -866,6 +866,71 @@ export default function ChordApp() {
     setStatusColor('text-green-400');
   };
 
+  /** Export de section [L, R[ (locators) : re-rend la portion exacte entre
+   * les deux locators (le serveur limite le rendu à R puis coupe avant L)
+   * et télécharge le WAV — la musique pure, sans le clic métronome. */
+  const exportSection = useCallback(async () => {
+    if (!(locR > locL)) {
+      setStatus("❌ Place d'abord les locators L et R (intervalle valide)"); setStatusColor('text-red-400');
+      return;
+    }
+    let chordsToExport = chords;
+    if (input !== lastParsedInput.current) {
+      lastParsedInput.current = input;
+      try { chordsToExport = parseGrille(input, tempo).chords; } catch { /* grille conservée */ }
+    }
+    const customNotes = Object.entries(pianoNotes).flatMap(([ch, notes]) =>
+      (notes as PianoNote[]).map(n => ({
+        channel: parseInt(ch), start_time: n.startTime, pitch: n.pitch,
+        duration: n.duration, velocity: n.velocity,
+      }))
+    );
+    if (!hasPlayableContent(chordsToExport.length, customNotes.length)) {
+      setStatus('❌ Rien à exporter — entre des accords (Live) ou des notes (Navig)');
+      setStatusColor('text-red-400');
+      return;
+    }
+    const customChannels = Object.keys(pianoNotes).map(Number);
+    const body = {
+      sequence: chordsToExport.map(c => ({ notes: chordToNoteNames(c), beats: 4.0 / c.time })),
+      tempo, sig,
+      pattern: drumPattern, walking: walkingBass,
+      master_vol: volume,
+      tracks: tracks.map(t => ({
+        channel: t.channel, program: t.program, volume: t.volume, mute: t.mute,
+        drums: t.drums ?? false, effects: t.fx ?? FX_ZERO,
+      })),
+      ...(customNotes.length > 0 ? { custom_notes: customNotes } : {}),
+      ...(customChannels.length > 0 ? { custom_channels: customChannels } : {}),
+      section_start: locL,
+      section_end: locR,
+    };
+    setStatus(`⏳ Rendu de la section [${locL} – ${locR}[ (beats)...`); setStatusColor('text-yellow-400');
+    try {
+      const resp = await fetch(`${API_BASE}/render-wav`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        setStatus('❌ Rendu de section échoué'); setStatusColor('text-red-400');
+        return;
+      }
+      const blob = await resp.blob();
+      const base = (input.slice(0, 24).replace(/[^\w\-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')) || 'grille';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${base}_L${locL}-R${locR}_${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus(`📥 Section [${locL} – ${locR}[ exportée (${(blob.size / 1048576).toFixed(1)} Mo)`);
+      setStatusColor('text-green-400');
+    } catch {
+      setStatus('❌ Rendu de section échoué (serveur injoignable)'); setStatusColor('text-red-400');
+    }
+  }, [locL, locR, chords, input, tempo, sig, drumPattern, walkingBass, volume, tracks, pianoNotes]);
+
   /** Lecture MIDI (mode Navig) : joue TOUTES les pistes (grille + notes
    * personnalisées) sur le port MIDI choisi (ex. Roland) — comme le mode Live.
    * `startAtBeats` : position de départ (0 = début). */
@@ -1253,6 +1318,7 @@ export default function ChordApp() {
             bouncing={bouncing}
             onOpenMpe={() => setMpeOpen(true)}
             onOpenPush={() => setPushOpen(true)}
+            onExportSection={exportSection}
           />
         ) : (
           <>
