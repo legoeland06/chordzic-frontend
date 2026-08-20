@@ -267,6 +267,22 @@ export default function ChordApp() {
     return () => window.removeEventListener('chordzic:click-mode', onClickMode);
   }, []);
 
+  // ── Mode tactile : l'appui prolongé (clic droit natif Windows/Android) ne
+  // doit PAS ouvrir le menu contextuel du navigateur — sauf dans les champs
+  // de saisie (copier/coller) et les zones qui en ont besoin (pads Push :
+  // clic droit = assigner un fichier). La capture document-level couvre
+  // aussi les portails (modales dans document.body).
+  useEffect(() => {
+    const onContextMenu = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest('input, textarea, [contenteditable], [data-contextmenu]')) return;
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', onContextMenu, true);
+    return () => document.removeEventListener('contextmenu', onContextMenu, true);
+  }, []);
+
   // ── Auto-sauvegarde locale (anti-perte à l'actualisation) ──────────
   /** Horodatage (ms) du dernier autosave effectif — affiché dans le header. */
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null);

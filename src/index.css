@@ -87,3 +87,36 @@
   border-radius: 3px;
   padding: 1px 3px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODE TACTILE — inhiber les réactions parasites navigateur/OS (2026-08-20)
+   ───────────────────────────────────────────────────────────────────────────
+   Sur écran tactile (tablette HP, etc.), le navigateur (ou Windows lui-même)
+   réagit aux gestes : appui prolongé = menu contextuel, double-tap = zoom,
+   sélection de texte au glissé, rebond de fin de page, surbrillance au tap.
+   Ces règles les neutralisent pour une utilisation fluide de l'appli.
+   Les zones de JEU (LivePiano, keywaves ROLI, PianoRoll, lanes…) ont déjà
+   touch-action: none (multi-touch) — ici c'est le filet global.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html,
+body {
+  /* Double-tap = plus de zoom ; pan + pinch restent possibles (accessibilité). */
+  touch-action: manipulation;
+  /* Pas de sélection de texte au glissé tactile (sauf champs de saisie). */
+  user-select: none;
+  -webkit-user-select: none;
+  /* Pas de callout (bulle de menu) sur appui long — Safari/iOS. */
+  -webkit-touch-callout: none;
+  /* Pas de rebond / pull-to-refresh / halo en fin de page. */
+  overscroll-behavior: none;
+  /* Pas de flash de surbrillance au tap (Chrome/Android). */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* La sélection de texte reste utile dans les champs de saisie. */
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
