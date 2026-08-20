@@ -101,17 +101,54 @@ clavier (Roland / FluidSynth) ou les horodate pendant un Rec.
 - **Architecture modulaire** : chaque contrôleur est un module (`components/mpe/registry.ts`)
   qui fournit une MODAL complète (`{ onClose }`) — le menu (`MpeMenu.tsx`) les liste. Pour
   ajouter un contrôleur : créer sa modal puis l'ajouter à `MPE_MODULES`.
-- **Modules actuels** : 🎹 Seaboard (strip tactile — X = bend, Y = timbre, molette = pression),
-  🎛 ROLI Seaboard RISE 2 (25 keywaves, 2 octaves C3→C5 — glissé vertical = bend, glissé
-  horizontal petit = vibrato, multi-touch, couleurs d'instrument) et 🥁 Push 3 —
-  pads (64 pads échantillonnés, retrigger). À venir : LinnStrument, Expressive E Osmose.
-- **Seaboard** : cadre commun sliders bend/pression/timbre, range ±2..±48 (RPN 0), LFO vibrato
-  (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM (mode PC),
-  retour auto ou maintien, état temps réel (notes tenues, canal, REC).
-- **Performance** : la zone de manipulation du Seaboard (MpeStrip) est isolée (aucun state
-  React — curseur en transform CSS, valeurs en textContent, gestes échantillonnés à ~60 Hz en
-  rAF) → zéro re-render pendant le glissé. La lib partagée vit dans `lib/mpe/` (types, api,
-  gestures) et `lib/padBank.ts` (pads Push).
+- **Modules actuels** : 🎹 Seaboard (strip tactile), 🎛 ROLI Seaboard RISE 2 (25 keywaves,
+  2 octaves) et 🥁 Push 3 — pads (64 pads échantillonnés). À venir : LinnStrument, Expressive
+  E Osmose.
+- **Cadre commun (`ExpressionFrame`)** : sliders bend/pression/timbre, range ±2..±48 (RPN 0),
+  LFO vibrato (sin/tri/carré), cible du son (Auto / Roland / PC-FluidSynth), instrument GM
+  (mode PC), retour auto ou maintien, état temps réel (notes tenues, canal, REC, bend effectif).
+- **Performance** : les zones de manipulation sont isolées (aucun state React pendant le
+  glissé — gestes échantillonnés à ~60 Hz en rAF) → zéro re-render. La lib partagée vit dans
+  `lib/mpe/` (types, api, gestures) et `lib/padBank.ts` (pads Push).
+
+### 🎛 ROLI Seaboard RISE 2 — 25 keywaves, 2 octaves
+
+Un clavier qui « ressemble à peine à un piano » : surface de **silicone mat** où les touches
+noires sont **juste plus foncées** que les blanches (grises) — avec un **choix de couleurs
+appliqué globalement** à l'instrument (5 thèmes persistés).
+
+<img src="docs/mpe-rise2.svg" alt="ROLI Seaboard RISE 2 — gestes" width="680">
+
+| Geste | Effet |
+| --- | --- |
+| Appui (Strike) | Note-on (vélocité 100), touche illuminée |
+| **Pose multi-doigts** | Le moteur enregistre la hauteur exacte de **chaque doigt** et la postule comme **valeur par défaut juste** → l'accord posé est toujours parfaitement juste, même si les doigts sont à des hauteurs différentes (écrans tactiles) |
+| **Glissé vertical ▲▼** | **Bend** par *translation du poignet* : haut = aigu, bas = grave (une translation d'environ ⅓ de la hauteur = bend max, range ±2..±48) |
+| **Glissé horizontal ◀▶ (petit)** | **Vibrato** : l'intensité suit le décalage autour du centre de la touche (fréquence Hz + profondeur max st réglables, persistés) |
+| Traverser une keywave | Glissando : la note change (note-off + note-on), comme sur le vrai Seaboard |
+| Molette 🖱 | Pression / aftertouch (channel pressure) |
+| Relâchement (Lift) | Note-off + retour auto du bend au centre (ou maintien) |
+
+**Multi-touch** : chaque doigt tient sa propre note (avec son origine de pose) ; le bend et le
+vibrato étant globaux côté serveur, ils suivent le **dernier doigt bougé** — au relâchement
+d'un doigt, le doigt restant reprend la main.
+
+### 🎹 Seaboard (strip tactile)
+
+Bande tactile plein écran : **X = pitch bend**, **Y = timbre (CC74)**, molette = pression.
+
+<img src="docs/mpe-strip.svg" alt="Seaboard strip — gestes" width="680">
+
+- Glisser ◀ ▶ = bend (gauche = grave, droite = aigu), range ±2..±48 (RPN 0) ;
+- Glisser ▲ ▼ = timbre / brillance (en haut = brillant) ;
+- Retour auto au centre au relâchement (style Seaboard) ou maintien (style Osmose).
+
+### 🥁 Push 3 — pads
+
+Grille de **64 pads (8×8)** échantillonnés : import de samples (wav/mp3/ogg/flac/m4a/aiff),
+retrigger immédiat, couleurs par dégradés.
+
+<img src="docs/mpe-push.svg" alt="Push 3 — 64 pads" width="680">
 
 ## Performances (lecture temps réel)
 

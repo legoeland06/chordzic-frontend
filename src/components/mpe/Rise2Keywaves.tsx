@@ -8,8 +8,10 @@
  *
  * Gestes (5D simplifiés, MULTI-TOUCH — chaque doigt tient sa note) :
  *  - STRIKE : appui sur une keywave → note-on (vélocité 100) ;
- *  - glissé VERTICAL le long de la touche → pitch bend (le centre vertical
- *    = bend neutre ; haut = aigu, bas = grave) ;
+ *  - glissé VERTICAL = pitch bend RELATIF : la position de pose du doigt est
+ *    postulée « juste » (accord toujours parfait au posé, même si les doigts
+ *    sont à des hauteurs différentes) ; le bend ne commence qu'avec la
+ *    TRANSLATION du poignet (haut = aigu, bas = grave) ;
  *  - glissé HORIZONTAL (petite amplitude autour du centre de la touche) →
  *    VIBRATO : l'intensité suit |décalage| (profondeur LFO du serveur) ;
  *  - glissando : traverser une keywave voisine → note-off + note-on ;
@@ -25,11 +27,12 @@
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BEND_CENTER,
   StripGesture,
   locateKeywave,
+  translationToBend,
   wheelToPressure,
   xToVibrato,
-  yToBend,
 } from '../../lib/mpe';
 import { sendPianoNote } from '../../lib/pianoNote';
 import { MpeModuleProps } from './ExpressionFrame';
@@ -83,7 +86,9 @@ function storedNum(key: string, def: number): number {
 interface TouchState {
   index: number;
   pitch: number;
-  /** Position verticale dans la zone (0 = haut, 1 = bas). */
+  /** Position verticale de POSE (0 = haut, 1 = bas) — postulée « juste ». */
+  originY: number;
+  /** Position verticale courante (0 = haut, 1 = bas). */
   y: number;
   /** Position dans la keywave ([-0.5, +0.5], 0 = centre). */
   xRel: number;
@@ -166,7 +171,9 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
     touch.y = (clientY - rect.top) / Math.max(1, rect.height);
     touch.xRel = xRel;
     masterRef.current = pointerId;
-    bendRef.current = yToBend(touch.y);
+    // Bend RELATIF : la pose est « juste » (delta 0 = neutre) — seules les
+    // translations du poignet (haut/bas) font le bend.
+    bendRef.current = translationToBend(touch.originY - touch.y);
     vibRef.current = xToVibrato(xRel, vibDepthRef.current);
     emit();
   }, [setActive, emit]);
@@ -181,9 +188,11 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
     const pitch = RISE2_START_PITCH + index;
     const y = (e.clientY - rect.top) / Math.max(1, rect.height);
     void sendPianoNote(pitch, true, undefined, RISE2_VELOCITY); // STRIKE
-    touchesRef.current.set(e.pointerId, { index, pitch, y, xRel });
+    // L'origine verticale de POSE est postulée « juste » : l'accord posé est
+    // toujours parfaitement juste, le bend part de zéro (translation poignet).
+    touchesRef.current.set(e.pointerId, { index, pitch, originY: y, y, xRel });
     masterRef.current = e.pointerId;
-    bendRef.current = yToBend(y);
+    bendRef.current = translationToBend(0); // pose → neutre
     vibRef.current = xToVibrato(xRel, vibDepthRef.current);
     setActive(index, true);
     emit();
@@ -214,7 +223,7 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
       const nextId = [...touchesRef.current.keys()].pop()!;
       const next = touchesRef.current.get(nextId)!;
       masterRef.current = nextId;
-      bendRef.current = yToBend(next.y);
+      bendRef.current = translationToBend(next.originY - next.y);
       vibRef.current = xToVibrato(next.xRel, vibDepthRef.current);
       emit();
     } else {
@@ -225,9 +234,9 @@ function Rise2Keywaves({ returnMode, onGesture, onGestureEnd }: MpeModuleProps) 
         // (le silicone du Seaboard revient) — animation rAF, valeurs émises.
         const step = () => {
           const prev = bendRef.current;
-          const diff = prev - 8192;
+          const diff = prev - BEND_CENTER;
           if (Math.abs(diff) <= 90) {
-            bendRef.current = 8192;
+            bendRef.current = BEND_CENTER;
             emit();
             endGesture();
             return;

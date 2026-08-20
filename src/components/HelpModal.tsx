@@ -17,8 +17,21 @@
 import React, { useRef, useState } from 'react';
 import LivePiano from './LivePiano';
 import { backendUrl } from '../lib/chordUtils';
+import mpeRise2Svg from '../../docs/mpe-rise2.svg?raw';
+import mpeStripSvg from '../../docs/mpe-strip.svg?raw';
+import mpePushSvg from '../../docs/mpe-push.svg?raw';
 
 const API_BASE = backendUrl();
+
+/** Illustration SVG (schéma d'un module MPE) — silencieuse pour la lecture vocale. */
+function Figure({ svg, caption }: { svg: string; caption: string }) {
+  return (
+    <figure data-nospeak className="my-2 rounded-xl border border-gray-700/60 bg-[#0d1420]/60 p-2">
+      <div className="[&_svg]:w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
+      <figcaption className="mt-1 text-[10px] text-gray-500">{caption}</figcaption>
+    </figure>
+  );
+}
 
 interface HelpModalProps {
   show: boolean;
@@ -103,7 +116,11 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
     stopSpeaking();
     const el = document.getElementById(id);
     if (!el) return;
-    const text = cleanSpeakText(el.textContent ?? '');
+    // Ignore les illustrations (data-nospeak) : la lecture vocale ne lit que
+    // le texte explicatif.
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('[data-nospeak]').forEach(n => n.remove());
+    const text = cleanSpeakText(clone.textContent ?? '');
     if (text.length < 2) return;
     try {
       const resp = await fetch(`${API_BASE}/tts`, {
@@ -321,10 +338,15 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
             <p className="font-bold text-white mt-3">🎛 Le ROLI Seaboard RISE 2</p>
             <Row k="2 octaves · C3 → C5" v="25 keywaves (C3, D3… C4… C5) — comme le vrai RISE 2, un clavier qui ressemble à peine à un piano : surface de silicone mat, les touches noires sont juste plus foncées que les blanches (grises). Le repère lumineux marque les notes C." />
             <Row k="🎨 Couleurs de l'instrument" v="Pastilles en haut à droite : un choix de couleurs appliqué globalement à toutes les keywaves (Gris matte, Bleu glacier, Vert forêt, Ambre, Rose poudré) — persistant." />
-            <Row k="Glissé ▲ ▼ (vertical)" v="Pitch bend : le centre vertical de la touche = neutre, glisser vers le HAUT = aigu, vers le BAS = grave (comme le vrai Seaboard). Range réglable ±2..±48 demi-tons." />
+            <Row k="🖐 Pose = accord JUSTE" v="Quand tu poses tes doigts, le moteur enregistre la hauteur exacte de CHAQUE doigt et la postule comme valeur par défaut juste : tes doigts peuvent être à des hauteurs différentes, l'accord est parfaitement juste à la pose (indispensable en multi-touch sur écran tactile)." />
+            <Row k="Glissé ▲ ▼ (vertical)" v="Pitch bend par TRANSLATION du poignet : à partir de la pose, glisser vers le HAUT = aigu, vers le BAS = grave (une translation d'environ 1/3 de la hauteur = bend max). Range réglable ±2..±48 demi-tons." />
             <Row k="Glissé ◀ ▶ (horizontal, petit)" v="VIBRATO : l'intensité suit le décalage autour du centre de la touche (au centre = rien, vers les bords = vibrato maximal). Fréquence (Hz) et profondeur max (st) réglables dans le bandeau — persistants. Traverser une keywave voisine = glissando (la note change, comme sur le vrai Seaboard)." />
             <Row k="Molette 🖱" v="Pression (aftertouch, channel pressure 0-127)." />
-            <Row k="🖐 Multi-touch" v="Plusieurs doigts = plusieurs notes en même temps (chacun garde sa note et son glissando). Le bend / vibrato suivent le dernier doigt bougé ; quand un doigt se lève, le doigt restant reprend la main." />
+            <Row k="🖐 Multi-touch" v="Plusieurs doigts = plusieurs notes en même temps (chacun garde sa note, son origine de pose et son glissando). Le bend / vibrato suivent le dernier doigt bougé ; quand un doigt se lève, le doigt restant reprend la main." />
+            <p className="font-bold text-white mt-3">📐 En pratique (schémas)</p>
+            <Figure svg={mpeRise2Svg} caption="ROLI Seaboard RISE 2 — 25 keywaves (2 octaves) : la pose est juste, le glissé vertical bend (translation du poignet), le glissé horizontal fait le vibrato." />
+            <Figure svg={mpeStripSvg} caption="Seaboard (strip) — bande tactile : X = bend, Y = timbre, molette = pression." />
+            <Figure svg={mpePushSvg} caption="Push 3 — 64 pads échantillonnés (8×8) : import de samples, retrigger immédiat, couleurs par dégradés." />
             <p className="font-bold text-white mt-3">🎚 Sliders & LFO</p>
             <Row k="Bend / Pression / Timbre" v="Réglages fins indépendants du strip, avec valeurs affichées." />
             <Row k="LFO (vibrato auto)" v="Fréquence (0-10 Hz), profondeur (0-24 demi-tons) et forme (sinus / triangle / carré) : le bend oscille tout seul — idéal pour un vibrato pendant une tenue ou un enregistrement." />

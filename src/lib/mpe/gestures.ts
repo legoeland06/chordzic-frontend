@@ -21,15 +21,27 @@ export function yToTimbre(y: number): number {
 }
 
 /**
- * Position Y (0-1, 0 = haut) → pitch bend 14-bit pour le RISE 2.
+ * Fraction de la hauteur de la zone pour un bend COMPLET (±range).
  *
- * Le centre vertical de la keywave (y = 0.5) = bend neutre ; glisser vers le
- * HAUT = bend aigu (+8192), vers le BAS = bend grave (-8192) — comme le vrai
- * Seaboard (le glide se fait en glissant le doigt le long de la touche).
+ * Une translation verticale du poignet de ~35 % de la hauteur des keywaves
+ * (≈ 2-3 cm sur une tablette) suffit pour parcourir tout le range de bend.
  */
-export function yToBend(y: number): number {
-  const v = Math.round(BEND_CENTER + (0.5 - Math.max(0, Math.min(1, y))) * 2 * BEND_CENTER);
-  return Math.max(0, Math.min(16383, v));
+export const RISE2_BEND_SPAN = 0.35;
+
+/**
+ * Translation verticale d'un doigt (fraction de hauteur, POSITIF = vers le
+ * haut) → pitch bend 14-bit pour le RISE 2.
+ *
+ * La position de POSE du doigt est postulée « juste » : delta = 0 → bend
+ * neutre (8192). L'accord posé est donc TOUJOURS parfaitement juste, quelles
+ * que soient les hauteurs de pose des doigts ; le bend ne commence qu'avec
+ * la translation du poignet (haut = aigu, bas = grave). Le bend max est
+ * atteint pour une translation de `span` (défaut RISE2_BEND_SPAN).
+ */
+export function translationToBend(delta: number, span: number = RISE2_BEND_SPAN): number {
+  const s = Math.max(0.05, Math.min(1, span));
+  const d = Math.max(-1, Math.min(1, delta / s));
+  return Math.max(0, Math.min(16383, Math.round(BEND_CENTER + d * BEND_CENTER)));
 }
 
 /**

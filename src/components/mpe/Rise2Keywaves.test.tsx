@@ -108,21 +108,36 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     act(() => h.root.unmount());
   });
 
-  it('BEND : glissé VERTICAL — centre = neutre, haut = aigu, bas = grave', async () => {
+  it('BEND : glissé VERTICAL — la pose est « juste », la translation du poignet bend (haut = aigu, bas = grave)', async () => {
     mockRect(W, H);
     const h = renderZone();
     act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H / 2));
     await nextFrame();
-    expect(lastGesture(h.onGesture).bend).toBe(BEND_CENTER);
-    // Vers le haut → bend aigu
+    expect(lastGesture(h.onGesture).bend).toBe(BEND_CENTER); // posé à mi-hauteur → juste
+    // Translation vers le haut → bend aigu
     act(() => pointer(h.zone, 'pointermove', keyCenter(0), H * 0.25));
     await nextFrame();
     expect(lastGesture(h.onGesture).bend).toBeGreaterThan(BEND_CENTER);
-    // Vers le bas → bend grave
+    // Translation vers le bas → bend grave
     act(() => pointer(h.zone, 'pointermove', keyCenter(0), H * 0.75));
     await nextFrame();
     expect(lastGesture(h.onGesture).bend).toBeLessThan(BEND_CENTER);
     act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.75));
+    act(() => h.root.unmount());
+  });
+
+  it('ACCORD JUSTE : des doigts posés à des hauteurs différentes ne désaccordent PAS l accord (pose = valeur par défaut juste)', async () => {
+    mockRect(W, H);
+    const h = renderZone();
+    // Doigt 1 posé en HAUT (y = 0.2), doigt 2 posé en BAS (y = 0.8) :
+    // sans recalage, le bend absolu les désaccorderait de ±~5000. Ici la
+    // pose de chaque doigt est postulée « juste » → bend neutre.
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H * 0.2, 1));
+    act(() => pointer(h.zone, 'pointerdown', keyCenter(12), H * 0.8, 2));
+    await nextFrame();
+    expect(lastGesture(h.onGesture).bend).toBe(BEND_CENTER);
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.2, 1));
+    act(() => pointer(h.zone, 'pointerup', keyCenter(12), H * 0.8, 2));
     act(() => h.root.unmount());
   });
 
@@ -231,7 +246,9 @@ describe('Rise2Keywaves (2 octaves · multi-touch)', () => {
     mockRect(W, H);
     const h = renderZone('hold');
     act(() => pointer(h.zone, 'pointerdown', keyCenter(0), H * 0.2));
-    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.2));
+    // Translation vers le haut (poignet) → bend aigu, puis lift
+    act(() => pointer(h.zone, 'pointermove', keyCenter(0), H * 0.05));
+    act(() => pointer(h.zone, 'pointerup', keyCenter(0), H * 0.05));
     await nextFrame();
     expect(h.onGestureEnd).toHaveBeenCalledWith(expect.objectContaining({
       bend: expect.any(Number),

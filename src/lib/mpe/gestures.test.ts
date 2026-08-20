@@ -3,12 +3,13 @@
  */
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
+  RISE2_BEND_SPAN,
   locateKeywave,
   throttleTrailing,
+  translationToBend,
   wheelToPressure,
   xToBend,
   xToVibrato,
-  yToBend,
   yToTimbre,
 } from './gestures';
 import { BEND_CENTER, TIMBRE_CENTER } from './types';
@@ -45,14 +46,15 @@ describe('mapping des gestes MPE', () => {
     expect(wheelToPressure(1, 100)).toBe(0);
   });
 
-  it('yToBend (RISE 2) : centre vertical = neutre, haut = aigu, bas = grave', () => {
-    expect(yToBend(0.5)).toBe(BEND_CENTER);
-    expect(yToBend(0)).toBe(16383); // tout en haut → +8192 (borné)
-    expect(yToBend(1)).toBe(0); // tout en bas → -8192
-    expect(yToBend(0.25)).toBe(BEND_CENTER + 4096); // 8192 + (0.25 × 16384)
-    expect(yToBend(0.75)).toBe(BEND_CENTER - 4096);
-    expect(yToBend(-0.3)).toBe(16383); // bornes
-    expect(yToBend(2)).toBe(0);
+  it('translationToBend (RISE 2) : la POSE est « juste » (delta 0 = neutre), le bend suit la translation du poignet', () => {
+    expect(translationToBend(0)).toBe(BEND_CENTER); // doigt posé sans bouger → accord juste
+    expect(translationToBend(RISE2_BEND_SPAN)).toBe(16383); // translation haut de span → bend max
+    expect(translationToBend(-RISE2_BEND_SPAN)).toBe(0); // translation bas → bend min
+    expect(translationToBend(RISE2_BEND_SPAN / 2)).toBe(BEND_CENTER + 4096); // moitié → moitié du bend
+    expect(translationToBend(1)).toBe(16383); // bornes
+    expect(translationToBend(-2)).toBe(0);
+    expect(translationToBend(0.2, 0.2)).toBe(16383); // span personnalisé
+    expect(translationToBend(0.1, 1)).toBe(Math.round(BEND_CENTER + 819.2)); // span large → doux
   });
 
   it('xToVibrato : centre = 0, bords = profondeur max, symétrique, borné', () => {
