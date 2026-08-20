@@ -87,7 +87,7 @@ export default function ClickControl() {
   const separated = !!cfg.out_device;
 
   return (
-    <div className="flex items-center gap-1.5 shrink-0 px-1 py-1 rounded-lg border border-gray-800 bg-gray-900/60">
+    <div className="flex flex-wrap items-center gap-1.5 max-w-full px-1 py-1 rounded-lg border border-gray-800 bg-gray-900/60">
       <Metronome className="w-3.5 h-3.5 text-amber-400 shrink-0" />
 
       {/* Dans le rendu (mixé, synchro parfaite) */}
@@ -150,7 +150,7 @@ export default function ClickControl() {
           slider fin + champ numérique + calage ±1/±10 ms, applicable PENDANT
           la lecture (le serveur décale le clic en direct, comme le volume). */}
       {separated && (
-        <div className="flex items-center gap-1" title={`Décalage clic (${cfg.delay_ms} ms) — si le clic sort EN AVANCE (chemin USB direct vs PipeWire), augmentez (+) ; s'il sort EN RETARD, diminuez (−). Modifiable pendant la lecture (WAV séparé ET MIDI).`}>
+        <div className="flex flex-wrap items-center gap-1" title={`Décalage clic (${cfg.delay_ms} ms) — si le clic sort EN AVANCE (chemin USB direct vs PipeWire), augmentez (+) ; s'il sort EN RETARD, diminuez (−). Modifiable pendant la lecture (WAV séparé ET MIDI).`}>
           <span className="text-[10px] text-gray-400">Décalage</span>
           <input
             type="range" min={-200} max={200} step={1} value={cfg.delay_ms}

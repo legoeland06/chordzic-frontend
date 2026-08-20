@@ -144,7 +144,7 @@ export default function LoopControl({ tempo, sig, cfg, onChange }: LoopControlPr
 
   return (
     <div
-      className="flex items-center gap-1.5 shrink-0 px-1 py-1 rounded-lg border border-gray-800 bg-gray-900/60"
+      className="flex flex-wrap items-center gap-1.5 max-w-full px-1 py-1 rounded-lg border border-gray-800 bg-gray-900/60"
       title="Boucle sample : un sample de quelques mesures répété en boucle pendant la lecture (mode Navig). Le décalage décale la phase EN DIRECT pour caler le sample sur le tempo."
     >
       <Music className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
