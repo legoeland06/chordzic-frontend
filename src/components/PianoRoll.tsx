@@ -597,6 +597,11 @@ function PianoRoll({
   }, [draw]);
 
   // ── Dessin de la colonne clavier (fixe à droite) ──
+  // ⚠️ `channel` dans les deps : au SAUT de piste (sélecteur du modal), la
+  // plage peut ne pas changer (piste dans le même registre) — sans cette
+  // dépendance, le canvas de la marge gardait sa taille/position interne
+  // précédente et semblait « tronqué » (il fallait fermer/réouvrir le modal
+  // pour que la marge reprenne toute sa hauteur).
   useEffect(() => {
     const c = keysCanvasRef.current;
     if (!c) return;    const ctx = c.getContext('2d');
@@ -642,7 +647,7 @@ function PianoRoll({
         ctx.fillText(label, 4, y + WHITE_KEY_HEIGHT - 3);
       }
     }
-  }, [userMinPitch, userMaxPitch, canvasHeight, height, keysVisible, isDrum, drumNames]);
+  }, [userMinPitch, userMaxPitch, canvasHeight, height, keysVisible, isDrum, drumNames, channel]);
 
   // ── Redimensionnement du canvas ──
   useEffect(() => {
