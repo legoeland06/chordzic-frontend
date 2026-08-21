@@ -61,6 +61,29 @@ s'adapte toujours à la largeur de l'écran.
 ![Table de mixage en mode Navigateur](screenshots/controlPanel_tableMixage_modeNavig.png)
 *Table de mixage (mode Navigateur)*
 
+### 🎛️ Sélecteur d'instruments (moteur live + rendu par piste)
+
+Le bouton **🎛️** (barre du transport Navig, surligné dès qu'un instrument ou le
+moteur live est actif) ouvre le sélecteur complet :
+
+**🎹 Ce que tu entends en jouant** — le **moteur live**, 3 sources en un clic :
+- 🔌 **Roland GM** (thru MIDI, son interne du piano — défaut)
+- 🎸 **Surge XT** (637 presets d'usine → audio USB → **haut-parleurs du Roland**)
+- 🎹 **FluidSynth** (SoundFont GM du serveur, les **128 instruments GM** au choix)
+
+**Navigation clavier** : **← / →** change de source, **↑ / ↓** incrémente
+l'instrument (⭐ best-of curaté par catégorie, rebouclage), le choix s'applique
+immédiatement. Boutons ◀ ▶ équivalents. Préférence mémorisée et réactivée au
+chargement.
+
+**Listes d'instruments** (onglets + recherche) : ⭐ **Best-of** (75 presets curatés),
+🎸 **Surge** (les 637), 🎻 **SFZ** (piano Salamander, kit drums, VSCO2…),
+🗂 **SF2/SF3** (tes banques de `~/soundfonts` + système).
+
+**📦 Par piste (rendu WAV)** : **glisser-déposé** d'un instrument sur une piste
+(ou `<select>` par piste) → l'instrument est utilisé par le serveur au **▶ Play**,
+à l'**Extract Wav** et à l'export **✂ L–R**. Piste sans instrument → FluidSynth (GM).
+
 ## Piano Roll (intégré + modal plein écran)
 
 - **Barre d'outils « studio » unique** (intégré et modal ⛶, parfaitement synchronisés) :
@@ -284,12 +307,16 @@ via WASAPI/CoreAudio, rendu WAV via l'exécutable FluidSynth + SoundFont).
 
 **Eric BRUNEAU** — vibe coding Deepseek (legoeland)
 
-*328 tests unitaires (Vitest) — tsc strict à 0 erreur*
+*346 tests unitaires (Vitest) — tsc strict à 0 erreur*
 
 ---
 
 ## Notes de version
 
+- **v2.7.3 (21/08/2026)** — 🎛️ Sélecteur d'instruments : moteur live 3 sources
+  (thru Roland / Surge XT → haut-parleurs du Roland / FluidSynth GM), navigation
+  clavier ←/→ et ↑/↓, best-of ⭐ par catégorie, drag & drop par piste pour le
+  rendu WAV (SFZ, presets Surge, SoundFonts .sf2/.sf3).
 - **v2.7.2 (20/08/2026)** — 📱 Mode tactile : inhibition des réactions
   navigateur/OS (appui long = clic droit, double-tap = zoom, sélection,
   rebond, surbrillance).
