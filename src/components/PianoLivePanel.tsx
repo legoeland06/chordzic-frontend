@@ -61,14 +61,29 @@ function samePitches(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
+/** Vrai si deux accords reconnus sont identiques (label + classes). */
+function sameChord(a: RecognizedChord | null, b: RecognizedChord | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.label === b.label &&
+    a.classes.length === b.classes.length &&
+    a.classes.every((v, i) => v === b.classes[i])
+  );
+}
+
 /** Illumination de la piste jouée : lit la position du store playhead à
  * ~12 fps (imperceptible) et calcule les pitchs actifs — le DAW ne re-rend
- * plus à chaque tick de lecture (optimisation performance B). */
+ * plus à chaque tick de lecture (optimisation performance B).
+ * Garde `samePitches` : même si l'effet se relance (deps instables), un
+ * setState avec la même valeur bail out — jamais de boucle de re-rendu. */
 function usePlayheadPitches(notes: PianoNote[], enabled: boolean, fps = 12): number[] {
   const [pitches, setPitches] = useState<number[]>([]);
   useEffect(() => {
-    if (!enabled) { setPitches([]); return; }
-    const update = () => setPitches(activePitchesAt(notes, getPlayheadPosition()));
+    if (!enabled) { setPitches(prev => (prev.length === 0 ? prev : [])); return; }
+    const update = () => setPitches(prev => {
+      const next = activePitchesAt(notes, getPlayheadPosition());
+      return samePitches(prev, next) ? prev : next;
+    });
     update();
     const id = setInterval(update, Math.max(40, Math.round(1000 / fps)));
     return () => clearInterval(id);
@@ -110,7 +125,10 @@ function PianoLivePanel({
         const pitches = Array.isArray(j.active) ? (j.active as number[]) : [];
         setActive(prev => (samePitches(prev, pitches) ? prev : pitches));
         const r = recognizeChord(pitches);
-        setDetected(r);
+        // Garde sameChord : un nouvel objet à chaque poll ne re-rend pas le
+        // panneau (le polling tourne en continu — économie + pas de boucle
+        // si une dép de l'effet est instable).
+        setDetected(prev => (sameChord(prev, r) ? prev : r));
 
         // ── Timer d'insertion automatique (mode live : grille ; navig :
         //    piste sélectionnée — pas d'insertion sans piste cible) ──

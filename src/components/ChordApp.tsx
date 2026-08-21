@@ -1329,6 +1329,13 @@ export default function ChordApp() {
     });
   }, []);
 
+  // Handler d'insertion STABLE pour PianoLivePanel (une fonction inline
+  // relançait l'effet de polling à chaque render — risque de boucle).
+  const handleLiveInsert = useCallback(
+    (chord: { label: string }) => insertDetectedChord(chord.label),
+    [insertDetectedChord],
+  );
+
   // ─── Rendu JSX ─────────────────────────────────────────────────────
 
   return (
@@ -1449,7 +1456,7 @@ export default function ChordApp() {
             >
               <PianoLivePanel
                 mode="live"
-                onInsert={(chord) => insertDetectedChord(chord.label)}
+                onInsert={handleLiveInsert}
                 onGoNavig={() => setNavigMode(true)}
                 onPlayNote={livePlayNote}
               />

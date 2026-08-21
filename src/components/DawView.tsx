@@ -78,6 +78,10 @@ const JUNO_DRUM_KITS = [
 
 // ─── Props ─────────────────────────────────────────────────────────────
 
+/** Tableau vide STABLE (même référence) — éviter les re-renders en boucle
+ * quand une prop tableau est mémoïsée avec `?? EMPTY_NOTES`. */
+const EMPTY_NOTES: PianoNote[] = [];
+
 interface DawViewProps {
   tracks: TrackConfig[];
   pianoNotes: Record<number, PianoNote[]>;
@@ -987,7 +991,14 @@ export default function DawView({
    * joué. Figée à la pause (position courante), vide à l'arrêt. */
   /** Notes de la piste cible (illumination) — stables ; le panneau calcule
    * les pitchs actifs via le store playhead (sans re-render du DAW). */
-  const trackNotes = expandedCh !== null ? (pianoNotes[expandedCh] ?? []) : [];
+  // Notes de la piste agrandie pour l'illumination du LivePiano. Tableau
+  // STABLE (useMemo + constante module) : une nouvelle référence à chaque
+  // render relançait l'effet d'illumination en boucle (« Maximum update
+  // depth exceeded »).
+  const trackNotes = useMemo(
+    () => (expandedCh !== null ? (pianoNotes[expandedCh] ?? EMPTY_NOTES) : EMPTY_NOTES),
+    [expandedCh, pianoNotes],
+  );
 
   /** Insère l'accord reconnu en NOTES dans la piste sélectionnée : fin de
    * la piste (beat entier), durée = une mesure de la signature courante.
