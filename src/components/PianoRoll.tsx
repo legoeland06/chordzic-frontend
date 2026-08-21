@@ -216,6 +216,9 @@ function PianoRoll({
   // Largeur visible du conteneur : le canvas reste fixé à cette largeur,
   // c'est un spacer interne qui porte la largeur réelle du contenu.
   const [viewportW, setViewportW] = useState(800);
+  /** Hauteur mesurée de la zone d'édition (ResizeObserver) — le canvas
+   * s'étire pour TOUJOURS remplir la zone (modal plein écran compris). */
+  const [viewportH, setViewportH] = useState(0);
 
   // Bloque le scroll NATIF de la fenêtre quand le curseur est DANS le piano
   // roll (intégré ET modal) : le onWheel React est inopérant pour
@@ -342,7 +345,10 @@ function PianoRoll({
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
-  const canvasHeight = Math.max(height, totalHeight + 40);
+  // Le canvas s'étire au moins à la hauteur de la zone d'édition mesurée
+  // (viewportH — modal plein écran inclus) : plus de vide en bas ; si le
+  // contenu est plus grand, il suit le contenu (scroll vertical registre).
+  const canvasHeight = Math.max(viewportH, totalHeight + 40);
 
   // NOTE : le canvas fait la largeur du viewport (pas celle du contenu) pour
   // ne jamais dépasser la limite de taille des canvas navigateurs (~32767 px)
@@ -620,11 +626,14 @@ function PianoRoll({
     return () => window.removeEventListener('resize', handleResize);
   }, [draw]);
 
-  // ── Largeur du viewport (canvas fixe + spacer scrollable) ──
+  // ── Largeur + HAUTEUR du viewport (canvas fixe + spacer scrollable) ──
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const update = () => setViewportW(el.clientWidth);
+    const update = () => {
+      setViewportW(el.clientWidth);
+      setViewportH(el.clientHeight);
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
