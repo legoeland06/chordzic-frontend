@@ -1822,7 +1822,7 @@ function PianoRoll({
 
   return (
     <div ref={rootRef} className={embedded ? 'w-full h-full flex flex-col bg-[#0e1016]' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/70'}>
-      <div className={embedded ? 'flex flex-col flex-1 min-h-0' : 'bg-gray-900 rounded-xl border border-gray-700 shadow-2xl flex flex-col max-w-[95vw] max-h-[90vh] w-full'}>
+      <div className={embedded ? 'flex flex-col flex-1 min-h-0' : 'bg-gray-900 flex flex-col w-full h-full'}>
         {/* Header (masqué en mode embarqué : l'info est dans le panneau gauche) */}
         {!embedded && (
         <>
@@ -1885,7 +1885,7 @@ function PianoRoll({
             dédiée (mobile). Le canvas a touch-action: none → les gestes
             dessus sont TOUJOURS de l'édition (jamais de scroll parasite) ;
             le défilement se fait sur la barre en bas. */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ maxHeight: embedded ? undefined : 'calc(90vh - 100px)' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex flex-1 min-h-0">
             {/* Zone d'édition scrollable — le clavier est une COLONNE FIXE à
                 droite : la grille garde l'origine à 0, alignée avec les lanes
