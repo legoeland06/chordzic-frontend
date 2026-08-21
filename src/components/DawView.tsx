@@ -21,6 +21,7 @@ import LoopControl from './LoopControl';
 import PianoRoll from './PianoRoll';
 import PianoLivePanel from './PianoLivePanel';
 import { sendPianoNote } from '../lib/pianoNote';
+import { fetchDrumMap } from '../lib/drumNames';
 import LiveSettingsBar from './LiveSettingsBar';
 import PlayheadLine from './PlayheadLine';
 import TransportReadout from './TransportReadout';
@@ -538,6 +539,23 @@ export default function DawView({
   const [panelTab, setPanelTab] = useState<'piano' | 'mixer'>('piano');
   /** Modal 🎛️ Instruments du rendu (SFZ/VST3 par piste). */
   const [showInstruments, setShowInstruments] = useState(false);
+  /** Noms des percussions du kit SFZ assigné au canal drums (null → GM). */
+  const [drumMap, setDrumMap] = useState<Record<number, string> | null>(null);
+
+  // Kit drums : quand un instrument SFZ est assigné au canal 9, on demande
+  // au serveur le mapping pitch → nom (marge du Piano Roll). Sinon table GM.
+  useEffect(() => {
+    let cancelled = false;
+    const drumKit = renderInstruments[9];
+    if (drumKit?.engine === 'sfz') {
+      fetchDrumMap(drumKit.path).then(map => {
+        if (!cancelled) setDrumMap(map);
+      });
+    } else {
+      setDrumMap(null);
+    }
+    return () => { cancelled = true; };
+  }, [renderInstruments]);
   /** Index de la piste en cours de drag (réordonnancement des lanes). */
   const [dragTrackIdx, setDragTrackIdx] = useState<number | null>(null);
   /** Signature du dernier rendu : si le contenu change → re-rendu au Play. */
@@ -1692,6 +1710,7 @@ const REC_COUNTDOWN_BEATS = 4;
                           trackLabel={t.label}
                           channel={t.channel}
                           isDrum={t.channel === 9 || !!t.drums}
+                          drumNames={drumMap}
                           pixelsPerBeat={laneEffectivePpb}
                           totalBeats={totalBeats}
                           height={LANE_PIANOROLL_H}
@@ -1844,6 +1863,7 @@ const REC_COUNTDOWN_BEATS = 4;
                   trackLabel={label}
                   channel={modalPianoRoll}
                   isDrum={track?.channel === 9 || !!track?.drums}
+                  drumNames={drumMap}
                   totalBeats={totalBeats}
                   tempo={tempo}
                   engine={engine}

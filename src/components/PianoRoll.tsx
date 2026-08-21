@@ -22,6 +22,7 @@ import React, { memo, useRef, useEffect, useLayoutEffect, useState, useCallback 
 import { createPortal } from 'react-dom';
 import PlayheadLine from './PlayheadLine';
 import { pianoRollShortcut } from '../lib/pianoRollShortcuts';
+import { drumName } from '../lib/drumNames';
 import {
   Pencil, MousePointer2, Copy, Scissors, ClipboardPaste, Trash2,
   Undo2, Redo2, Play, Pause, Magnet, Grid3x3, Group, Ungroup, Cable, Maximize2, Piano, Scan,
@@ -86,6 +87,8 @@ interface PianoRollProps {
   channel: number;
   /** Piste percussion (kit drums) : registre GM percussion affiché. */
   isDrum?: boolean;
+  /** Noms des percussions par pitch (kit SFZ assigné, sinon null → table GM). */
+  drumNames?: Record<number, string> | null;
   /** Couleur de thème (optionnel, déduite du canal si omis). */
   accentColor?: string;
   /** Pitch minimum affiché (défaut : plage selon le canal, voir CHANNEL_RANGES). */
@@ -147,6 +150,7 @@ function PianoRoll({
   trackLabel,
   channel,
   isDrum = false,
+  drumNames = null,
   accentColor,
   minPitch,
   maxPitch,
@@ -574,6 +578,23 @@ function PianoRoll({
     const w = rect.width;
     ctx.fillStyle = '#1a1b26';
     ctx.fillRect(0, 0, w, rect.height);
+    if (isDrum) {
+      // Piste percussion : la marge affiche les NOMS des percussions (kit
+      // SFZ assigné s'il est connu, sinon table GM) au lieu des notes.
+      for (let pitch = userMaxPitch; pitch >= userMinPitch; pitch--) {
+        const y = (userMaxPitch - pitch) * WHITE_KEY_HEIGHT;
+        ctx.fillStyle = '#3a3a4e';
+        ctx.fillRect(0, y, w - 1, WHITE_KEY_HEIGHT);
+        ctx.strokeStyle = '#4a4a5e';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(0, y, w - 1, WHITE_KEY_HEIGHT);
+        const name = drumName(pitch, drumNames ?? null);
+        ctx.fillStyle = name === String(pitch) ? '#6a6a8a' : '#d8d8ec';
+        ctx.font = '9px system-ui, sans-serif';
+        ctx.fillText(name, 4, y + WHITE_KEY_HEIGHT - 4);
+      }
+      return;
+    }
     for (let pitch = userMaxPitch; pitch >= userMinPitch; pitch--) {
       const y = (userMaxPitch - pitch) * WHITE_KEY_HEIGHT;
       const isBlack = isBlackKey(pitch);
@@ -590,7 +611,7 @@ function PianoRoll({
         ctx.fillText(label, 4, y + WHITE_KEY_HEIGHT - 3);
       }
     }
-  }, [userMinPitch, userMaxPitch, canvasHeight, height, keysVisible]);
+  }, [userMinPitch, userMaxPitch, canvasHeight, height, keysVisible, isDrum, drumNames]);
 
   // ── Redimensionnement du canvas ──
   useEffect(() => {
