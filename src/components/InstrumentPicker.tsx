@@ -32,6 +32,9 @@ interface Props {
   /** Change le moteur live : (source, {preset|program}). */
   onLiveChange: (source: LiveSource, preset?: string | null, program?: number | null) => void;
   onClose: () => void;
+  /** Mode Live : masque l'assignation par piste (rendu WAV) et l'onglet
+   * SFZ — seul le choix du son du moteur live reste utile au pianiste. */
+  liveOnly?: boolean;
 }
 
 interface CatalogItem {
@@ -58,7 +61,7 @@ const SOURCE_META: Record<LiveSource, { icon: string; label: string; hint: strin
 };
 
 export default function InstrumentPicker({
-  channels, value, onChange, live, onLiveChange, onClose,
+  channels, value, onChange, live, onLiveChange, onClose, liveOnly = false,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,7 +253,9 @@ export default function InstrumentPicker({
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'best', label: '⭐ Best-of', count: bestSurge.length },
     { id: 'surge', label: '🎸 Surge', count: surgePresets.length },
-    { id: 'sfz', label: '🎻 SFZ', count: sfzItems.length },
+    ...(liveOnly
+      ? []
+      : [{ id: 'sfz' as Tab, label: '🎻 SFZ', count: sfzItems.length }]),
     { id: 'sf2', label: '🗂 SF2/SF3', count: soundfonts.length },
   ];
 
@@ -408,13 +413,13 @@ export default function InstrumentPicker({
                   <div
                     key={key}
                     data-idx={idx}
-                    draggable
+                    draggable={!liveOnly}
                     onDragStart={e => startDrag(e, item)}
                     onClick={() => { setSelIndex(idx); applyItemLive(item); }}
                     className={`flex items-center justify-between gap-2 px-2.5 py-1.5 cursor-pointer transition-colors ${
                       isSel ? 'bg-cyan-600/15' : isLive ? 'bg-emerald-600/10' : 'hover:bg-gray-800/60'
                     }`}
-                    title={item.kind === 'surge' ? 'Clic : entendre ce son · Glisser : assigner à une piste' : 'Glisser : assigner à une piste (rendu WAV)'}
+                    title={item.kind === 'surge' ? 'Clic : entendre ce son · Glisser : assigner à une piste' : liveOnly ? 'Clic : entendre ce son' : 'Glisser : assigner à une piste (rendu WAV)'}
                   >
                     <span className="text-xs text-gray-200 truncate">
                       {item.kind === 'surge' && item.preset.best ? '⭐ ' : ''}{label}
@@ -428,12 +433,15 @@ export default function InstrumentPicker({
             )}
           </div>
           <p className="text-[10px] text-gray-500 mt-1">
-            Glisse un instrument sur une piste ci-dessous pour l'assigner au rendu WAV.
+            {liveOnly
+              ? 'Clic : le son s\'applique immédiatement à ce que tu joues'
+              : 'Glisse un instrument sur une piste ci-dessous pour l\'assigner au rendu WAV.'}
           </p>
         </div>
 
-        {/* ── 📦 Assignation par piste (rendu WAV) ── */}
-        <div className="rounded-xl bg-gray-800/40 border border-gray-700 p-3">
+        {/* ── 📦 Assignation par piste (rendu WAV) — masquée en mode Live ── */}
+        {!liveOnly && (
+          <div className="rounded-xl bg-gray-800/40 border border-gray-700 p-3">
           <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
             📦 Par piste — utilisé au rendu WAV (▶ Play)
           </p>
@@ -511,15 +519,18 @@ export default function InstrumentPicker({
             ))}
           </div>
         </div>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={() => onChange({})}
-            className="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors text-sm"
-            title="Revenir au rendu FluidSynth (GM) pour toutes les pistes"
-          >
-            ↺ Tout GM
-          </button>
+          {!liveOnly && (
+            <button
+              onClick={() => onChange({})}
+              className="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition-colors text-sm"
+              title="Revenir au rendu FluidSynth (GM) pour toutes les pistes"
+            >
+              ↺ Tout GM
+            </button>
+          )}
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors text-sm font-semibold"

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  filterPresets, GM_PROGRAMS, groupPresets, loadSavedLiveInstrument,
-  nextSource, saveLiveInstrument, SOURCES, stepInList, SurgePreset,
+  filterPresets, GM_PROGRAMS, groupPresets, liveInstrumentLabel,
+  loadSavedLiveInstrument, nextSource, saveLiveInstrument, SOURCES,
+  stepInList, SurgePreset,
 } from './liveInstrument';
 
 describe('liveInstrument', () => {
@@ -106,6 +107,48 @@ describe('liveInstrument', () => {
       expect(loadSavedLiveInstrument().source).toBe('thru');
       localStorage.setItem('chordzic_live_instrument', '{"source":"alien"}');
       expect(loadSavedLiveInstrument().source).toBe('thru');
+    });
+  });
+
+  describe('liveInstrumentLabel', () => {
+    it('thru → Roland GM', () => {
+      expect(liveInstrumentLabel({
+        source: 'thru',
+        vst3: { enabled: false, preset: null, error: null },
+        fluid: { program: null, soundfont: null },
+      })).toBe('🔌 Roland GM');
+    });
+
+    it('vst3 → nom du preset Surge', () => {
+      expect(liveInstrumentLabel({
+        source: 'vst3',
+        vst3: { enabled: true, preset: { name: 'DX EP', path: '/k/DX EP.fxp' }, error: null },
+        fluid: { program: null, soundfont: null },
+      })).toBe('🎸 Surge — DX EP');
+    });
+
+    it('vst3 sans preset → preset par défaut', () => {
+      expect(liveInstrumentLabel({
+        source: 'vst3',
+        vst3: { enabled: true, preset: null, error: null },
+        fluid: { program: null, soundfont: null },
+      })).toBe('🎸 Surge — preset par défaut');
+    });
+
+    it('fluid → nom GM du programme (0 = Acoustic Grand Piano)', () => {
+      expect(liveInstrumentLabel({
+        source: 'fluid',
+        vst3: { enabled: false, preset: null, error: null },
+        fluid: { program: 0, soundfont: null },
+      })).toBe('🎹 FluidSynth — Acoustic Grand Piano');
+    });
+
+    it('fluid sans programme → GM 0', () => {
+      expect(liveInstrumentLabel({
+        source: 'fluid',
+        vst3: { enabled: false, preset: null, error: null },
+        fluid: { program: null, soundfont: null },
+      })).toBe('🎹 FluidSynth — Acoustic Grand Piano');
     });
   });
 });

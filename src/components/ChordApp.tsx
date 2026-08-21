@@ -44,6 +44,7 @@ import {
   LiveInstrumentState,
   LiveSource,
 } from '../lib/liveInstrument';
+import InstrumentPicker from './InstrumentPicker';
 
 const API_BASE = backendUrl();
 
@@ -91,6 +92,8 @@ export default function ChordApp() {
   /** Panneau LivePiano rétractable en mode Live (comme le panneau Navig) —
    * le contenu reste monté : la reco d'accords continue même replié. */
   const [livePanelOpen, setLivePanelOpen] = useState(true);
+  /** Mode Live : sélecteur d'instruments (moteur live) ouvert ? */
+  const [livePickerOpen, setLivePickerOpen] = useState(false);
   /** Vrai dès qu'un WAV a été rendu en mode Navig (bouton Extract actif). */
   const [hasWav, setHasWav] = useState(false);
   /** Session audio du mode PostProd (bounce multitrack) — null tant qu'aucun bounce. */
@@ -1459,6 +1462,8 @@ export default function ChordApp() {
                 onInsert={handleLiveInsert}
                 onGoNavig={() => setNavigMode(true)}
                 onPlayNote={livePlayNote}
+                live={live}
+                onOpenInstruments={() => setLivePickerOpen(true)}
               />
             </CollapsiblePanel>
 
@@ -1648,6 +1653,20 @@ export default function ChordApp() {
           const Modal = getMpeModule(activeMpe).modal;
           return <Modal onClose={() => setActiveMpe(null)} />;
         })()}
+
+        {/* Modal 🎛️ Instruments (mode Live) : le pianiste change le son du
+            moteur live — il l'entend immédiatement en jouant sur le Roland. */}
+        {livePickerOpen && (
+          <InstrumentPicker
+            liveOnly
+            channels={[]}
+            value={renderInstruments}
+            onChange={handleRenderInstrumentsChange}
+            live={live}
+            onLiveChange={handleLiveChange}
+            onClose={() => setLivePickerOpen(false)}
+          />
+        )}
 
         <div className="text-center mt-4 text-[10px] text-gray-700">
           chordJAVA v2 by Legoeland · Render WAV · {AudioEngine.INSTRUMENTS.length} instruments · {use432 ? 'A=432Hz' : 'A=440Hz'}

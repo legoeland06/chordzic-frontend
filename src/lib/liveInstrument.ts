@@ -209,3 +209,17 @@ export function formatSize(bytes: number): string {
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
   return `${bytes} o`;
 }
+
+/**
+ * Libellé lisible du son actuel du moteur live (affiché sur le LivePiano
+ * en mode Live) : la source + l'instrument choisi.
+ */
+export function liveInstrumentLabel(state: LiveInstrumentState): string {
+  if (state.source === 'thru') return '🔌 Roland GM';
+  if (state.source === 'vst3') {
+    const p = state.vst3.preset;
+    return `🎸 Surge — ${p ? p.name : 'preset par défaut'}`;
+  }
+  const prog = state.fluid.program ?? 0;
+  return `🎹 FluidSynth — ${GM_PROGRAMS[prog] ?? 'GM'}`;
+}

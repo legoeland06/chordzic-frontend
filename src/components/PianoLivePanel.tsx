@@ -27,6 +27,8 @@ import type { PianoNote } from '../lib/pianoRollTypes';
 import { getPlayheadPosition } from '../lib/playhead';
 import LivePiano from './LivePiano';
 import { backendUrl } from '../lib/chordUtils';
+import { liveInstrumentLabel } from '../lib/liveInstrument';
+import type { LiveInstrumentState } from '../lib/liveInstrument';
 
 const API_BASE = backendUrl();
 const POLL_MS = 150;
@@ -49,6 +51,11 @@ interface PianoLivePanelProps {
   onToggleIllumination?: () => void;
   /** Live : bascule vers le mode Navig (bouton charnière, en haut du cadre). */
   onGoNavig?: () => void;
+  /** Live : état du moteur live (son actuel du Roland) — affiché en badge
+   * cliquable 🎛️ sur le panneau du LivePiano. */
+  live?: LiveInstrumentState | null;
+  /** Live : ouvre le sélecteur d'instruments (moteur live). */
+  onOpenInstruments?: () => void;
   /** Navig : retour vers le mode Live (même emplacement, symétrique). */
   onGoLive?: () => void;
   /** Touche cliquée : `(pitch, true)` appui / `(pitch, false)` relâchement
@@ -101,6 +108,8 @@ function PianoLivePanel({
   onGoNavig,
   onGoLive,
   onPlayNote,
+  live = null,
+  onOpenInstruments,
 }: PianoLivePanelProps) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
@@ -258,6 +267,19 @@ function PianoLivePanel({
               : 'Illumination de la piste jouée : désactivée (activer)'}
           >
             ✨ Piste {illuminationEnabled ? 'ON' : 'OFF'}
+          </button>
+        )}
+
+        {/* Mode Live : son actuel du Roland (badge cliquable 🎛️) — le
+            pianiste change de son directement, il l'entend en jouant */}
+        {mode === 'live' && live && onOpenInstruments && (
+          <button
+            onClick={onOpenInstruments}
+            className="shrink-0 max-w-[200px] px-2 py-1 text-[10px] font-bold rounded-md border transition-colors bg-cyan-900/40 border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/40 flex items-center gap-1"
+            title="Son actuel du Roland (moteur live) — cliquer pour changer"
+          >
+            🎛️
+            <span className="truncate">{liveInstrumentLabel(live)}</span>
           </button>
         )}
 
