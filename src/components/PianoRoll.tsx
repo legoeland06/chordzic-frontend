@@ -342,6 +342,35 @@ function PianoRoll({
     if (fit.maxPitch !== userMaxPitch) setUserMaxPitch(fit.maxPitch);
   }, [notes, userMinPitch, userMaxPitch]);
 
+  // ── FIT-TO-HEIGHT (modal plein écran) : le registre s'étend pour REMPLIR
+  // la hauteur mesurée de la zone d'édition — sinon le contenu (±4 demi-tons)
+  // laisse un grand vide en bas, dans le canvas ET dans la marge clavier à
+  // droite (qui affiche les touches du registre). Une seule fois au premier
+  // affichage ; l'utilisateur garde la main ensuite (sliders Reg., molette).
+  const heightFitDoneRef = useRef(false);
+  useEffect(() => {
+    if (embedded || heightFitDoneRef.current || rangeTouchedRef.current) return;
+    if (viewportH <= 0) return;
+    heightFitDoneRef.current = true;
+    const needed = Math.ceil(viewportH / WHITE_KEY_HEIGHT); // demi-tons pour remplir
+    const span = userMaxPitch - userMinPitch;
+    if (span >= needed) return;
+    const add = needed - span;
+    const down = Math.floor(add / 2);
+    const up = add - down;
+    let mn = Math.max(0, userMinPitch - down);
+    let mx = Math.min(127, userMaxPitch + up);
+    // Si une borne MIDI (0/127) est atteinte, compenser de l'autre côté
+    const realAdd = (userMinPitch - mn) + (mx - userMaxPitch);
+    if (realAdd < add) {
+      const missing = add - realAdd;
+      if (mn === 0) mx = Math.min(127, mx + missing);
+      if (mx === 127) mn = Math.max(0, mn - missing);
+    }
+    if (mn !== userMinPitch) setUserMinPitch(mn);
+    if (mx !== userMaxPitch) setUserMaxPitch(mx);
+  }, [embedded, viewportH, userMinPitch, userMaxPitch]);
+
   // Recalculer la hauteur totale en fonction des touches visibles
   const totalPitchRange = userMaxPitch - userMinPitch;
   const totalHeight = totalPitchRange * WHITE_KEY_HEIGHT;
