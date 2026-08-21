@@ -99,6 +99,10 @@ chargement.
 
 ## Piano Roll (intégré + modal plein écran)
 
+- **Sélecteur de piste** dans le modal ⛶ : liste déroulante en haut pour
+  sauter d'une piste à l'autre **sans fermer** — la position (tête de
+  lecture, scroll horizontal, zoom, registre) est **conservée**, seules les
+  notes changent
 - **Barre d'outils « studio » unique** (intégré et modal ⛶, parfaitement synchronisés) :
   édition/sélection, copier/couper/coller (presse-papiers global + badge), grouper ⛓,
   vélocité/durée (slider Dur 2× plus long pour la visée), snap 🧲 + quantiser, transport local ▶, undo/redo
@@ -322,7 +326,7 @@ via WASAPI/CoreAudio, rendu WAV via l'exécutable FluidSynth + SoundFont).
 
 **Eric BRUNEAU** — vibe coding Deepseek (legoeland)
 
-*369 tests unitaires (Vitest) — tsc strict à 0 erreur*
+*374 tests unitaires (Vitest) — tsc strict à 0 erreur*
 
 ---
 

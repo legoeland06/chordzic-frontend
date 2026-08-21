@@ -122,6 +122,12 @@ interface PianoRollProps {
    * meilleures échelles. Les deux partagent les mêmes notes (cohérence
    * instantanée). */
   onExpand?: () => void;
+  /** Modal : pistes proposées dans le sélecteur de saut (liste déroulante).
+   * Changer de piste conserve la position (scroll, zoom, tête de lecture) —
+   * le state interne du composant n'est pas réinitialisé. */
+  trackOptions?: { channel: number; label: string }[];
+  /** Modal : saut vers une autre piste (canal choisi dans le sélecteur). */
+  onSelectTrack?: (channel: number) => void;
   /** Clavier de piano vertical (marge) visible ? + bascule (rétractable). */
   keysVisible?: boolean;
   onToggleKeys?: () => void;
@@ -162,6 +168,8 @@ function PianoRoll({
   onPlayMidi,
   onPreviewNote,
   onExpand,
+  trackOptions,
+  onSelectTrack,
   keysVisible = true,
   onToggleKeys,
   recState = 'off',
@@ -1865,6 +1873,20 @@ function PianoRoll({
             >
               Canal {channel} · {notes.length} notes
             </span>
+            {/* Modal : saut direct vers une autre piste — la position (scroll,
+                zoom, tête de lecture) est conservée (state interne intact). */}
+            {trackOptions && trackOptions.length > 1 && onSelectTrack && (
+              <select
+                value={channel}
+                onChange={e => onSelectTrack(Number(e.target.value))}
+                className="shrink-0 rounded-md bg-gray-800 border border-gray-700 text-gray-200 text-[11px] px-1.5 py-1 focus:outline-none focus:border-cyan-500"
+                title="Sauter vers une autre piste (même position de lecture / scroll / zoom)"
+              >
+                {trackOptions.map(t => (
+                  <option key={t.channel} value={t.channel}>{t.label ?? `Piste ${t.channel}`}</option>
+                ))}
+              </select>
+            )}
             {groupCount > 0 && (
               <span
                 className="px-2 py-0.5 rounded text-[10px] font-mono shrink-0"

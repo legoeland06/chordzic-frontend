@@ -1889,6 +1889,8 @@ const REC_COUNTDOWN_BEATS = 4;
                   onClose={() => setModalPianoRoll(null)}
                   onPreviewNote={(pitch) => engine.playPreviewNote(modalPianoRoll, pitch)}
                   onPlayMidi={(notes) => playMidiViaPort(notes, modalPianoRoll)}
+                  trackOptions={tracks.map(t => ({ channel: t.channel, label: t.label ?? `Piste ${t.channel}` }))}
+                  onSelectTrack={ch => setModalPianoRoll(ch)}
                   keysVisible={keysVisible}
                   onToggleKeys={toggleKeys}
                   recState={recState}
