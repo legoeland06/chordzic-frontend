@@ -35,6 +35,12 @@ interface Props {
   /** Mode Live : masque l'assignation par piste (rendu WAV) et l'onglet
    * SFZ — seul le choix du son du moteur live reste utile au pianiste. */
   liveOnly?: boolean;
+  /** Changement du moteur live en cours (désactive les boutons, le badge
+   * du LivePiano affiche « ⏳ ») — géré par le parent (source de vérité). */
+  liveBusy?: boolean;
+  /** Dernière erreur du moteur live (affichée dans le modal + sur le
+   * badge du LivePiano). */
+  liveError?: string | null;
 }
 
 interface CatalogItem {
@@ -62,6 +68,7 @@ const SOURCE_META: Record<LiveSource, { icon: string; label: string; hint: strin
 
 export default function InstrumentPicker({
   channels, value, onChange, live, onLiveChange, onClose, liveOnly = false,
+  liveBusy = false, liveError = null,
 }: Props) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,8 +78,6 @@ export default function InstrumentPicker({
   const [sfLoading, setSfLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('best');
   const [query, setQuery] = useState('');
-  const [liveBusy, setLiveBusy] = useState(false);
-  const [liveError, setLiveError] = useState<string | null>(null);
   /** Piste survolée par un drag (highlight). */
   const [dragOverCh, setDragOverCh] = useState<number | null>(null);
   /** Index de l'élément sélectionné dans la liste plate (clavier ↑/↓). */
@@ -142,15 +147,9 @@ export default function InstrumentPicker({
 
   // ── Application au live ──
   const applyLive = useCallback(async (source: LiveSource, preset?: string | null, program?: number | null) => {
-    setLiveBusy(true);
-    setLiveError(null);
-    try {
-      await onLiveChange(source, preset, program);
-    } catch (e) {
-      setLiveError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLiveBusy(false);
-    }
+    // L'état busy/erreur est géré par le parent (handleLiveChange) : c'est la
+    // source de vérité partagée avec le badge du LivePiano.
+    await onLiveChange(source, preset, program);
   }, [onLiveChange]);
 
   /** Applique un item au live (seuls les presets Surge sont live-compatibles). */

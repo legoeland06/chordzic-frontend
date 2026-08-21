@@ -140,19 +140,35 @@ export default function ChordApp() {
     vst3: { enabled: false, preset: null, error: null },
     fluid: { program: null, soundfont: null },
   });
+  /** Changement du moteur live en cours (badge LivePiano : ⏳). */
+  const [liveBusy, setLiveBusy] = useState(false);
+  /** Dernière erreur du moteur live (badge LivePiano : ⚠️ + message). */
+  const [liveError, setLiveError] = useState<string | null>(null);
 
   const handleLiveChange = useCallback(async (
     source: LiveSource,
     preset?: string | null,
     program?: number | null,
   ) => {
-    const state = await setLiveInstrumentApi(source, { preset, program });
-    setLive(state);
-    saveLiveInstrument({
-      source: state.source,
-      preset: state.vst3.preset?.path ?? null,
-      program: state.fluid.program,
-    });
+    // ⚠️ Le chargement du moteur (ex: preset Surge .fxp) peut prendre
+    // quelques secondes : l'état busy est exposé partout (badge, picker) et
+    // les erreurs (FluidSynth indisponible, preset introuvable…) sont
+    // affichées sans faire planter le flux.
+    setLiveBusy(true);
+    setLiveError(null);
+    try {
+      const state = await setLiveInstrumentApi(source, { preset, program });
+      setLive(state);
+      saveLiveInstrument({
+        source: state.source,
+        preset: state.vst3.preset?.path ?? null,
+        program: state.fluid.program,
+      });
+    } catch (e) {
+      setLiveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLiveBusy(false);
+    }
   }, []);
 
   // Synchronisation au chargement : l'état serveur fait foi ; si la
@@ -1439,6 +1455,8 @@ export default function ChordApp() {
             onRenderInstrumentsChange={handleRenderInstrumentsChange}
             live={live}
             onLiveChange={handleLiveChange}
+            liveBusy={liveBusy}
+            liveError={liveError}
             bouncing={bouncing}
             onSelectMpe={setActiveMpe}
             mpeActive={activeMpe !== null}
@@ -1464,6 +1482,8 @@ export default function ChordApp() {
                 onPlayNote={livePlayNote}
                 live={live}
                 onOpenInstruments={() => setLivePickerOpen(true)}
+                liveBusy={liveBusy}
+                liveError={liveError}
               />
             </CollapsiblePanel>
 
@@ -1665,6 +1685,8 @@ export default function ChordApp() {
             live={live}
             onLiveChange={handleLiveChange}
             onClose={() => setLivePickerOpen(false)}
+            liveBusy={liveBusy}
+            liveError={liveError}
           />
         )}
 

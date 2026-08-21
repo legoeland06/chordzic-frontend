@@ -52,10 +52,16 @@ interface PianoLivePanelProps {
   /** Live : bascule vers le mode Navig (bouton charnière, en haut du cadre). */
   onGoNavig?: () => void;
   /** Live : état du moteur live (son actuel du Roland) — affiché en badge
-   * cliquable 🎛️ sur le panneau du LivePiano. */
+   * cliquable 🎛️ sur le panneau du LivePiano (les deux modes). */
   live?: LiveInstrumentState | null;
-  /** Live : ouvre le sélecteur d'instruments (moteur live). */
+  /** Ouvre le sélecteur d'instruments (moteur live). */
   onOpenInstruments?: () => void;
+  /** Changement du moteur live en cours → badge « ⏳ » (délai de chargement
+   * du preset, ex: Surge .fxp). */
+  liveBusy?: boolean;
+  /** Dernière erreur du moteur live → badge « ⚠️ » (FluidSynth indisponible,
+   * preset introuvable…). */
+  liveError?: string | null;
   /** Navig : retour vers le mode Live (même emplacement, symétrique). */
   onGoLive?: () => void;
   /** Touche cliquée : `(pitch, true)` appui / `(pitch, false)` relâchement
@@ -110,6 +116,8 @@ function PianoLivePanel({
   onPlayNote,
   live = null,
   onOpenInstruments,
+  liveBusy = false,
+  liveError = null,
 }: PianoLivePanelProps) {
   const [device, setDevice] = useState<string | null>(null);
   const [detected, setDetected] = useState<RecognizedChord | null>(null);
@@ -270,16 +278,31 @@ function PianoLivePanel({
           </button>
         )}
 
-        {/* Mode Live : son actuel du Roland (badge cliquable 🎛️) — le
-            pianiste change de son directement, il l'entend en jouant */}
-        {mode === 'live' && live && onOpenInstruments && (
+        {/* 🎛️ Son du Roland — badge cliquable (les deux modes) : le pianiste
+            change de son directement, il l'entend en jouant. Pendant le
+            chargement du moteur (busy) : ⏳ ; en cas d'erreur : ⚠️ message. */}
+        {live && onOpenInstruments && (
           <button
             onClick={onOpenInstruments}
-            className="shrink-0 max-w-[200px] px-2 py-1 text-[10px] font-bold rounded-md border transition-colors bg-cyan-900/40 border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/40 flex items-center gap-1"
-            title="Son actuel du Roland (moteur live) — cliquer pour changer"
+            className={`shrink-0 max-w-[220px] px-2 py-1 text-[10px] font-bold rounded-md border transition-colors flex items-center gap-1 ${
+              liveBusy
+                ? 'bg-amber-900/40 border-amber-700/50 text-amber-300 animate-pulse'
+                : liveError
+                  ? 'bg-red-900/40 border-red-700/50 text-red-300'
+                  : 'bg-cyan-900/40 border-cyan-700/50 text-cyan-300 hover:bg-cyan-800/40'
+            }`}
+            title={
+              liveBusy
+                ? 'Changement de son en cours… (chargement du moteur)'
+                : liveError
+                  ? `⚠️ ${liveError} — cliquer pour réessayer`
+                  : 'Son actuel du Roland (moteur live) — cliquer pour changer'
+            }
           >
             🎛️
-            <span className="truncate">{liveInstrumentLabel(live)}</span>
+            <span className="truncate">
+              {liveBusy ? '⏳ chargement…' : liveError ? `⚠️ ${liveError}` : liveInstrumentLabel(live)}
+            </span>
           </button>
         )}
 

@@ -25,10 +25,14 @@ notes dans la piste cible, illumine au contenu de la piste jouée et fait sonner
 le Roland avec l'instrument de la piste (program change + sustain). Le piano
 s'adapte toujours à la largeur de l'écran.
 
-En **mode Live**, un **badge 🎛️ cliquable** sur le panneau affiche le son
-actuellement choisi pour le Roland (ex : « 🔌 Roland GM », « 🎸 Surge — DX EP »,
-« 🎹 FluidSynth — Electric Piano 1 ») : un clic ouvre le sélecteur d'instruments
-(moteur live 3 sources) et le nouveau son s'entend **immédiatement** en jouant.
+En **mode Live** comme en **Navig**, un **badge 🎛️ cliquable** sur le panneau
+affiche le son actuellement choisi pour le Roland (ex : « 🔌 Roland GM »,
+« 🎸 Surge — DX EP », « 🎹 FluidSynth — Electric Piano 1 ») : un clic ouvre le
+sélecteur d'instruments (moteur live 3 sources) et le nouveau son s'entend
+**immédiatement** en jouant. Pendant le chargement d'un preset (1-3 s) le badge
+passe en « ⏳ chargement… » ; en cas de problème (FluidSynth non branché,
+preset introuvable…) il affiche « ⚠️ » + le message, et un clic rouvre le
+sélecteur pour réessayer.
 
 ![LivePiano — Do majeur illuminé, fondamentales à l'octave en basse](screenshots/livepiano.png)
 *LivePiano : accord de Do majeur illuminé (C4·E4·G4), fondamentales C2·C3 à l'octave en basse*
@@ -40,9 +44,10 @@ actuellement choisi pour le Roland (ex : « 🔌 Roland GM », « 🎸 Surge —
   touches s'illument en bleu quand vous jouez — reconnaissance d'accords en temps réel
   (accord affiché en très gros + notes en clair), insertion dans la grille (clic, « + Grille »,
   ou **⏱ timer d'auto-insertion** 1-5 s)
-- **🎛️ Son du Roland en direct** : badge cliquable sur le panneau (son actuel affiché) →
+- **🎛️ Son du Roland en direct (Live et Navig)** : badge cliquable sur le panneau (son actuel affiché) →
   sélecteur d'instruments (moteur live : Roland GM / Surge XT / FluidSynth) — le pianiste
-  change de son sans quitter le mode Live et l'entend dès qu'il joue
+  change de son sans quitter le mode Live et l'entend dès qu'il joue ; ⏳ pendant le
+  chargement, ⚠️ + message en cas d'erreur
 - **🎯 Accord en lecture** : modal circulaire translucide montrant l'accord joué par la séquence
 - Réglages musicaux (LiveSettingsBar) : volume master, 432 Hz, Loop, Walking Bass, Pattern,
   Mesure, Tempo

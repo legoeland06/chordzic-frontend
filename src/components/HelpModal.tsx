@@ -287,13 +287,17 @@ export default function HelpModal({ show, onClose }: HelpModalProps) {
               note sort sur le <b className="text-white">canal de la piste cible</b> (elle sonne avec l'instrument de
               la piste) ; en Live, sur le canal par défaut du Roland.
             </>} />
-            <Row k="🎛️ Son du Roland (mode Live)" v={<>
+            <Row k="🎛️ Son du Roland (Live et Navig)" v={<>
               Le panneau affiche un <b className="text-white">badge cliquable</b> avec le son actuellement choisi
               pour le Roland (ex : <b className="text-cyan-300">🔌 Roland GM</b>, <b className="text-emerald-300">🎸 Surge — DX EP</b>,
               <b className="text-sky-300">🎹 FluidSynth — Electric Piano 1</b>). Un clic ouvre le
               <b className="text-white"> sélecteur d'instruments</b> (moteur live 3 sources : Roland GM / Surge XT /
               FluidSynth) : le pianiste change de son <b className="text-white">sans quitter le mode Live</b> et
               l'entend <b className="text-white">immédiatement</b> quand il joue sur le Roland.
+              Pendant le chargement (changement de preset, ~1-3 s) le badge affiche
+              <b className="text-amber-300"> ⏳ chargement…</b> ; en cas de problème (FluidSynth non branché,
+              preset introuvable…) il passe en <b className="text-red-300">⚠️</b> avec le message — un clic
+              rouvre le sélecteur pour corriger ou réessayer.
             </>} />
             <Row k="Tactile" v="Écran tactile : l'appui prolongé = tenue (le menu contextuel du clic droit est désactivé), le double-tap ne zoome plus, pas de sélection de texte au glissé — gestes fluides sur tablette." />
             <Row k="Illustration" v={<>

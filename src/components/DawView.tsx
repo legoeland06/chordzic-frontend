@@ -150,6 +150,10 @@ interface DawViewProps {
     preset?: string | null,
     program?: number | null,
   ) => void;
+  /** Changement du moteur live en cours (badge LivePiano : ⏳). */
+  liveBusy?: boolean;
+  /** Dernière erreur du moteur live (badge LivePiano : ⚠️). */
+  liveError?: string | null;
   /** Vrai pendant le bounce (le bouton est désactivé). */
   bouncing: boolean;
 }
@@ -511,7 +515,7 @@ export default function DawView({
   onSelectMpe, mpeActive, onExportSection,
   onPostProd, bouncing,
   renderInstruments, onRenderInstrumentsChange,
-  live, onLiveChange,
+  live, onLiveChange, liveBusy = false, liveError = null,
 }: DawViewProps) {
   // ── Transport local (Play/Pause/Stop/Begin + tête de lecture) ──
   type PlayState = 'idle' | 'playing' | 'paused';
@@ -1497,6 +1501,10 @@ const REC_COUNTDOWN_BEATS = 4;
             onToggleIllumination={toggleIllum}
             onGoLive={onSetLive}
             onPlayNote={navigPlayNote}
+            live={live}
+            onOpenInstruments={() => setShowInstruments(true)}
+            liveBusy={liveBusy}
+            liveError={liveError}
           />
         )}
         {panelOpen && panelTab === 'mixer' && (
@@ -1907,6 +1915,8 @@ const REC_COUNTDOWN_BEATS = 4;
           live={live}
           onLiveChange={onLiveChange}
           onClose={() => setShowInstruments(false)}
+          liveBusy={liveBusy}
+          liveError={liveError}
         />
       )}
     </div>

@@ -95,15 +95,46 @@ describe('PianoLivePanel — son du Roland en mode Live', () => {
     expect(badge?.textContent).toContain('🎹 FluidSynth — Electric Piano 1');
   });
 
-  it('pas de badge sans état live (ou en mode navig)', async () => {
+  it('mode navig : le badge 🎛️ est aussi présent (même accès direct)', async () => {
+    const onOpen = vi.fn();
+    const c = mount({
+      mode: 'navig', onInsert: () => {}, live: THRU, onOpenInstruments: onOpen,
+      targetTrackLabel: null,
+    });
+    await settle();
+    const badge = c.querySelector('button[title*="Son actuel du Roland"]');
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toContain('🔌 Roland GM');
+    act(() => { (badge as HTMLButtonElement).click(); });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('badge ⏳ pendant le chargement du moteur (liveBusy)', async () => {
+    const c = mount({ mode: 'live', onInsert: () => {}, live: THRU, onOpenInstruments: () => {}, liveBusy: true });
+    await settle();
+    const badge = c.querySelector('button[title*="Changement de son en cours"]');
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toContain('⏳ chargement…');
+  });
+
+  it('badge ⚠️ en cas d\'erreur du moteur (liveError)', async () => {
+    const c = mount({
+      mode: 'live', onInsert: () => {}, live: THRU, onOpenInstruments: () => {},
+      liveError: 'FluidSynth indisponible — la cible PC n\'est pas branchée',
+    });
+    await settle();
+    const badge = c.querySelector('button[title*="réessayer"]');
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toContain('⚠️');
+    expect(badge?.textContent).toContain('FluidSynth indisponible');
+  });
+
+  it('pas de badge sans état live ni sans onOpenInstruments', async () => {
     const c1 = mount({ mode: 'live', onInsert: () => {}, live: null, onOpenInstruments: () => {} });
     await settle();
     expect(c1.querySelector('button[title*="Son actuel du Roland"]')).toBeNull();
 
-    const c2 = mount({
-      mode: 'navig', onInsert: () => {}, live: THRU, onOpenInstruments: () => {},
-      targetTrackLabel: null,
-    });
+    const c2 = mount({ mode: 'live', onInsert: () => {}, live: THRU });
     await settle();
     expect(c2.querySelector('button[title*="Son actuel du Roland"]')).toBeNull();
   });
