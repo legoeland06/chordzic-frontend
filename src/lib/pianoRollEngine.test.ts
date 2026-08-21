@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoFitRange, fitRangeToContent, selectionZoomParams } from './pianoRollEngine';
+import { autoFitRange, fitRangeToContent, fitRangeToHeight, selectionZoomParams } from './pianoRollEngine';
 
 describe('autoFitRange — registre auto-couvrant du PianoRoll', () => {
   const notes = (pitches: number[]) => pitches.map((pitch, i) => ({
@@ -79,6 +79,53 @@ describe('fitRangeToContent — fit vertical au contenu réel (ouverture piano r
   it('conserve l écart réel pour un contenu étendu (ex. basse + aigus)', () => {
     const r = fitRangeToContent(notes([30, 100]), 36, 96);
     expect(r).toEqual({ minPitch: 26, maxPitch: 104 });
+  });
+});
+
+describe('fitRangeToHeight — le registre remplit toute la hauteur (modal)', () => {
+  it('étend la plage pour couvrir la hauteur demandée (800 px, 16 px/demi-ton = 50 demi-tons)', () => {
+    // Contenu : 10 demi-tons (C4→C5) — doit passer à 50 demi-tons
+    const fit = fitRangeToHeight(60, 71, 800);
+    expect(fit).not.toBeNull();
+    expect(fit!.maxPitch - fit!.minPitch).toBe(50);
+  });
+
+  it('étend symétriquement autour du centre', () => {
+    const fit = fitRangeToHeight(60, 71, 800);
+    // add = 50 − 11 = 39 → 19 en bas, 20 en haut (quasi symétrique)
+    expect(fit!.minPitch).toBe(41);
+    expect(fit!.maxPitch).toBe(91);
+  });
+
+  it('ne change rien si la plage couvre déjà la hauteur', () => {
+    expect(fitRangeToHeight(40, 100, 800)).toBeNull(); // 60 ≥ 50 demi-tons
+  });
+
+  it('viewportH <= 0 → rien à faire', () => {
+    expect(fitRangeToHeight(60, 71, 0)).toBeNull();
+  });
+
+  it('borne MIDI basse (0) atteinte : compense vers le haut', () => {
+    // Contenu près de la borne 0 : plage 5 demi-tons, besoin de 50
+    const fit = fitRangeToHeight(0, 5, 800);
+    expect(fit).not.toBeNull();
+    expect(fit!.minPitch).toBe(0);
+    expect(fit!.maxPitch - fit!.minPitch).toBe(50);
+    expect(fit!.maxPitch).toBe(50);
+  });
+
+  it('borne MIDI haute (127) atteinte : compense vers le bas', () => {
+    const fit = fitRangeToHeight(122, 127, 800);
+    expect(fit).not.toBeNull();
+    expect(fit!.maxPitch).toBe(127);
+    expect(fit!.maxPitch - fit!.minPitch).toBe(50);
+    expect(fit!.minPitch).toBe(77);
+  });
+
+  it('écran très grand borné par MIDI 0-127 (128 demi-tons max)', () => {
+    const fit = fitRangeToHeight(60, 71, 4000); // besoin de 250 demi-tons
+    expect(fit!.minPitch).toBe(0);
+    expect(fit!.maxPitch).toBe(127);
   });
 });
 

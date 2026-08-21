@@ -113,7 +113,9 @@ chargement.
   qu'on entend ; le décompte et l'accompagnement sont sur la MÊME horloge serveur (aucun
   décalage) ; la lecture continue après l'arrêt du REC
 - **Snap par défaut : 1 temps (1/1)** (subdivisions 1/32 → 1/1, triolets et sextolets au choix)
-- **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture
+- **Fit vertical automatique** : le registre s'adapte au contenu de la piste à l'ouverture ;
+  en **modal ⛶ plein écran**, il s'étend en plus pour **remplir toute la hauteur de l'écran**
+  (fit-to-height, marge clavier à droite comprise) — 100 % de l'écran utilisé
 - **Molette** : scroll vertical du registre (1 demi-ton/cran « de case en case », le clavier en marge suit) ·
   Ctrl+molette / G-H = zoom · Shift+molette = horizontal · **⛶ Scan** = zoom sur la sélection
 - **Clavier en marge rétractable** (bouton 🎹 sur la marge, préférence mémorisée)
@@ -320,7 +322,7 @@ via WASAPI/CoreAudio, rendu WAV via l'exécutable FluidSynth + SoundFont).
 
 **Eric BRUNEAU** — vibe coding Deepseek (legoeland)
 
-*346 tests unitaires (Vitest) — tsc strict à 0 erreur*
+*369 tests unitaires (Vitest) — tsc strict à 0 erreur*
 
 ---
 

@@ -266,6 +266,41 @@ export function autoFitRange(
   return { minPitch: mn, maxPitch: mx };
 }
 
+/**
+ * FIT-TO-HEIGHT : étend symétriquement la plage de registre [minPitch,
+ * maxPitch] pour que sa hauteur (span × hauteur par demi-ton) couvre au
+ * moins `viewportH` pixels — le piano roll (canvas ET marge clavier)
+ * remplit toute la hauteur de l'écran au lieu de laisser un vide en bas.
+ * Bornes MIDI [0, 127] respectées ; si une borne est atteinte, la
+ * compensation se fait de l'autre côté. Retourne null si rien à changer.
+ * Fonction pure (testable sans DOM).
+ */
+export function fitRangeToHeight(
+  minPitch: number,
+  maxPitch: number,
+  viewportH: number,
+  pitchHeightPx = 16,
+): { minPitch: number; maxPitch: number } | null {
+  if (viewportH <= 0) return null;
+  const needed = Math.ceil(viewportH / pitchHeightPx); // demi-tons pour remplir
+  const span = maxPitch - minPitch;
+  if (span >= needed) return null;
+  const add = needed - span;
+  const down = Math.floor(add / 2);
+  const up = add - down;
+  let mn = Math.max(0, minPitch - down);
+  let mx = Math.min(127, maxPitch + up);
+  // Si une borne MIDI (0/127) est atteinte, compenser de l'autre côté
+  const realAdd = (minPitch - mn) + (mx - maxPitch);
+  if (realAdd < add) {
+    const missing = add - realAdd;
+    if (mn === 0) mx = Math.min(127, mx + missing);
+    if (mx === 127) mn = Math.max(0, mn - missing);
+  }
+  if (mn === minPitch && mx === maxPitch) return null;
+  return { minPitch: mn, maxPitch: mx };
+}
+
 export interface FitSelectionParams {
   zoom: number;
   scrollLeft: number;
